@@ -1,0 +1,79 @@
+server:
+  port: ${APP_PORT:8080}
+
+spring:
+  application:
+    name: "${APP_NAME:MicroservicioAws}"
+
+management:
+  health:
+    probes:
+      enabled: true
+  endpoint:
+    health:
+      show-details: ${SHOW_DETAILS:never}
+      enabled: true
+      cache:
+        time-to-live: "10s"
+  endpoints:
+    web:
+      base-path: "${PATH_BASE:/api/v1/microservicio-aws/}"
+      path-mapping:
+        health: "health"
+        liveness: "liveness"
+        readiness: "readiness"
+      exposure:
+        include: "health, liveness, readiness, metrics"
+
+springdoc:
+  version: "1.0.0"
+  api-docs:
+    path: "${PATH_BASE:/api/v1/microservicio-aws}/api-docs"
+  swagger-ui:
+    disable-swagger-default-url: true
+    path: "${PATH_BASE:/api/v1/microservicio-aws}/swagger.html"
+
+entries:
+  reactive-web:
+    path-base: "${PATH_BASE:/api/v1/microservicio-aws}"
+    get-all-rows: "/get-all-rows"
+
+logging:
+  level:
+    root: ${LOG4J_LEVEL:INFO}
+
+integration:
+  secrets:
+    rabbitmq: ${SECRET_NAME_RABBITMQ:local-rabbitmq}
+    redis: ${SECRET_NAME_REDIS:local-redis}
+  aws:
+    secrets-manager:
+      region: ${AWS_REGION:us-east-1}
+      endpoint: http://localhost:4566
+      cacheSeconds: ${AWS_CACHE_SECONDS:3600}
+      cacheSize: ${AWS_CACHE_SIZE:200}
+
+adapters:
+  dynamodb:
+    endpoint: "http://localhost:8010"
+    repositories:
+      tables:
+        namesmap:
+          records-table: local-records
+  rest-client:
+    timeout: ${REST_TIMEOUT_CONNECTION:5000}
+    readTimeout: ${REST_TIMEOUT_READ:5000}
+    writeTimeout: ${REST_TIMEOUT_WRITE:5000}
+    microservice-external:
+      url: ${URL-MOCK-SITE:http://localhost:8010}
+  s3:
+    endpoint: "${S3_ENDPOINT:http://localhost:4566}"
+    bucket: "${S3_BUCKET_NAME:exampleaws}"
+    region: "${REGION_AWS:us-east-1}"
+
+registration:
+  event:
+    consume:
+      fileValidated: "business.fileValidation.document.distributionMicroservice.fileValidated"
+    publish:
+      fileRejected: "business.fileValidation.document.distributionMicroservice.fileRejected"
