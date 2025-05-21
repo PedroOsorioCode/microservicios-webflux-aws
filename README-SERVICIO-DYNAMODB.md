@@ -5,9 +5,6 @@
 
 Haber leido [Primeros pasos ambiente local](README-AMBIENTE-LOCAL.md)
 
-## ¿Qué es dynamoDB?
-> Amazon **DynamoDB** es un servicio de base de datos **NoSQL** totalmente gestionado por AWS, diseñado para aplicaciones que requieren rendimiento rápido, alta disponibilidad y escalabilidad automática.
-
 ## ¿Qué es Amazon DynamoDB?
 
 Amazon **DynamoDB** es un servicio de base de datos **NoSQL** totalmente gestionado por AWS, diseñado para aplicaciones que requieren rendimiento rápido, alta disponibilidad y escalabilidad automática.
@@ -89,6 +86,22 @@ DynamoDB usa **índices** para permitir consultas eficientes sobre atributos dif
 - Sistemas IoT que generan grandes volúmenes de eventos
 - Aplicaciones que requieren datos distribuidos globalmente
 
+## Comandos AWC CLI complementarios
+
+| Operación               | Comando AWS CLI               |
+|------------------------|------------------------------|
+| Crear tabla            | `aws dynamodb create-table`   |
+| Listar tablas          | `aws dynamodb list-tables`    |
+| Describir tabla        | `aws dynamodb describe-table` |
+| Eliminar tabla         | `aws dynamodb delete-table`   |
+| Insertar ítem (Put)    | `aws dynamodb put-item`        |
+| Obtener ítem (Get)     | `aws dynamodb get-item`        |
+| Actualizar ítem        | `aws dynamodb update-item`     |
+| Eliminar ítem          | `aws dynamodb delete-item`     |
+| Escanear tabla         | `aws dynamodb scan`            |
+| Consultar tabla (Query)| `aws dynamodb query`           |
+| Actualizar tabla       | `aws dynamodb update-table`    |
+
 ## Comandos AWC CLI para crear tablas en DynamoDB
 En esta oportunidad vamos a crear una tabla para almacenar información sobre tiquetes de vuelo
 
@@ -107,22 +120,6 @@ aws --endpoint-url=http://localhost:4566 dynamodb create-table --table-name loca
 | `--billing-mode PAY_PER_REQUEST`                              | Modo de facturación: pago por solicitud (sin capacidad predefinida).                       |
 | `--global-secondary-indexes "IndexName=statusIndex,KeySchema=[{AttributeName=status,KeyType=HASH}],Projection={ProjectionType=ALL}"` | Índice secundario global `statusIndex` usando `status` como clave HASH, proyecta todos los atributos. |
 | `--region us-east-1`                                           | Región AWS usada para la tabla (necesaria aunque sea local).                               |
-
-## Comandos AWC CLI complementarios
-
-| Operación               | Comando AWS CLI               |
-|------------------------|------------------------------|
-| Crear tabla            | `aws dynamodb create-table`   |
-| Listar tablas          | `aws dynamodb list-tables`    |
-| Describir tabla        | `aws dynamodb describe-table` |
-| Eliminar tabla         | `aws dynamodb delete-table`   |
-| Insertar ítem (Put)    | `aws dynamodb put-item`        |
-| Obtener ítem (Get)     | `aws dynamodb get-item`        |
-| Actualizar ítem        | `aws dynamodb update-item`     |
-| Eliminar ítem          | `aws dynamodb delete-item`     |
-| Escanear tabla         | `aws dynamodb scan`            |
-| Consultar tabla (Query)| `aws dynamodb query`           |
-| Actualizar tabla       | `aws dynamodb update-table`    |
 
 - Describir la tabla
     ```
