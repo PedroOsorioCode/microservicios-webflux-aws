@@ -1,16 +1,29 @@
 apply plugin: 'org.springframework.boot'
 
 dependencies {
+	implementation 'org.reactivecommons.utils:object-mapper:0.1.0'
+	implementation project(':dynamo-db')
+	implementation project(':metrics')
 	implementation project(':reactive-web')
 	implementation project(':log')
 	implementation project(':commons')
     implementation project(':model')
     implementation project(':usecase')
+
     implementation "org.springframework.boot:spring-boot-starter-webflux:${springBootVersion}"
     implementation "org.springframework.boot:spring-boot-starter:${springBootVersion}"
+
     runtimeOnly('org.springframework.boot:spring-boot-devtools')
     testImplementation 'com.tngtech.archunit:archunit:1.4.0'
     testImplementation 'com.fasterxml.jackson.core:jackson-databind'
+}
+
+// Para evitar conflicto con Logback
+configurations {
+    all {
+        exclude group: 'org.apache.logging.log4j', module: 'log4j-to-slf4j'
+        exclude group: 'org.springframework.boot', module: 'spring-boot-starter-logging'
+    }
 }
 
 tasks.register('explodedJar', Copy) {

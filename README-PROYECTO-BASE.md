@@ -77,8 +77,7 @@
     ```
 
 6. Configurar uso de logs dentro de la aplicación
-    - En el archivo build.gradle del proyecto general agregamos la versión para usar en log4jVersion
-    
+    - En el archivo build.gradle (MicroservicioAWS) del proyecto general agregamos la versión para usar en log4jVersion
         ```
         buildscript {
             ext {
@@ -94,7 +93,6 @@
         ```
     
     - En el archivo main.gradle agregar sobre la línea 30 el siguiente segmento de código
-
         ```
         if (!['model', 'usecase'].contains(it.name)) {
             dependencies {
@@ -112,9 +110,25 @@
             implementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
             implementation "org.apache.logging.log4j:log4j-api:${log4jVersion}"
             implementation "org.apache.logging.log4j:log4j-to-slf4j:${log4jVersion}"
+            implementation 'com.fasterxml.jackson.core:jackson-databind'
         }
         ```
-    
+
+    - En el archivo build.gradle (:app-service) agregar el segmento de configuration
+        ```
+        dependencies {
+            ...
+        }
+
+        // Para evitar conflicto con Logback
+        configurations {
+            all {
+                exclude group: 'org.apache.logging.log4j', module: 'log4j-to-slf4j'
+                exclude group: 'org.springframework.boot', module: 'spring-boot-starter-logging'
+            }
+        }
+        ```
+        
     - Agregamos la clase TransactionLog al paquete co.com.microservicio.aws.log
         ```
         package co.com.microservicio.aws.log;
@@ -133,6 +147,7 @@
         @Setter
         @NoArgsConstructor
         @AllArgsConstructor
+        @ToString
         public class TransactionLog {
             @Serial
             private static final long serialVersionUID = 1L;
@@ -174,6 +189,7 @@
             @Setter
             @NoArgsConstructor
             @AllArgsConstructor
+            @ToString
             public static class Response implements Serializable {
                 @Serial
                 private static final long serialVersionUID = 1L;
@@ -188,8 +204,11 @@
         ```
         package co.com.microservicio.aws.log;
 
+        import com.fasterxml.jackson.core.JsonProcessingException;
+        import com.fasterxml.jackson.databind.ObjectMapper;
         import lombok.Getter;
         import lombok.extern.log4j.Log4j2;
+        import org.apache.logging.log4j.message.ObjectMessage;
         import org.springframework.beans.factory.annotation.Value;
         import org.springframework.stereotype.Component;
 
@@ -198,35 +217,61 @@
         @Component
         public class LoggerBuilder  {
             private String appName;
+            private ObjectMapper objectMapper;
 
-            public LoggerBuilder(@Value("${spring.application.name}") String appName) {
+            public LoggerBuilder(@Value("${spring.application.name}") String appName, ObjectMapper objectMapper) {
                 this.appName = appName;
+                this.objectMapper = objectMapper;
             }
 
             public void info(TransactionLog.Request rq, TransactionLog.Response rs,
                         String message, String messageId, String service, String method) {
-                log.info(buildObject(rq, rs, buildDataLog(message, messageId, service, method)));
+                log.info(new ObjectMessage(buildObject(rq, rs, buildDataLog(message, messageId, service, method))));
             }
 
             public void info(String message, String messageId, String service, String method) {
-                log.info(buildObject(new TransactionLog.Request(), new TransactionLog.Response(),
-                    buildDataLog(message, messageId, service, method)));
+                log.info(new ObjectMessage(buildObject(new TransactionLog.Request(), new TransactionLog.Response(),
+                    buildDataLog(message, messageId, service, method))));
             }
 
             public void error(String message, String messageId, String service, String method) {
-                log.error(buildObject(new TransactionLog.Request(), new TransactionLog.Response(),
-                        buildDataLog(message, messageId, service, method)));
+                log.error(new ObjectMessage(buildObject(new TransactionLog.Request(), new TransactionLog.Response(),
+                        buildDataLog(message, messageId, service, method))));
             }
 
             private TransactionLog.DataLog buildDataLog(String message, String messageId, String service, String method){
                 return new TransactionLog.DataLog(message, messageId, service, method, appName);
             }
 
-            private TransactionLog buildObject(TransactionLog.Request rq, TransactionLog.Response rs,
+            private String buildObject(TransactionLog.Request rq, TransactionLog.Response rs,
                         TransactionLog.DataLog dataLog) {
-                return new TransactionLog(dataLog, rq, rs);
+                var logObject = new TransactionLog(dataLog, rq, rs);
+                try {
+                    return objectMapper.writeValueAsString(logObject);
+                } catch (JsonProcessingException e) {
+                    return logObject.toString();
+                }
             }
         }
+        ```
+    - En el archivo log4j2.properties del paquete app-service\src\main\resources colocar
+        ```
+        status = error
+        name = MicroservicioAWS
+        appender.console.type = Console
+        appender.console.name = STDOUT
+        appender.console.layout.type = JsonLayout
+        appender.console.layout.compact = true
+        appender.console.layout.eventEol = true
+        appender.console.layout.includeStacktrace = true
+        appender.console.layout.includeThreadContext = false
+        appender.console.layout.properties = false
+
+        appender.console.layout.includeTimeMillis = false
+
+        rootLogger.level = info
+        rootLogger.appenderRefs = stdout
+        rootLogger.appenderRef.stdout.ref = STDOUT
         ```
 
 7. Crear archivo con perfil local

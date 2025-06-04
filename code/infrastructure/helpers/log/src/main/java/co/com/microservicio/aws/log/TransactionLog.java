@@ -14,6 +14,7 @@ import lombok.ToString;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@ToString
 public class TransactionLog {
     @Serial
     private static final long serialVersionUID = 1L;
@@ -55,6 +56,7 @@ public class TransactionLog {
     @Setter
     @NoArgsConstructor
     @AllArgsConstructor
+    @ToString
     public static class Response implements Serializable {
         @Serial
         private static final long serialVersionUID = 1L;

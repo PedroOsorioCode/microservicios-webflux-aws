@@ -8,9 +8,12 @@ Debes haber realizado el proyecto base para ejecutar este paso a paso
 
 ### Crear servicio API REST:
 
-> Para crear servicios REST se puede hacer de dos formas, con anotaciones o con funciones, primeramente vamos a ver como sería con funciones
+Para crear servicios REST se puede hacer de dos formas:
 
-# API Rest con funciones
+1. Con anotaciones
+2. Con funciones
+
+## API Rest con funciones
 
 1. En el apartado infrastructure/entry-points ejecutar el sigiuente comando:
 
@@ -224,7 +227,142 @@ Debes haber realizado el proyecto base para ejecutar este paso a paso
 
     ![](./img/apirest-postman-get-basic.png)
 
-# API Rest con anotaciones
+9. usar logs en la aplicación, la clase LoggerBuilder se puede usar solamente en infrastructure o en application, nunca en domain
+    
+    - En la clase Handler cambiar el metodo actual por:
+        ```
+        public class Handler {
+            private final LoggerBuilder logger;
+
+            public Mono<ServerResponse> getAllRows(ServerRequest serverRequest) {
+                var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+                logger.info("My first api rest", headers.get("message-id"), "Api Rest", Handler.class.getName());
+                return ServerResponse.ok().bodyValue("My first api rest");
+            }
+        }
+        ```
+    
+    - El log se debe ver así formateado en Json Pretty:
+        ```
+        {
+            "instant": {
+                "epochSecond": 1749003600,
+                "nanoOfSecond": 498104100
+            },
+            "thread": "reactor-http-nio-3",
+            "level": "INFO",
+            "loggerName": "co.com.microservicio.aws.log.LoggerBuilder",
+            "message": "{\"dataLog\":{\"message\":\"My first api rest\",\"messageId\":\"7a214936-5e93-11ec-bf63-0242ac130002\",\"service\":\"Api Rest\",\"method\":\"co.com.microservicio.aws.api.Handler\",\"appName\":\"MicroservicioAws\"},\"request\":{\"headers\":null,\"body\":null},\"response\":{\"headers\":null,\"body\":null}}",
+            "endOfBatch": false,
+            "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+            "threadId": 38,
+            "threadPriority": 5
+        }
+        ```
+10. Creamos la clase POJO Flight.java en el paquete co.com.microservicio.aws.model.flight para mapear todos los datos de la tabla de dynamoDB
+        
+    ```
+    package co.com.microservicio.aws.model.flight;
+
+    import lombok.AllArgsConstructor;
+    import lombok.Data;
+    import lombok.NoArgsConstructor;
+    import java.io.Serial;
+    import java.io.Serializable;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public class FlightTicket implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        private String documentNumber;
+        private String ticket;
+        private String status;
+        private String flightNumber;
+        private String origin;
+        private String destination;
+        private Double price;
+        private String date;
+    }
+    ```
+
+11. Creamos la clase FlightRepository en el paquete co.com.microservicio.aws.model.flight.gateway
+    ```
+    package co.com.microservicio.aws.model.flight.gateway;
+
+    import co.com.microservicio.aws.model.flight.FlightTicket;
+    import reactor.core.publisher.Mono;
+
+    public interface FlightRepository {
+        Mono<FlightTicket> getAllRows();
+    }
+    ```
+
+12. Creamos la clase FlightTicketUseCase.java en el paquete co.com.microservicio.aws.usecase.flight para obtener todos los datos de la tabla de dynamoDB, hacemos una pequeña validación del message-id para aplicar metodos webflux
+
+    ```
+    package co.com.microservicio.aws.usecase.flight;
+
+    import co.com.microservicio.aws.model.flight.FlightTicket;
+    import co.com.microservicio.aws.model.flight.gateway.FlightRepository;
+    import lombok.RequiredArgsConstructor;
+    import reactor.core.publisher.Mono;
+
+    @RequiredArgsConstructor
+    public class FlightTicketUseCase {
+        private final FlightRepository flightRepository;
+
+        public Mono<FlightTicket> getAllRows(String messageId){
+            return Mono.just(messageId).filter(this::isEmpty)
+                .flatMap(flightRepository::getAllRows)
+                .defaultIfEmpty(new FlightTicket());
+        }
+        
+        private Boolean isEmpty(String messageId){
+            return messageId.isEmpty();
+        }
+    }
+    ```
+
+13. Modificamos la clase Handler.java para invocar el caso de uso
+    ```
+    package co.com.microservicio.aws.api;
+
+    import co.com.microservicio.aws.log.LoggerBuilder;
+    import co.com.microservicio.aws.usecase.flight.FlightTicketUseCase;
+    import lombok.RequiredArgsConstructor;
+    import org.springframework.stereotype.Component;
+    import org.springframework.web.reactive.function.server.ServerRequest;
+    import org.springframework.web.reactive.function.server.ServerResponse;
+    import reactor.core.publisher.Mono;
+
+    @Component
+    @RequiredArgsConstructor
+    public class Handler {
+        private static final String MESSAGE_SERVICE = "Service Api Rest get alls rows";
+        private final LoggerBuilder logger;
+        private final FlightTicketUseCase flightTicketUseCase;
+
+        public Mono<ServerResponse> getAllRows(ServerRequest serverRequest) {
+            var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+            var messageId = headers.get("message-id");
+            logger.info("My first api rest", messageId, MESSAGE_SERVICE, Handler.class.getName());
+            return ServerResponse.ok().bodyValue(flightTicketUseCase.getAllRows(messageId));
+        }
+    }
+    ```
+
+14. Creamos la conexión con DynamoDB para implementar la interfaz de conexión entre el caso de uso y la infrastructura de conexión con DynamoDB
+    
+    - Ubicarse en la raiz del proyecto, abrir la consola de comandos y ejecutar el comando de creación del driven-adapter con DynamoDB
+   ```
+   gradle generateDrivenAdapter --type=dynamodb
+   ``` 
+
+
+## API Rest con anotaciones
 
 
 
