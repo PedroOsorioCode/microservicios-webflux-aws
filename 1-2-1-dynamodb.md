@@ -191,7 +191,7 @@ aws --endpoint-url=http://localhost:4566 dynamodb create-table --table-name loca
     ```
     
 
-[< Volver al indice](README.md)
+[< Volver al índice](README.md)
 
 ---
 

@@ -1,5 +1,13 @@
 # Instructivo paso a paso proyecto base
-> A continuación se hace uso del plugin gradle bancolombia para la creación base del proyecto basada en microservicio y arquitectura limpia
+> A continuación se hace uso del plugin gradle bancolombia para la creación base del proyecto basada en microservicios y arquitectura limpia
+
+### Requisitos
+
+- Java 17 o superior
+- Gradle 8.8 o posterior
+- Docker o Podman
+- Postman
+- Intellij
 
 ### Gradle Scaffold Clean Architecture: 
 
@@ -285,7 +293,9 @@
 
 9. La aplicación se debería ejecutar correctamente
 
-[< Volver](README-PROYECTO-JAVA-WEBFLUX.md)
+	![](./img/proyecto-base-ejecutar-aplicacion-exito.png)
+
+[< Volver al índice](README.md)
 
 ---
 

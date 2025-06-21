@@ -1,7 +1,7 @@
 # Creación microservicios Java + Webflux + AWS
 > A continuación se indican diferentes instructivos que te guiaran para ejecutar el paso a paso y crear una aplicación basada en la nube, creando microservicios con las tecnologias podman, Java, Webflux, usando un plungin gradle para creación de proyectos basados en arquitecturas limpias con uso de servicios de AWS como dynamodb, S3, Redis cache, RabbitMQ, KMS, Secrets Manager, entre otros.
 
-# **Indice**
+# **Índice**
 
 * [1. Documentación](#id1)
   * [1.1 Podman + localstack](#id1-1)
@@ -10,13 +10,13 @@
     * [1.2.2 SecretManager](#id1-2-2)
     * [1.2.3 S3 bucket](#id1-2-1)
   * [1.3 Arquitectura limpia](#id1-3)
-  * [1.4 Webflux](#id1-4)
+  * [1.4 Spring Webflux](#id1-4)
 * [2. Proyecto Java Webflux](#id2)
   * [2.1 Proyecto base](#id2-1)
   * [2.2 API Rest webflux](#id2-2)
 
 # <div id='id1'/>
-# 1 documentación
+# 1 Documentación
 
 # <div id='id1-1'/>
 ## 1.1 Podman + localstack
@@ -45,13 +45,73 @@ Amazon **DynamoDB** es un servicio de base de datos **NoSQL** totalmente gestion
 
 ### Ejecutar primeros pasos
 
-[>> Primeros pasos Podman + Localstack AWS](1-1-podman-localstack-aws.md)
+[>> Primeros pasos DynamoDB](1-2-1-dynamodb.md)
 
-	
-### Instructivo montaje local con Podman y servicios AWS
-1. [Ver instructivo](README-GUIA-AMBIENTE-LOCAL.md)
-### Instructivo crear proyecto Java Webflux
-1. [Ver instructivo](README-PROYECTO-JAVA-WEBFLUX.md)
+# <div id='id1-2-2'/>
+### 1.2.2 Secret Manager
+
+### ¿Qué es Amazon Secrets Manager?
+
+AWS Secrets Manager es un servicio de Amazon Web Services que te permite almacenar, administrar y recuperar secretos de forma segura. Un "secreto" puede ser cualquier tipo de información sensible, como: Contraseñas de bases de datos, Claves API, Credenciales para servicios externos, Certificados, Tokens de autenticación
+
+### Ejecutar primeros pasos
+
+[>> Primeros pasos Secret Manager](1-2-2-secret-manager.md)
+
+# <div id='id1-2-3'/>
+### 1.2.3 S3 (Simple Storage Service)
+
+### ¿Qué es Amazon S3 (Simple Storage Service)?
+
+Amazon S3 (Simple Storage Service) es un servicio de almacenamiento en la nube proporcionado por AWS (Amazon Web Services), diseñado para almacenar y recuperar cualquier cantidad de datos en cualquier momento y desde cualquier lugar en la web.
+
+### ¿Qué es un S3 Bucket?
+
+Un bucket en Amazon S3 es un contenedor lógico donde se almacenan objetos (archivos). Puedes pensar en un bucket como una carpeta raíz en la que subes tus archivos, aunque internamente S3 no funciona exactamente como un sistema de archivos tradicional.
+
+### Ejecutar primeros pasos
+
+[>> Primeros pasos Secret Manager](1-2-2-secret-manager.md)
+
+
+[](README-SERVICIO-RABBITMQ.md)
+[](README-WIREMOCK.md)
+[](README-KAFKA.md)
+[](README-KUBERNETES.md)
+
+# <div id='id1-3'/>
+## 1.3 Arquitectura limpia
+
+[>> Ver documentación (externo)](https://medium.com/bancolombia-tech/clean-architecture-aislando-los-detalles-4f9530f35d7a)
+
+# <div id='id1-4'/>
+## 1.4 Spring Webflux
+
+## ¿Qué es Webflux?
+> Spring WebFlux es un módulo del ecosistema Spring Framework diseñado para construir aplicaciones web reactivas, es decir, aplicaciones que manejan peticiones de forma asíncrona y no bloqueante.
+
+### Ejecutar primeros pasos
+
+[>> Primeros pasos spring webflux)](1-3-spring-webflux.md)
+
+# <div id='id2'/>
+# 2. Proyecto Java Webflux
+
+# <div id='id2-1'/>
+## 2.1 Proyecto base
+
+### Ejecutar primeros pasos
+
+[>> Primeros pasos crear proyecto)](2-1-crear-proyecto-base.md)
+
+# <div id='id2-2'/>
+## 2.1 API Rest Java Spring Webflux
+
+### Ejecutar primeros pasos
+
+Se indica paso a paso como crear un api rest para crear, actualizar, borrar y consultar información en una tabla en dynamodb
+
+[>> Crear proyecto api rest crud](2-2-crear-api-rest.md)
 
 ---
 

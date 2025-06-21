@@ -100,7 +100,7 @@
 | ECR                 | Registro de imágenes de contenedores                       |
 | ElastiCache (Redis) | Caché en memoria (experimental en LocalStack)              |
 
-[< Volver al indice](README.md)
+[< Volver al índice](README.md)
 
 ---
 

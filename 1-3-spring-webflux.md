@@ -327,5 +327,10 @@
 
 
 
+[< Volver al índice](README.md)
 
+---
 
+**Author**: Pedro Luis Osorio Pavas [Linkedin](www.linkedin.com/in/pedro-luis-osorio-pavas-68b3a7106)  
+**Start Date**: 01-06-2025  
+**Update Date**: 01-06-2025.

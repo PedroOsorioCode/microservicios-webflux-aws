@@ -1,9 +1,9 @@
-# Instructivo paso a paso montaje ambiente local Secret Manager
+# Montaje ambiente local Secret Manager
 > A continuación se explica que es amazon secret manager, características e indicaciones del paso a paso que se debe realizar para crear secretos y su finalidad
 
 ### Requisitos: 
 
-Haber leido [Primeros pasos ambiente local](README-AMBIENTE-LOCAL.md)
+Haber leido [Primeros pasos ambiente local](1-1-podman-localstack-aws.md)
 
 ## ¿Qué es Amazon Secrets Manager?
 
@@ -90,4 +90,12 @@ AWS Secrets Manager es un servicio de Amazon Web Services que te permite almacen
     
     aws secretsmanager create-secret --name github-access-token --secret-string '{"token":"ghp_abcdefghijklmnopqrstuvwx123456"}'
     ```
+
+[< Volver al índice](README.md)
+
+---
+
+**Author**: Pedro Luis Osorio Pavas [Linkedin](www.linkedin.com/in/pedro-luis-osorio-pavas-68b3a7106)  
+**Start Date**: 01-06-2025  
+**Update Date**: 01-06-2025.README-AMBIENTE-LOCAL.md)
 
