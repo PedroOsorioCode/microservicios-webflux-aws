@@ -79,6 +79,7 @@
     ```
     - ¿Qué hace? Proporciona un valor alternativo si el flujo no emite nada.
     - Se espera: asegurar que siempre haya una emisión, aunque sea por defecto.
+    - Se usa para devolver otro Mono si el anterior está vacío.
     
 6. **thenReturn** – Ignorar anterior y emitir otro valor
     ```
@@ -142,6 +143,12 @@
         .doOnDiscard(String.class, descartado -> System.out.println("Descartado: " + descartado));
     ```
     - ¿Qué hace? Se usa para realizar limpieza de recursos, logs de auditoría o simplemente para entender qué datos no fueron procesados.
+
+13. **defaultIfEmpty** - se usa para devolver un valor directo si el Mono está vacío.
+    ```
+    Mono<String> mono = Mono.empty()
+    mono.defaultIfEmpty("Nuevo valor");
+    ```
 
 ## Métodos mas usados en Flux
 
