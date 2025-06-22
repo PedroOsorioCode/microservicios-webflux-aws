@@ -27,7 +27,7 @@
 2. Abrir la consola de comandos en el directorio donde se ha creado el archivo y colocar el siguiente comando el cual puede ser modificado según requieran para sus proyectos
 
     ```
-    gradle cleanArchitecture --package=co.com.microservicio.aws --type=reactive --name=MicroservicioAws --lombok=true --javaVersion=VERSION_17 --mutation=true --metrics=true
+    gradle cleanArchitecture --package=co.com.microservicio.aws --type=reactive --name=MicroserviceAws --lombok=true --javaVersion=VERSION_17 --mutation=true --metrics=true
     ```
 
     ### Notas complementarias:  
@@ -48,8 +48,7 @@
 
    ![](./img/proyecto-base-intellij.png)
 
-   - Cambiar el archivo build.gradle del proyecto applications > app-service
-   la línea
+   - Ubicarse en el proyecto applications > app-service, abrir el archivo build.gradle y cambiar la línea 6
 
     ```
     implementation 'org.springframework.boot:spring-boot-starter'
@@ -60,6 +59,115 @@
     implementation "org.springframework.boot:spring-boot-starter-webflux:${springBootVersion}"
     implementation "org.springframework.boot:spring-boot-starter:${springBootVersion}"
     ```
+
+   - Actualizar gradle para descargar las dependencias
+
+    ![](./img/actualizar-gradle.png)
+
+   - Ubicarse en el proyecto applications > app-service > src > main > resources, abrir el archivo application.yaml y cambiar su contenido por el siguiente
+```
+server:
+  port: ${APP_PORT:8080}
+
+spring:
+  application:
+    name: "${APP_NAME:MicroserviceAws}"
+
+management:
+  health:
+    probes:
+      enabled: true
+  endpoint:
+    health:
+      show-details: ${SHOW_DETAILS:never}
+      enabled: true
+      cache:
+        time-to-live: "10s"
+  endpoints:
+    web:
+      base-path: "${PATH_BASE:/api/v1/microservice-aws/}"
+      path-mapping:
+        health: "health"
+        liveness: "liveness"
+        readiness: "readiness"
+      exposure:
+        include: "health, liveness, readiness, metrics"
+
+logging:
+  level:
+    root: ${LOG4J_LEVEL:INFO}
+
+springdoc:
+  version: "1.0.0"
+  api-docs:
+    path: "${PATH_BASE:/api/v1/microservice-aws}/api-docs"
+  swagger-ui:
+    disable-swagger-default-url: true
+    path: "${PATH_BASE:/api/v1/microservice-aws}/swagger.html"
+
+entries:
+  reactive-web:
+    path-base: "${PATH_BASE:/api/v1/microservice-aws/}"
+
+integration:
+  secrets:
+    rabbitmq: ${SECRET_NAME_RABBITMQ:local-rabbitmq}
+    redis: ${SECRET_NAME_REDIS:local-redis}
+  aws:
+    secrets-manager:
+      region: ${AWS_REGION:us-east-1}
+      endpoint: http://localhost:4566
+      cacheSeconds: ${AWS_CACHE_SECONDS:3600}
+      cacheSize: ${AWS_CACHE_SIZE:200}
+
+adapters:
+  dynamodb:
+    endpoint: "http://localhost:8010"
+    repositories:
+      tables:
+        namesmap:
+          records-table: local-records
+  rest-client:
+    timeout: ${REST_TIMEOUT_CONNECTION:5000}
+    readTimeout: ${REST_TIMEOUT_READ:5000}
+    writeTimeout: ${REST_TIMEOUT_WRITE:5000}
+    microservice-external:
+      url: ${URL-MOCK-SITE:http://localhost:8010}
+  s3:
+    endpoint: "${S3_ENDPOINT:http://localhost:4566}"
+    bucket: "${S3_BUCKET_NAME:exampleaws}"
+    region: "${REGION_AWS:us-east-1}"
+
+registration:
+  event:
+    consume:
+      createCountry: "${event_create_region:microservice.common.createRegion}"
+    publish:
+      updateCountry: "${event_audit_update_region:microservice.audit.updateRegion"
+      deleteCountry: "${event_audit_delete_region:microservice.audit.deleteRegion"
+```
+
+   |Sección|Descripción|
+|---|---|
+|`server.port`|Define el puerto en el que se levanta el microservicio. Se usa `${APP_PORT:8080}` para permitir que se pueda configurar desde el entorno, usando 8080 como valor por defecto.|
+|`spring.application.name`|Nombre del microservicio, útil para logging, discovery, etc. Se parametriza con `${APP_NAME:MicroserviceAws}` para adaptarlo fácilmente en distintos entornos.|
+|`management.*`|Configuración de los endpoints de salud (`/health`, `/liveness`, `/readiness`) para monitoreo (e.g. Kubernetes). `${SHOW_DETAILS:never}` controla el nivel de detalle de `/health`.|
+|`logging.level.root`|Nivel de log global. `${LOG4J_LEVEL:INFO}` permite ajustar el nivel sin cambiar el código (INFO, DEBUG, etc.).|
+|`springdoc.*`|Configuración de Swagger/OpenAPI. Usa `${PATH_BASE}` para definir una ruta base reutilizable y soportar despliegues en subrutas.|
+|`entries.reactive-web.path-base`|Reutiliza `${PATH_BASE}` para definir la raíz del contexto en rutas internas, manteniendo coherencia con Swagger.|
+|`integration.secrets.*`|Define nombres de secretos para RabbitMQ y Redis. Permite usar valores diferentes por entorno (ej: local vs producción).|
+|`integration.aws.secrets-manager.*`|Configura el acceso a Secrets Manager en AWS, incluyendo `endpoint`, región, y caché. Se parametriza para soportar LocalStack (`localhost:4566`) en desarrollo.|
+|`adapters.dynamodb.*`|Define el endpoint de DynamoDB (local en este caso) y el mapeo de nombres de tablas. Parametrizado para poder apuntar a AWS real sin cambiar código.|
+|`adapters.rest-client.*`|Configura timeouts para clientes REST, con posibilidad de modificarlos por entorno usando variables.|
+|`adapters.s3.*`|Configuración de acceso a S3, incluyendo bucket, región y endpoint. Ideal para usar con LocalStack (`localhost:4566`) o en AWS real.|
+|`registration.event.*`|Define los eventos que se consumen o publican en mensajería (RabbitMQ, SNS, etc.). Se usan variables para facilitar la integración con otros microservicios.|
+
+   - ¿Por qué usamos ${VAR:valorPorDefecto}?
+     - Flexibilidad por entorno: te permite cambiar valores fácilmente en dev, QA o producción sin tocar el código.
+
+     - Compatibilidad con contenedores (Docker/K8s): se pueden pasar variables por ENV o .env.
+
+     - Fallback seguro: si la variable no está definida en el entorno, se usa el valor por defecto.
    
    - Ejecutar desde intellij
 
@@ -69,14 +177,7 @@
 
    ![](./img/proyecto-base-ejecutar-aplicacion-exito.png)
 
-5. Instalar helpers básicos
-    - Commons: Contiene información sobre: Estructura para logs, extracción de información de los headers, manipulación de fechas.
-
-    Ejecutar en el directorio que contiene el build.gradle:
-    ```
-    gradle generateHelper --name=commons
-    ```
-
+5. Instalar helper básico
     - Log: Contiene clase para manejo de logs dentro del código
 
     Ejecutar en el directorio que contiene el build.gradle:
@@ -110,7 +211,7 @@
         }
         ```
 
-    - En el archivo build.gradle del proyecto helpers/log agregamos las dependencias
+    - Ubicarse en el proyecto infrastructure > helpers > log, abrir el archivo build.gradle y cambiar su contenido por el siguiente
         ```
         dependencies {
             implementation project(':model')
@@ -122,7 +223,7 @@
         }
         ```
 
-    - En el archivo build.gradle (:app-service) agregar el segmento de configuration
+    - Ubicarse en el proyecto applications > app-service, abrir el archivo build.gradle y agregar lo siguiente como de indica
         ```
         dependencies {
             ...
@@ -136,8 +237,15 @@
             }
         }
         ```
+
+    - Actualizar gradle para descargar las dependencias
+
+        ![](./img/actualizar-gradle.png)
         
-    - Agregamos la clase TransactionLog al paquete co.com.microservicio.aws.log
+    - Ubicarse en el proyecto infrastructure > helpers > log > src > main > java, agregamos la clase TransactionLog al paquete co.com.microservicio.aws.log
+
+        ![](./img/crear-clase-java.png)
+
         ```
         package co.com.microservicio.aws.log;
 
@@ -223,7 +331,7 @@
         @Log4j2
         @Getter
         @Component
-        public class LoggerBuilder  {
+        public class LoggerBuilder {
             private String appName;
             private ObjectMapper objectMapper;
 
@@ -262,10 +370,10 @@
             }
         }
         ```
-    - En el archivo log4j2.properties del paquete app-service\src\main\resources colocar
+    - Ubicarse en el proyecto application > app-service > src > main > resources, abrir el archivo log4j2.properties y cambiar su contenido por el siguiente
         ```
         status = error
-        name = MicroservicioAWS
+        name = MicroserviceAWS
         appender.console.type = Console
         appender.console.name = STDOUT
         appender.console.layout.type = JsonLayout
@@ -284,16 +392,22 @@
 
 7. Crear archivo con perfil local
 
-    - En el proyecto applications/app-service/src/main/java/resource crear el archivo application-local.yaml con la siguiente información [application-local-yaml](./code/applications/app-service/src/main/resources/application-local.yaml)
+    - Ubicarse en el proyecto application > app-service > src > main > resources, crear el archivo application-local.yaml como una copia del application.yaml previamente creado
 
-8. Ejecutar aplicación con los cambios realizados
+    ![](./img/crear-aplication-local.png)
+
+8. Ejecutar aplicación con los cambios realizados configurando que se usará el application local
     ![](./img/proyecto-base-abrir-config-perfil-local.png)
 
     ![](./img/proyecto-base-config-perfil-local.png)
 
-9. La aplicación se debería ejecutar correctamente
+9. La aplicación se ejecuta correctamente y los logs se ven en formato json para mayor facilidad de lectura
 
-	![](./img/proyecto-base-ejecutar-aplicacion-exito.png)
+	![](./img/aplicacion-iniciada-con-logs.png)
+
+    Así se verían los logs para una mejor lectura en visual studio code
+
+    ![](./img/visual-logs-formato-json.png)
 
 [< Volver al índice](README.md)
 
