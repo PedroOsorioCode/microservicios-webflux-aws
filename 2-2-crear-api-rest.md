@@ -1,20 +1,12 @@
-# Instructivo paso a paso creación microservicio APIREST con Webflux
-> A continuación se indica el paso a paso que se debe realizar para continuar con el proyecto de creación de microservicios basados en la nube de AWS, esta guía comprende la creación de API REST con metodos HTTP a una tabla en dynamo db
+# Creación microservicio APIREST con Webflux
+> A continuación se indica el paso a paso que se debe realizar para continuar con el proyecto de creación de microservicios basados en la nube de AWS, esta guía comprende la creación de API REST con metodos HTTP básicos
 
 ### Requisitos: 
 
-Debes haber realizado el proyecto base para ejecutar este paso a paso
-[Crear proyecto base](./README-PROYECTO-BASE.md)
+⚠️ Debes haber realizado el proyecto base para continuar con este instructivo <br>
+[Crear proyecto base](./2-1-crear-proyecto-base.md)
 
 ### Crear servicio API REST:
-
-Para crear servicios REST se puede hacer de dos formas:
-
-1. Con anotaciones
-2. Con funciones
-
-## API Rest con funciones
-
 1. En el apartado infrastructure/entry-points ejecutar el sigiuente comando:
 
     ```
@@ -23,16 +15,56 @@ Para crear servicios REST se puede hacer de dos formas:
 
     ![](./img/apirest-crear-entry-point.png)
 
-2. Configuramos las rutas en el archivo application-local.yaml y las relacionamos en el código con el fin de que estas no esten fijas, sino que sean variables desde un archivo de configuración
-
+2. En el archivo build.gradle del proyecto infrastructure/entry-points colocamos:
     ```
-    entries:
-      reactive-web:
-        path-base: "${PATH_BASE:/api/v1/microservicio-aws/}"
-        get-all-rows: "/get-all-rows"
+    dependencies {
+        implementation project(':usecase')
+        implementation project(':model')
+        implementation project(':log')
+        implementation "org.springframework.boot:spring-boot-starter-webflux:${springBootVersion}"
+        implementation "org.springframework.boot:spring-boot-starter-actuator:${springBootVersion}"
+        implementation 'io.micrometer:micrometer-registry-prometheus'
+        implementation "org.springdoc:springdoc-openapi-webflux-ui:${openapi}"
+    }
     ```
 
-3. Crear el archivo ApiProperties.java en la ruta infrastructure/entry-points en el paquete co.com.microservicio.aws.api.config para mapear las rutas a una clase
+    y en build.gradle del proyecto general
+    ```
+    buildscript {
+        ext {
+            cleanArchitectureVersion = '3.22.4'
+            springBootVersion = '3.4.4'
+            sonarVersion = '6.1.0.5360'
+            jacocoVersion = '0.8.13'
+            pitestVersion = '1.15.0'
+            lombokVersion = '1.18.38'
+            log4jVersion = '2.24.3'
+            openapi = '1.8.0'
+        }
+    }
+    ```
+
+3. Actualizamos las dependencias de gradle
+
+   ![](./img/actualizar-gradle.png)
+
+4. Configuramos las rutas en el archivo application-local.yaml y las relacionamos en el código con el fin de que estas no esten fijas, sino que sean variables desde un archivo de configuración
+
+```
+entries:
+  reactive-web:
+    path-base: "${PATH_BASE:/api/v1/microservice-aws}"
+    greet: "/greet"
+    greetReactive: "/greetReactive"
+```
+
+5. Crear el paquete **greet** en la ruta infrastructure > entry-points > src > main > java > co.com.microservicio.aws.api y borramos el código generado tanto en main > java como en los test unitarios
+
+    ![](./img/crear-package.png)
+
+    ![](./img/limpieza-codigo-generado-entry-point.png)
+
+6. Crear el archivo ApiProperties.java en la ruta infrastructure/entry-points en el paquete co.com.microservicio.aws.api.greet.config para mapear las rutas en la clase Route
 
     ```
     import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -44,150 +76,263 @@ Para crear servicios REST se puede hacer de dos formas:
     @ConfigurationProperties(prefix = "entries.reactive-web")
     public class ApiProperties {
         private String pathBase;
-        private String getAllRows;
+        private String greet;
+        private String greetReactive;
     }
     ```
 
-4. En el archivo build.gradle del proyecto infrastructure/entry-points colocamos:
+## Para crear servicios REST se puede hacer de diferentes formas, veamos:
+
+### Con anotaciones Hard Coded:
+
+1. En el archivo build.gradle del proyecto infrastructure > entry-points agregamos las siguientes líneas
     ```
     dependencies {
-        implementation project(':usecase')
-        implementation project(':model')
-        implementation "org.springframework.boot:spring-boot-starter-webflux:${springBootVersion}"
-        implementation "org.springframework.boot:spring-boot-starter-actuator:${springBootVersion}"
-        implementation 'io.micrometer:micrometer-registry-prometheus'
-        implementation 'org.springdoc:springdoc-openapi-webflux-ui:1.8.0'
+        ...
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.compilerArgs += "-parameters"
+    }
+    ```
+2. Actualizamos dependencias gradle
+
+3. Crear clase GreetHardCodedRest.java en el paquete co.com.microservicio.aws.api.greet
+    ```
+    package co.com.microservicio.aws.api.greet;
+
+    import org.springframework.web.bind.annotation.*;
+    import reactor.core.publisher.Mono;
+
+    @RestController
+    @RequestMapping("/api/v1/microservice-aws/greethardcoded")
+    public class GreetHardCodedRest {
+
+        @GetMapping("/{name}")
+        public Mono<String> greet(@PathVariable String name) {
+            return Mono.just("¡Hi, " + name + "!");
+        }
+
+        @GetMapping("/header")
+        public Mono<String> greetFromHeader(@RequestHeader("user-name") String name) {
+            return Mono.just("¡Hi, " + name + "!");
+        }
+
+        @GetMapping
+        public Mono<String> genericGreet() {
+            return Mono.just("¡Hello, world!");
+        }
+    }
+    ```
+4. Ejecutamos la aplicación
+
+5. Curl Postman para probar los servicios
+    ```
+    curl --location 'localhost:8080/api/v1/microservice-aws/greethardcoded' \
+    --header 'Content-Type: application/json'
+    ```
+
+    ```
+    curl --location 'localhost:8080/api/v1/microservice-aws/greethardcoded/peter' \
+    --header 'Content-Type: application/json'
+    ```
+
+    ```
+    curl --location 'localhost:8080/api/v1/microservice-aws/greethardcoded/header' \
+    --header 'Content-Type: application/json' \
+    --header 'user-name: peter header'
+    ```
+    ![](./img/greet-name-header-hc.png)
+
+    Como importar los curl a postman
+
+    ![](./img/import-curl-to-postman.png)
+
+### Con anotaciones parameterizable:
+
+1. Crear clase GreetRest.java en el paquete co.com.microservicio.aws.api.greet
+    ```
+    package co.com.microservicio.aws.api.greet;
+
+    import org.springframework.web.bind.annotation.GetMapping;
+    import org.springframework.web.bind.annotation.PathVariable;
+    import org.springframework.web.bind.annotation.RequestHeader;
+    import org.springframework.web.bind.annotation.RestController;
+    import reactor.core.publisher.Mono;
+
+    @RestController
+    public class GreetRest {
+        @GetMapping("${entries.reactive-web.path-base}${entries.reactive-web.greet}/{name}")
+        public Mono<String> greet(@PathVariable("name") String name) {
+            return Mono.just("¡Hi, " + name + "!");
+        }
+
+        @GetMapping("${entries.reactive-web.path-base}${entries.reactive-web.greet}/header")
+        public Mono<String> greetFromHeader(@RequestHeader("user-name") String name) {
+            return Mono.just("¡Hi, " + name + "!");
+        }
+
+        @GetMapping("${entries.reactive-web.path-base}${entries.reactive-web.greet}")
+        public Mono<String> genericGreet() {
+            return Mono.just("¡Hello, world!");
+        }
+    }
+    ```
+2. Ejecutamos la aplicación
+
+3. Curl Postman para probar los servicios
+    ```
+    curl --location 'localhost:8080/api/v1/microservice-aws/greet' \
+    --header 'Content-Type: application/json'
+    ```
+
+    ```
+    curl --location 'localhost:8080/api/v1/microservice-aws/greet/peter' \
+    --header 'Content-Type: application/json'
+    ```
+
+    ```
+    curl --location 'localhost:8080/api/v1/microservice-aws/greet/header' \
+    --header 'Content-Type: application/json' \
+    --header 'user-name: peter header'
+    ```
+    ![](./img/greet-world.png)
+
+### Con funciones
+
+1. Crear la clase GreetHandler.java en el paquete co.com.microservicio.aws.api.greet
+    ```
+    package co.com.microservicio.aws.api.greet;
+
+    import co.com.microservicio.aws.log.LoggerBuilder;
+    import lombok.RequiredArgsConstructor;
+    import org.springframework.stereotype.Component;
+    import org.springframework.web.reactive.function.server.ServerRequest;
+    import org.springframework.web.reactive.function.server.ServerResponse;
+    import reactor.core.publisher.Mono;
+
+    @Component
+    @RequiredArgsConstructor
+    public class GreetHandler {
+        private static final String NAME_CLASS = GreetHandler.class.getName();
+        private static final String MESSAGE_SERVICE = "Service Api Rest greet";
+
+        private final LoggerBuilder logger;
+
+        public Mono<ServerResponse> greet(ServerRequest serverRequest) {
+            var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+            logger.info(MESSAGE_SERVICE, headers.get("message-id"), "Api Rest", NAME_CLASS);
+            return ServerResponse.ok().bodyValue("¡Hi functional, " + headers.get("user-name") + "!");
+        }
     }
     ```
 
-5. En el proyecto infrastructure/entry-points paquete co.com.microservicio.aws.api creamos el paquete commons y agregamos la siguiente clase HeaderOpenApi, esta clase permite documentar los servicios y especificar los header que son requeridos para el servicio.
-
+2. Crear la clase OpenAPIConfig en el paquete co.com.microservicio.aws.api.greet.config
     ```
-        import io.swagger.v3.oas.annotations.enums.ParameterIn;
-        import lombok.experimental.UtilityClass;
+    package co.com.microservicio.aws.api.greet.config;
 
-        import static org.springdoc.core.fn.builders.parameter.Builder.parameterBuilder;
-        import static org.springdoc.core.fn.builders.schema.Builder.schemaBuilder;
+    import io.swagger.v3.oas.models.OpenAPI;
+    import io.swagger.v3.oas.models.info.Info;
+    import org.springframework.context.annotation.Bean;
+    import org.springframework.context.annotation.Configuration;
 
-        @UtilityClass
-        public class HeaderOpenApi {
-            public final String TEXT = "";
-
-            public static org.springdoc.core.fn.builders.parameter.Builder getHeaderMessageId() {
-                return parameterBuilder().in(ParameterIn.HEADER).name("message-id")
-                        .description("ID for transaction traceability. Must be provided " + "by the front in UUID format")
-                        .schema(schemaBuilder().type(TEXT).example("8348c30c-1296-4882-84b8-d7306205ce26")).required(true);
-            }
-
-            public static org.springdoc.core.fn.builders.parameter.Builder getHeaderSessionTracker() {
-                return parameterBuilder().in(ParameterIn.HEADER).name("session-tracker")
-                        .description("ID for session traceability. Must be provided by the front in UUID format")
-                        .schema(schemaBuilder().type(TEXT).example("c4e6bd04-5149-11e7-b114-b2f933d5fe81")).required(true);
-            }
-
-            public static org.springdoc.core.fn.builders.parameter.Builder getHeaderRequestTimestamp() {
-                return parameterBuilder().in(ParameterIn.HEADER).name("request-timestamp")
-                        .description("Date and Time the request is made")
-                        .schema(schemaBuilder().type(TEXT).example("2023-03-14 19:30:59:000")).required(true);
-            }
-
-            public static org.springdoc.core.fn.builders.parameter.Builder getHeaderIP() {
-                return parameterBuilder().in(ParameterIn.HEADER).name("x-forwarded-for")
-                        .description("IP of the device in which the request was generated")
-                        .schema(schemaBuilder().type(TEXT).example("127.0.0.1")).required(true);
-            }
-
-            public static org.springdoc.core.fn.builders.parameter.Builder getHeaderUserAgent() {
-                return parameterBuilder().in(ParameterIn.HEADER).name("user-agent")
-                        .description("User agent for device identification")
-                        .schema(schemaBuilder().type(TEXT).example(
-                                "{\"device\":\"iPhone\",\"os\":\"CPU iPhone OS 13_5_1\"," + "\"browser\":\"Version/13.1.1\"}"))
-                        .required(true);
-            }
-
-            public static org.springdoc.core.fn.builders.parameter.Builder getHeaderPlatformType() {
-                return parameterBuilder().in(ParameterIn.HEADER).name("platform-type")
-                        .description("Type of platform where the request comes from (web - mobile)")
-                        .schema(schemaBuilder().type(TEXT).example("mobile")).required(true);
-            }
-
-            public static org.springdoc.core.fn.builders.parameter.Builder getHeaderDocumentId() {
-                return parameterBuilder().in(ParameterIn.HEADER).name("document-number")
-                        .description("Identity document number of a client")
-                        .schema(schemaBuilder().type(TEXT).example("210195722")).required(true);
-            }
-
-            public static org.springdoc.core.fn.builders.parameter.Builder getHeaderDocumentType() {
-                return parameterBuilder().in(ParameterIn.HEADER).name("document-type")
-                        .description("Type of identity document of a client").schema(schemaBuilder().type(TEXT).example("CC"))
-                        .required(true);
-            }
-
-            public static org.springdoc.core.fn.builders.parameter.Builder getHeaderContentType() {
-                return parameterBuilder().in(ParameterIn.HEADER).name("Content-Type")
-                        .description("Type of content sent in the request")
-                        .schema(schemaBuilder().type(TEXT).example("application/json")).required(true);
-            }
-
+    @Configuration
+    public class OpenAPIConfig {
+        private static final String TITLE = "API Rest DynamoDB Microservice";
+        private static final String VERSION = "1.0.0";
+        private static final String DESCRIPTION = "Services for greet";
+        @Bean
+        public OpenAPI customOpenAPI() {
+            return new OpenAPI().info(new Info().title(TITLE).version(VERSION).description(DESCRIPTION));
         }
+    }
     ```
 
-5. En el proyecto infrastructure/entry-points paquete co.com.microservicio.aws.api creamos el paquete doc y agregamos la siguiente clase OpenApiDoc, esta clase permite documentar los servicios, especificar los header que son requeridos para el servicio y las respuestas.
-
+3. Crear la clase GreetOpenAPI en el paquete co.com.microservicio.aws.api.greet.doc
     ```
-    import co.com.microservicio.aws.api.commons.HeaderOpenApi;
+    package co.com.microservicio.aws.api.greet.doc;
+
+    import lombok.experimental.UtilityClass;
     import org.springdoc.core.fn.builders.operation.Builder;
+
     import java.util.function.Consumer;
+
     import static org.springdoc.core.fn.builders.apiresponse.Builder.responseBuilder;
+    import static org.springdoc.core.fn.builders.content.Builder.contentBuilder;
+    import static org.springdoc.core.fn.builders.schema.Builder.schemaBuilder;
+    import static org.springframework.http.HttpStatus.*;
+    import static org.springframework.http.MediaType.APPLICATION_JSON;
 
-    public class OpenApiDoc {
-        public static final String SUCCESSFUL = "200";
-        public static final String SUCCESSFUL_DESCRIPTION = "successful operation";
-        public static final String BAD_REQUEST = "400";
-        public static final String NOT_FOUND = "404";
-        public static final String CONFLICT = "409";
-        public static final String INTERNAL_SERVER_ERROR = "500";
+    @UtilityClass
+    public class GreetOpenAPI {
 
-        public static Consumer<Builder> executeListDataExampleOpenApi() {
-            return ops -> ops.tag("List data example").operationId("/list-data-example")
-                    .description("List data example").parameter(HeaderOpenApi.getHeaderMessageId())
-                    .parameter(HeaderOpenApi.getHeaderSessionTracker())
-                    .parameter(HeaderOpenApi.getHeaderRequestTimestamp()).parameter(HeaderOpenApi.getHeaderIP())
-                    .parameter(HeaderOpenApi.getHeaderUserAgent()).parameter(HeaderOpenApi.getHeaderPlatformType())
-                    .parameter(HeaderOpenApi.getHeaderDocumentId())
-                    .parameter(HeaderOpenApi.getHeaderDocumentType()).parameter(HeaderOpenApi.getHeaderContentType())
-                    .response(responseBuilder().responseCode(SUCCESSFUL).description(SUCCESSFUL_DESCRIPTION)
-                            .implementation(Object.class))
-                    .response(getTechnicalError()).response(getBusinessError()).response(getDefaultError()).build();
+        private static final String OPERATION_ID = "Greet";
+        private static final String DESCRIPTION = "Retrieve information of a payment";
+        private static final String DESCRIPTION_OK = "When the response has status 200";
+        private static final String DESCRIPTION_CONFLICT = "When the request fails";
+        private static final String DESCRIPTION_ERROR = "Internal server error";
+        private static final String TAG = "Payments";
+
+        public static Consumer<Builder> greetRoute() {
+            return ops -> ops
+                    .operationId(OPERATION_ID)
+                    .description(DESCRIPTION)
+                    .tag(TAG)
+                    .summary(OPERATION_ID)
+                    .response(responseOk())
+                    .response(responseBusiness())
+                    .response(responseError())
+                    .response(responseNotFound())
+                    .response(responseBadRequest());
         }
 
-        public static org.springdoc.core.fn.builders.apiresponse.Builder getTechnicalError() {
-            return responseBuilder().responseCode(INTERNAL_SERVER_ERROR).description("Technical error")
-                    .implementation(String.class);
+        public static org.springdoc.core.fn.builders.apiresponse.Builder responseOk(){
+            return responseBuilder().
+                    responseCode(String.valueOf(OK.value()))
+                    .description(DESCRIPTION_OK)
+                    .content(contentBuilder()
+                            .mediaType(APPLICATION_JSON.toString())
+                            .schema(schemaBuilder()
+                                    .implementation(String.class)));
         }
 
-        public static org.springdoc.core.fn.builders.apiresponse.Builder getBusinessError() {
-            return responseBuilder().responseCode(CONFLICT).description("Business error")
-                    .implementation(String.class);
+        public static org.springdoc.core.fn.builders.apiresponse.Builder responseBusiness(){
+            return responseBuilder()
+                    .responseCode(String.valueOf(CONFLICT.value()))
+                    .description(DESCRIPTION_CONFLICT)
+                    .implementation(Error.class);
         }
 
-        public static org.springdoc.core.fn.builders.apiresponse.Builder getDefaultError() {
-            return responseBuilder().responseCode(BAD_REQUEST).description("Default error")
-                    .implementation(String.class);
+        public static org.springdoc.core.fn.builders.apiresponse.Builder responseError(){
+            return responseBuilder()
+                    .responseCode(String.valueOf(INTERNAL_SERVER_ERROR.value()))
+                    .description(DESCRIPTION_ERROR)
+                    .implementation(Error.class);
         }
 
-        public static org.springdoc.core.fn.builders.apiresponse.Builder getNotFoundError() {
-            return responseBuilder().responseCode(NOT_FOUND).description("Not Found error")
-                    .implementation(String.class);
+        public static org.springdoc.core.fn.builders.apiresponse.Builder responseNotFound(){
+            return responseBuilder()
+                    .responseCode(String.valueOf(NOT_FOUND.value()))
+                    .description(NOT_FOUND.getReasonPhrase())
+                    .implementation(Error.class);
         }
+
+        public static org.springdoc.core.fn.builders.apiresponse.Builder responseBadRequest() {
+            return responseBuilder()
+                    .responseCode(String.valueOf(BAD_REQUEST.value()))
+                    .description(BAD_REQUEST.getReasonPhrase())
+                    .implementation(Error.class);
+        }
+
     }
-
     ```
 
-7. El archivo RouterRest del paquete co.com.microservicio.aws.api queda:
+4. Crear clase GreetRouterRest.java en el paquete co.com.microservicio.aws.api.greet
     ```
-    import co.com.microservicio.aws.api.config.ApiProperties;
-    import co.com.microservicio.aws.api.doc.OpenApiDoc;
+    package co.com.microservicio.aws.api.greet;
+
+    import co.com.microservicio.aws.api.greet.config.ApiProperties;
+    import co.com.microservicio.aws.api.greet.doc.GreetOpenAPI;
     import lombok.RequiredArgsConstructor;
     import org.springframework.context.annotation.Bean;
     import org.springframework.context.annotation.Configuration;
@@ -197,494 +342,50 @@ Para crear servicios REST se puede hacer de dos formas:
 
     @Configuration
     @RequiredArgsConstructor
-    public class RouterRest {
+    public class GreetRouterRest {
         private final ApiProperties properties;
 
         @Bean
-        public RouterFunction<ServerResponse> routerFunction(Handler handler) {
+        public RouterFunction<ServerResponse> routerFunction(GreetHandler greetHandler) {
             return SpringdocRouteBuilder.route()
-                    .GET(properties.getPathBase().concat(properties.getGetAllRows()),
-                            handler::getAllRows, OpenApiDoc.executeListDataExampleOpenApi())
-                    .build();
+                .GET(properties.getPathBase().concat(properties.getGreetReactive()),
+                    greetHandler::greet, GreetOpenAPI.greetRoute())
+                .build();
         }
     }
     ```
 
-8. Ejecutamos la aplicación y consumimos el servicio por postman, a continuación se detalla el Curl para importar en postman
+5. Ejecutamos la aplicación
+
+6. Curl Postman para probar los servicios
+    ```
+    curl --location 'localhost:8080/api/v1/microservice-aws/greetReactive' \
+    --header 'message-id: 7a214936-5e93-11ec-bf63-0242ac130002' \
+    --header 'Content-Type: application/json' \
+    --header 'user-name: peter header'
+    ```
+
+    ![](./img/greet-name-header-reactive.png)
+
+
     
+7. El log se debe ver así formateado en Json Pretty:
     ```
-        curl --location 'localhost:8080/api/v1/microservicio-aws/get-all-rows' \
-        --header 'message-id: 7a214936-5e93-11ec-bf63-0242ac130002' \
-        --header 'session-tracker: 0e295fc0-c84d-4b00-a710-24dd87f2fbfa' \
-        --header 'request-timestamp: 2022-09-13 09:39:50:000' \
-        --header 'x-forwarded-for: 192.168.0.1' \
-        --header 'user-agent: {"device":"iPhone","os":"CPU iPhone OS 13_5_1","browser":"Version/13.1.1"}' \
-        --header 'document-number: 1234567' \
-        --header 'platform-type: web' \
-        --header 'document-type: CC' \
-        --header 'Content-Type: application/json'
-    ```
-
-    ![](./img/apirest-postman-get-basic.png)
-
-9. usar logs en la aplicación, la clase LoggerBuilder se puede usar solamente en infrastructure o en application, nunca en domain
-    
-    - En la clase Handler cambiar por:
-        ```
-        public class Handler {
-            private final LoggerBuilder logger;
-
-            public Mono<ServerResponse> getAllRows(ServerRequest serverRequest) {
-                var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
-                logger.info("My first api rest", headers.get("message-id"), "Api Rest", Handler.class.getName());
-                return ServerResponse.ok().bodyValue("My first api rest");
-            }
-        }
-        ```
-    
-    - El log se debe ver así formateado en Json Pretty:
-        ```
-        {
-            "instant": {
-                "epochSecond": 1749003600,
-                "nanoOfSecond": 498104100
-            },
-            "thread": "reactor-http-nio-3",
-            "level": "INFO",
-            "loggerName": "co.com.microservicio.aws.log.LoggerBuilder",
-            "message": "{\"dataLog\":{\"message\":\"My first api rest\",\"messageId\":\"7a214936-5e93-11ec-bf63-0242ac130002\",\"service\":\"Api Rest\",\"method\":\"co.com.microservicio.aws.api.Handler\",\"appName\":\"MicroservicioAws\"},\"request\":{\"headers\":null,\"body\":null},\"response\":{\"headers\":null,\"body\":null}}",
-            "endOfBatch": false,
-            "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
-            "threadId": 38,
-            "threadPriority": 5
-        }
-        ```
-10. Creamos la clase POJO Flight.java en el paquete co.com.microservicio.aws.model.flight para mapear todos los datos de la tabla de dynamoDB
-        
-    ```
-    package co.com.microservicio.aws.model.flight;
-
-    import lombok.AllArgsConstructor;
-    import lombok.Data;
-    import lombok.NoArgsConstructor;
-    import java.io.Serial;
-    import java.io.Serializable;
-
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public class FlightTicket implements Serializable {
-        @Serial
-        private static final long serialVersionUID = 1L;
-
-        private String documentNumber;
-        private String ticket;
-        private String status;
-        private String flightNumber;
-        private String origin;
-        private String destination;
-        private Double price;
-        private String date;
+    {
+        "instant": {
+            "epochSecond": 1750566658,
+            "nanoOfSecond": 178396800
+        },
+        "thread": "reactor-http-nio-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservicio.aws.log.LoggerBuilder",
+        "message": "{\"dataLog\":{\"message\":\"Service Api Rest greet\",\"messageId\":\"7a214936-5e93-11ec-bf63-0242ac130002\",\"service\":\"Api Rest\",\"method\":\"co.com.microservicio.aws.api.greet.GreetHandler\",\"appName\":\"MicroserviceAws\"},\"request\":{\"headers\":null,\"body\":null},\"response\":{\"headers\":null,\"body\":null}}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 58,
+        "threadPriority": 5
     }
     ```
-
-11. Creamos la clase FlightRepository en el paquete co.com.microservicio.aws.model.flight.gateway
-    ```
-    package co.com.microservicio.aws.model.flight.gateway;
-
-    import co.com.microservicio.aws.model.flight.FlightTicket;
-    import reactor.core.publisher.Mono;
-
-    import java.util.Map;
-
-    public interface FlightRepository {
-        Mono<FlightTicket> getAllRows(Map<String, String> param);
-    }
-    ```
-
-12. Creamos la clase FlightTicketUseCase.java en el paquete co.com.microservicio.aws.usecase.flight para obtener todos los datos de la tabla de dynamoDB, hacemos una pequeña validación del message-id para aplicar metodos webflux
-    ```
-    package co.com.microservicio.aws.usecase.flight;
-
-    import co.com.microservicio.aws.model.flight.FlightTicket;
-    import co.com.microservicio.aws.model.flight.gateway.FlightRepository;
-    import lombok.RequiredArgsConstructor;
-    import reactor.core.publisher.Mono;
-
-    import java.util.Map;
-
-    @RequiredArgsConstructor
-    public class FlightTicketUseCase {
-        private static final String KEY_SIZE = "size";
-        private static final String ATTRIBUTE_IS_REQUIRED = "The attribute '%s' is required";
-        private final FlightRepository flightRepository;
-
-        public Mono<FlightTicket> getAllRows(Map<String, String> param){
-            return Mono.just(param).filter(this::isEmpty)
-                .flatMap(flightRepository::getAllRows)
-                .switchIfEmpty(Mono.error(new IllegalStateException(String.format(ATTRIBUTE_IS_REQUIRED, KEY_SIZE))));
-        }
-
-        private Boolean isEmpty(Map<String, String> param){
-            return !param.get(KEY_SIZE).isEmpty();
-        }
-    }
-    ```
-
-13. Modificamos la clase Handler.java para invocar el caso de uso
-    ```
-    package co.com.microservicio.aws.api;
-
-    import co.com.microservicio.aws.log.LoggerBuilder;
-    import co.com.microservicio.aws.log.TransactionLog;
-    import co.com.microservicio.aws.model.flight.FlightTicket;
-    import co.com.microservicio.aws.usecase.flight.FlightTicketUseCase;
-    import lombok.RequiredArgsConstructor;
-    import org.springframework.stereotype.Component;
-    import org.springframework.web.reactive.function.server.ServerRequest;
-    import org.springframework.web.reactive.function.server.ServerResponse;
-    import reactor.core.publisher.Mono;
-
-    import java.util.Collection;
-    import java.util.List;
-    import java.util.Map;
-    import java.util.Set;
-
-    @Component
-    @RequiredArgsConstructor
-    public class Handler {
-        private static final String NAME_CLASS = Handler.class.getName();
-        private static final String MESSAGE_SERVICE = "Service Api Rest get alls rows by size";
-        private final LoggerBuilder logger;
-        private final FlightTicketUseCase flightTicketUseCase;
-
-        public Mono<ServerResponse> getAllRows(ServerRequest serverRequest) {
-            var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
-            var messageId = headers.get("message-id");
-            logger.info(TransactionLog.Request.builder().body(headers).build(), null,
-                "My first api rest", messageId, MESSAGE_SERVICE, NAME_CLASS);
-
-            return ServerResponse.ok().body(flightTicketUseCase.getAllRows(headers)
-                .onErrorResume(e -> this.printFailed(e, messageId)), FlightTicket.class
-            );
-        }
-
-        private Mono<FlightTicket> printFailed(Throwable throwable, String messageId) {
-            logger.error(throwable.getMessage(), messageId, MESSAGE_SERVICE, NAME_CLASS);
-            return Mono.empty();
-        }
-    }
-    ```
-
-14. Creamos la conexión con DynamoDB para implementar la interfaz de conexión entre el caso de uso y la infrastructura de conexión con DynamoDB
-    
-    - Ubicarse en la raiz del proyecto, abrir la consola de comandos y ejecutar el comando de creación del driven-adapter con DynamoDB
-   ```
-   gradle generateDrivenAdapter --type=dynamodb
-   ``` 
-
-   ![](./img/apirest-crear-driven-adapter-dynamodb.png)
-
-15. En el paquete 'co.com.microservicio.aws.dynamodb' creamos la siguiente clase
-
-   ```
-    package co.com.microservicio.aws.dynamodb;
-
-    import java.lang.annotation.ElementType;
-    import java.lang.annotation.Retention;
-    import java.lang.annotation.RetentionPolicy;
-    import java.lang.annotation.Target;
-
-    @Target({ ElementType.TYPE })
-    @Retention(RetentionPolicy.RUNTIME)
-    public @interface DynamoDbTableAdapter {
-        String tableName() default "";
-    }
-   ```
-
-16. En el paquete 'co.com.microservicio.aws.dynamodb.config' creamos la siguiente clase
-    ```
-    package co.com.microservicio.aws.dynamodb.config;
-
-    import lombok.AccessLevel;
-    import lombok.NoArgsConstructor;
-
-    @NoArgsConstructor(access = AccessLevel.PRIVATE)
-    public class SourceName {
-        public static final String FLIGHT_TICKETS = "flight_tickets";
-    }
-    ```
-
-17. En el paquete 'co.com.microservicio.aws.dynamodb.flight.model' creamos la siguiente clase de acuerdo a los datos a almacenar en la tabla
-    ```
-    package co.com.microservicio.aws.dynamodb.model;
-
-    import co.com.microservicio.aws.dynamodb.DynamoDbTableAdapter;
-    import co.com.microservicio.aws.dynamodb.config.SourceName;
-    import lombok.Data;
-    import lombok.Getter;
-    import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
-    import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
-    import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecondaryPartitionKey;
-    import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSortKey;
-
-    @Data
-    @DynamoDbBean
-    @DynamoDbTableAdapter(tableName = SourceName.FLIGHT_TICKETS)
-    public class ModelEntityFlight {
-        @Getter(onMethod_ = @DynamoDbPartitionKey)
-        private String documentNumber;
-        @Getter(onMethod_ = @DynamoDbSortKey)
-        private String ticket;
-        @Getter(onMethod_ = @DynamoDbSecondaryPartitionKey(indexNames = "statusIndex"))
-        private String status;
-        private String flightNumber;
-        private String origin;
-        private String destination;
-        private Double price;
-        private String date;
-    }
-    ```
-
-18. Cambiamos la clase DynamoDBConfig en el paquete 'co.com.microservicio.aws.dynamodb.config' por el siguiente código
-    ```
-    package co.com.microservicio.aws.dynamodb.config;
-
-    import org.springframework.beans.factory.annotation.Value;
-    import org.springframework.context.annotation.Bean;
-    import org.springframework.context.annotation.Configuration;
-    import org.springframework.context.annotation.Profile;
-    import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
-    import software.amazon.awssdk.auth.credentials.WebIdentityTokenFileCredentialsProvider;
-    import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
-    import software.amazon.awssdk.regions.Region;
-    import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient;
-
-    import java.net.URI;
-
-    @Configuration
-    public class DynamoDBConfig {
-
-        @Bean
-        @Profile({ "local" })
-        DynamoDbAsyncClient amazonDynamoDB(@Value("${aws.dynamodb.endpoint}") String endpoint,
-                                        @Value("${aws.region}") String region) {
-            return DynamoDbAsyncClient.builder().credentialsProvider(ProfileCredentialsProvider.create("default"))
-                    .endpointOverride(URI.create(endpoint)).region(Region.of(region)).build();
-        }
-
-        @Bean
-        @Profile({ "!local" })
-        DynamoDbAsyncClient amazonDynamoDBAsync(@Value("${aws.region}") String region) {
-            return DynamoDbAsyncClient.builder().credentialsProvider(WebIdentityTokenFileCredentialsProvider.create())
-                    .region(Region.of(region)).build();
-        }
-
-        @Bean
-        DynamoDbEnhancedAsyncClient getDynamoDbEnhancedAsyncClient(DynamoDbAsyncClient dynamoDbAsyncClient) {
-            return DynamoDbEnhancedAsyncClient.builder().dynamoDbClient(dynamoDbAsyncClient).build();
-        }
-
-    }
-    ```
-
-19. En el archivo build.gradle del proyecto dynamo-db colocamos las siguientes dependencias
-    ```
-    dependencies {
-        implementation project(':model')
-        implementation 'org.springframework:spring-context'
-        implementation 'software.amazon.awssdk:dynamodb-enhanced'
-        implementation 'org.reactivecommons.utils:object-mapper-api:0.1.0'
-        implementation 'org.springframework.boot:spring-boot-starter-validation'
-        testImplementation 'org.reactivecommons.utils:object-mapper:0.1.0'
-    }
-    ```
-
-20. En el paquete 'co.com.microservicio.aws.dynamodb.config' creamos la siguiente clase
-    ```
-    package co.com.microservicio.aws.dynamodb.config;
-
-    import java.util.Map;
-
-    import org.springframework.boot.context.properties.ConfigurationProperties;
-    import org.springframework.boot.context.properties.EnableConfigurationProperties;
-    import org.springframework.context.annotation.Configuration;
-
-    import lombok.Data;
-
-    @Data
-    @Configuration
-    @EnableConfigurationProperties
-    @ConfigurationProperties(prefix = "adapters.repositories.tables")
-    public class DynamoDBTablesProperties {
-        private Map<String, String> namesmap;
-    }
-    ```
-
-21. Cambiamos la clase DynamoDBConfigTest en el paquete 'co.com.microservicio.aws.dynamodb.config' por el siguiente código
-    ```
-    package co.com.microservicio.aws.dynamodb.config;
-
-    import org.junit.jupiter.api.Test;
-    import org.junit.jupiter.api.extension.ExtendWith;
-    import org.mockito.Mock;
-    import org.mockito.junit.jupiter.MockitoExtension;
-    import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
-    import software.amazon.awssdk.metrics.MetricPublisher;
-    import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient;
-
-    import static org.junit.jupiter.api.Assertions.assertNotNull;
-
-    @ExtendWith(MockitoExtension.class)
-    class DynamoDBConfigTest {
-
-        @Mock
-        private DynamoDbAsyncClient dynamoDbAsyncClient;
-        private final DynamoDBConfig dynamoDBConfig = new DynamoDBConfig();
-
-        @Test
-        void testAmazonDynamoDB() {
-            DynamoDbAsyncClient result = dynamoDBConfig.amazonDynamoDB("http://aws.dynamo.test", "region");
-            assertNotNull(result);
-        }
-
-        @Test
-        void testAmazonDynamoDBAsync() {
-            DynamoDbAsyncClient result = dynamoDBConfig.amazonDynamoDBAsync("region");
-            assertNotNull(result);
-        }
-
-        @Test
-        void testGetDynamoDbEnhancedAsyncClient() {
-            DynamoDbEnhancedAsyncClient result = dynamoDBConfig.getDynamoDbEnhancedAsyncClient(dynamoDbAsyncClient);
-            assertNotNull(result);
-        }
-    }
-    ```
-22. En el paquete 'co.com.microservicio.aws.dynamodb' creamos la siguiente clase
-    ```
-    package co.com.microservicio.aws.dynamodb;
-
-    import java.util.function.Function;
-
-    import co.com.microservicio.aws.dynamodb.config.DynamoDBTablesProperties;
-    import reactor.core.publisher.Mono;
-    import software.amazon.awssdk.enhanced.dynamodb.DynamoDbAsyncTable;
-    import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
-    import software.amazon.awssdk.enhanced.dynamodb.Key;
-    import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
-
-    public class AdapterOperations<E, D> {
-        protected DynamoDbEnhancedAsyncClient dbEnhancedAsyncClient;
-        protected Function<E, D> fnToData;
-        protected Function<D, E> fnToEntity;
-        protected DynamoDbAsyncTable<D> dataTable;
-
-        public AdapterOperations(DynamoDbEnhancedAsyncClient dbEnhancedAsyncClient,
-                                DynamoDBTablesProperties tablesProperties, Function<E, D> fnToData, Function<D, E> fnToEntity,
-                                Class<D> dataClass) {
-            this.dbEnhancedAsyncClient = dbEnhancedAsyncClient;
-            this.fnToData = fnToData;
-            this.fnToEntity = fnToEntity;
-            var dynamoDbTableAdapter = dataClass.getAnnotation(DynamoDbTableAdapter.class);
-            var tableName = tablesProperties.getNamesmap().get(dynamoDbTableAdapter.tableName());
-            dataTable = dbEnhancedAsyncClient.table(tableName, TableSchema.fromBean(dataClass));
-        }
-
-        protected D toData(E entity) {
-            return fnToData.apply(entity);
-        }
-
-        protected E toEntity(D data) {
-            return fnToEntity.apply(data);
-        }
-
-        protected Mono<E> findOne(Key id) {
-            return Mono.fromFuture(dataTable.getItem(id)).map(this::toEntity);
-        }
-
-        protected Mono<E> update(E entity) {
-            return Mono.fromFuture(dataTable.updateItem(toData(entity))).map(this::toEntity);
-        }
-    }
-    ```
-
-23. En el paquete 'co.com.microservicio.aws.model.flight' creamos la siguiente clase
-    ```
-    package co.com.microservicio.aws.model.flight;
-
-    import java.io.Serializable;
-    import lombok.AllArgsConstructor;
-    import lombok.Builder;
-    import lombok.Data;
-    import lombok.NoArgsConstructor;
-
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder(toBuilder = true)
-    public class ValidationResponse implements Serializable {
-        private static final long serialVersionUID = 1L;
-        private boolean valid;
-        private String reason;
-        private String validationCode;
-    }
-    ```
-
-23. En el paquete 'co.com.microservicio.aws.dynamodb.flight.mapper' creamos la siguiente clase a cargo de mapear los datos de la clase DTO a la clase Entity
-    ```
-    package co.com.microservicio.aws.dynamodb.flight.mapper;
-
-    import co.com.microservicio.aws.dynamodb.flight.model.ModelEntityFlight;
-    import co.com.microservicio.aws.model.flight.FlightTicket;
-
-    import java.util.List;
-
-    import co.com.microservicio.aws.model.flight.ValidationResponse;
-    import org.apache.logging.log4j.util.Strings;
-    import org.mapstruct.Mapper;
-    import org.mapstruct.Mapping;
-    import org.mapstruct.Named;
-    import org.mapstruct.ReportingPolicy;
-
-    import com.fasterxml.jackson.core.type.TypeReference;
-    import com.fasterxml.jackson.databind.ObjectMapper;
-
-    import lombok.SneakyThrows;
-
-    @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
-    public interface FlightTicketDataMapper {
-        ModelEntityFlight toData(FlightTicket flightTicket);
-
-        @Mapping(target = "errors", source = "errors", qualifiedByName = "mapErrors")
-        FlightTicket toEntity(ModelEntityFlight modelEntityFlight);
-
-        @SneakyThrows
-        default String getErrors(List<ValidationResponse> errors) {
-            var mapper = new ObjectMapper();
-            return errors != null ? mapper.writeValueAsString(errors) : null;
-        }
-
-        @SneakyThrows
-        @Named("mapErrors")
-        default List<ValidationResponse> getErrors(String errors) {
-            var mapper = new ObjectMapper();
-            return Strings.isBlank(errors) ? List.of() : mapper.readValue(errors, new TypeReference<>() {
-            });
-        }
-    }
-    ```
-
-23. En el paquete 'co.com.microservicio.aws.dynamodb' creamos la siguiente clase correspondiente al adaptador que implementa la consulta en la bd
-    ```
-
-    ```
-
-
-
-## API Rest con anotaciones
-
-
 
 [< Volver](README-PROYECTO-JAVA-WEBFLUX.md)
 

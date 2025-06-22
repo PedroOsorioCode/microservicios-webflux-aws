@@ -13,7 +13,8 @@
   * [1.4 Spring Webflux](#id1-4)
 * [2. Proyecto Java Webflux](#id2)
   * [2.1 Proyecto base](#id2-1)
-  * [2.2 API Rest webflux](#id2-2)
+  * [2.2 API Rest webflux GET](#id2-2)
+  * [2.3 API Rest webflux CRUD dynamoDB](#id2-3)
 
 # <div id='id1'/>
 # 1 Documentación
@@ -105,13 +106,24 @@ Un bucket en Amazon S3 es un contenedor lógico donde se almacenan objetos (arch
 [>> Primeros pasos crear proyecto)](2-1-crear-proyecto-base.md)
 
 # <div id='id2-2'/>
-## 2.1 API Rest Java Spring Webflux
+## 2.2 API Rest Java Spring Webflux GET
+
+### Ejecutar primeros pasos
+
+Se indica paso a paso como crear un api rest y las diferentes formas de crearlo
+
+[>> Crear proyecto api rest](2-2-crear-api-rest.md)
+
+# <div id='id2-3'/>
+## 2.3 API Rest webflux CRUD dynamoDB
 
 ### Ejecutar primeros pasos
 
 Se indica paso a paso como crear un api rest para crear, actualizar, borrar y consultar información en una tabla en dynamodb
 
-[>> Crear proyecto api rest crud](2-2-crear-api-rest.md)
+[>> Crear proyecto api rest CRUD DynamoDB](2-3-crear-api-rest-crud-dynamodb.md)
+
+
 
 ---
 

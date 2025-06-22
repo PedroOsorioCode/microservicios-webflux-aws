@@ -1,0 +1,13 @@
+dependencies {
+    implementation project(':usecase')
+    implementation project(':model')
+    implementation project(':log')
+    implementation "org.springframework.boot:spring-boot-starter-webflux:${springBootVersion}"
+    implementation "org.springframework.boot:spring-boot-starter-actuator:${springBootVersion}"
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+    implementation "org.springdoc:springdoc-openapi-webflux-ui:${openapi}"
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += "-parameters"
+}

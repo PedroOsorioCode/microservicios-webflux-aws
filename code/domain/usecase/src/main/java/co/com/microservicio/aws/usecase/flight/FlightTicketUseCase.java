@@ -5,17 +5,21 @@ import co.com.microservicio.aws.model.flight.gateway.FlightRepository;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
+import java.util.Map;
+
 @RequiredArgsConstructor
 public class FlightTicketUseCase {
+    private static final String KEY_SIZE = "size";
+    private static final String ATTRIBUTE_IS_REQUIRED = "The attribute '%s' is required";
     private final FlightRepository flightRepository;
 
-    public Mono<FlightTicket> getAllRows(String messageId){
-        return Mono.just(messageId).filter(this::isEmpty)
+    public Mono<FlightTicket> getAllRows(Map<String, String> param){
+        return Mono.just(param).filter(this::isEmpty)
             .flatMap(flightRepository::getAllRows)
-            .defaultIfEmpty(new FlightTicket());
+            .switchIfEmpty(Mono.error(new IllegalStateException(String.format(ATTRIBUTE_IS_REQUIRED, KEY_SIZE))));
     }
 
-    private Boolean isEmpty(String messageId){
-        return messageId.isEmpty();
+    private Boolean isEmpty(Map<String, String> param){
+        return !param.get(KEY_SIZE).isEmpty();
     }
 }

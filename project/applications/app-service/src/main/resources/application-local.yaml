@@ -39,7 +39,9 @@ springdoc:
 
 entries:
   reactive-web:
-    path-base: "${PATH_BASE:/api/v1/microservice-aws/}"
+    path-base: "${PATH_BASE:/api/v1/microservice-aws}"
+    greet: "/greet"
+    greetReactive: "/greetReactive"
 
 integration:
   secrets:

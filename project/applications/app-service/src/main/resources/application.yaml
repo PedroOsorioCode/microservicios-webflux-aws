@@ -1,20 +1,20 @@
 server:
-  port: ${APP_PORT:8080}
-
+  port: "${APP_PORT:8080}"
 spring:
   application:
     name: "${APP_NAME:MicroserviceAws}"
-
 management:
   health:
     probes:
       enabled: true
   endpoint:
     health:
-      show-details: ${SHOW_DETAILS:never}
+      show-details: "${SHOW_DETAILS:never}"
       enabled: true
       cache:
         time-to-live: "10s"
+      probes:
+        enabled: true
   endpoints:
     web:
       base-path: "${PATH_BASE:/api/v1/microservice-aws/}"
@@ -23,12 +23,10 @@ management:
         liveness: "liveness"
         readiness: "readiness"
       exposure:
-        include: "health, liveness, readiness, metrics"
-
+        include: "health,prometheus"
 logging:
   level:
-    root: ${LOG4J_LEVEL:INFO}
-
+    root: "${LOG4J_LEVEL:INFO}"
 springdoc:
   version: "1.0.0"
   api-docs:
@@ -36,40 +34,36 @@ springdoc:
   swagger-ui:
     disable-swagger-default-url: true
     path: "${PATH_BASE:/api/v1/microservice-aws}/swagger.html"
-
 entries:
   reactive-web:
     path-base: "${PATH_BASE:/api/v1/microservice-aws/}"
-
 integration:
   secrets:
-    rabbitmq: ${SECRET_NAME_RABBITMQ:local-rabbitmq}
-    redis: ${SECRET_NAME_REDIS:local-redis}
+    rabbitmq: "${SECRET_NAME_RABBITMQ:local-rabbitmq}"
+    redis: "${SECRET_NAME_REDIS:local-redis}"
   aws:
     secrets-manager:
-      region: ${AWS_REGION:us-east-1}
-      endpoint: http://localhost:4566
-      cacheSeconds: ${AWS_CACHE_SECONDS:3600}
-      cacheSize: ${AWS_CACHE_SIZE:200}
-
+      region: "${AWS_REGION:us-east-1}"
+      endpoint: "http://localhost:4566"
+      cacheSeconds: "${AWS_CACHE_SECONDS:3600}"
+      cacheSize: "${AWS_CACHE_SIZE:200}"
 adapters:
   dynamodb:
     endpoint: "http://localhost:8010"
     repositories:
       tables:
         namesmap:
-          records-table: local-records
+          records-table: "local-records"
   rest-client:
-    timeout: ${REST_TIMEOUT_CONNECTION:5000}
-    readTimeout: ${REST_TIMEOUT_READ:5000}
-    writeTimeout: ${REST_TIMEOUT_WRITE:5000}
+    timeout: "${REST_TIMEOUT_CONNECTION:5000}"
+    readTimeout: "${REST_TIMEOUT_READ:5000}"
+    writeTimeout: "${REST_TIMEOUT_WRITE:5000}"
     microservice-external:
-      url: ${URL-MOCK-SITE:http://localhost:8010}
+      url: "${URL-MOCK-SITE:http://localhost:8010}"
   s3:
     endpoint: "${S3_ENDPOINT:http://localhost:4566}"
     bucket: "${S3_BUCKET_NAME:exampleaws}"
     region: "${REGION_AWS:us-east-1}"
-
 registration:
   event:
     consume:
@@ -77,3 +71,5 @@ registration:
     publish:
       updateCountry: "${event_audit_update_region:microservice.audit.updateRegion"
       deleteCountry: "${event_audit_delete_region:microservice.audit.deleteRegion"
+cors:
+  allowed-origins: "http://localhost:4200,http://localhost:8080"
