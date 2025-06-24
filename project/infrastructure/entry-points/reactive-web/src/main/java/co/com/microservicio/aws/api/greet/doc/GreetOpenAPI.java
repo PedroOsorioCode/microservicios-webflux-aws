@@ -15,7 +15,7 @@ import static org.springframework.http.MediaType.APPLICATION_JSON;
 public class GreetOpenAPI {
 
     private static final String OPERATION_ID = "Greet";
-    private static final String DESCRIPTION = "Retrieve information of a payment";
+    private static final String DESCRIPTION = "Retrieve information of a greeting";
     private static final String DESCRIPTION_OK = "When the response has status 200";
     private static final String DESCRIPTION_CONFLICT = "When the request fails";
     private static final String DESCRIPTION_ERROR = "Internal server error";

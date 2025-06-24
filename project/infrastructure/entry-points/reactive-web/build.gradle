@@ -2,6 +2,7 @@ dependencies {
     implementation project(':usecase')
     implementation project(':model')
     implementation project(':log')
+    implementation project(':commons')
     implementation "org.springframework.boot:spring-boot-starter-webflux:${springBootVersion}"
     implementation "org.springframework.boot:spring-boot-starter-actuator:${springBootVersion}"
     implementation 'io.micrometer:micrometer-registry-prometheus'

@@ -73,3 +73,6 @@ registration:
       deleteCountry: "${event_audit_delete_region:microservice.audit.deleteRegion"
 cors:
   allowed-origins: "http://localhost:4200,http://localhost:8080"
+aws:
+  dynamodb:
+    endpoint: "http://localhost:8000"

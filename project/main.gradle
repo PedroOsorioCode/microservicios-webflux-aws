@@ -29,6 +29,7 @@ subprojects {
 
     if (!['model', 'usecase'].contains(it.name)) {
         dependencies {
+		implementation platform('software.amazon.awssdk:bom:2.31.25')
             implementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
             implementation "org.apache.logging.log4j:log4j-api:${log4jVersion}"
         }

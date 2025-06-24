@@ -122,11 +122,12 @@ integration:
 
 adapters:
   dynamodb:
-    endpoint: "http://localhost:8010"
-    repositories:
-      tables:
-        namesmap:
-          records-table: local-records
+    endpoint: "http://localhost:4566"
+  repositories:
+    tables:
+      namesmap:
+        world_region: local_worldregions
+        
   rest-client:
     timeout: ${REST_TIMEOUT_CONNECTION:5000}
     readTimeout: ${REST_TIMEOUT_READ:5000}
@@ -253,17 +254,14 @@ registration:
         import java.io.Serializable;
         import java.util.Map;
 
-        import lombok.AllArgsConstructor;
-        import lombok.Getter;
-        import lombok.NoArgsConstructor;
-        import lombok.Setter;
-        import lombok.ToString;
+        import lombok.*;
 
         @Getter
         @Setter
         @NoArgsConstructor
         @AllArgsConstructor
         @ToString
+        @Builder(toBuilder = true)
         public class TransactionLog {
             @Serial
             private static final long serialVersionUID = 1L;
@@ -277,6 +275,7 @@ registration:
             @NoArgsConstructor
             @AllArgsConstructor
             @ToString
+            @Builder(toBuilder = true)
             public static class DataLog implements Serializable {
                 @Serial
                 private static final long serialVersionUID = 1L;
@@ -293,6 +292,7 @@ registration:
             @NoArgsConstructor
             @AllArgsConstructor
             @ToString
+            @Builder(toBuilder = true)
             public static class Request implements Serializable {
                 @Serial
                 private static final long serialVersionUID = 1L;
@@ -306,6 +306,7 @@ registration:
             @NoArgsConstructor
             @AllArgsConstructor
             @ToString
+            @Builder(toBuilder = true)
             public static class Response implements Serializable {
                 @Serial
                 private static final long serialVersionUID = 1L;

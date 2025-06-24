@@ -42,6 +42,12 @@ entries:
     path-base: "${PATH_BASE:/api/v1/microservice-aws}"
     greet: "/greet"
     greetReactive: "/greetReactive"
+  world-region-web:
+    path-base: "${PATH_BASE:/api/v2/microservice-aws}"
+    listCountries: "/list-countries"
+    listDepartaments: "/list-departaments"
+    listCities: "/list-cities"
+    listNeighborhoods: "/list-neighborhoods"
 
 integration:
   secrets:
@@ -56,11 +62,12 @@ integration:
 
 adapters:
   dynamodb:
-    endpoint: "http://localhost:8010"
-    repositories:
-      tables:
-        namesmap:
-          records-table: local-records
+    endpoint: "http://localhost:4566"
+  repositories:
+    tables:
+      namesmap:
+        world_region: local_worldregions
+
   rest-client:
     timeout: ${REST_TIMEOUT_CONNECTION:5000}
     readTimeout: ${REST_TIMEOUT_READ:5000}

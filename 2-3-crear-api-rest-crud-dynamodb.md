@@ -1,7 +1,10 @@
-# Creación microservicio APIREST con Webflux
+# Creación microservicio APIREST Java Webflux con DynamoDB
 > A continuación se indica el paso a paso que se debe realizar para continuar con el proyecto de creación de microservicios basados en la nube de AWS, esta guía comprende la creación de API REST con metodos HTTP a una tabla en dynamo db con un caso practico real
 
 ### Requisitos: 
+
+⚠️ Debes haber realizado el instructivo de ambiente local para comprender los comandos que usaremos<br>
+[Ver documentación ambiente local](./1-1-podman-localstack-aws.md)
 
 ⚠️ Debes haber comprendido el funcionamiento de creación de tablas en DynamoDB <br>
 [Ver documentación dynamoDB](./1-2-1-dynamodb.md)
@@ -12,15 +15,148 @@
 ⚠️ Debes haber realizado el proyecto api rest para continuar con este instructivo <br>
 [Crear proyecto base](./2-2-crear-api-rest.md)
 
+⚠️ Debes haber comprendido algunos de los flujos en programación reactiva<br>
+[Spring webflux](./1-3-spring-webflux.md)
+
+## Caso de uso:
+Permitir crear, actualizar, borrar y consultar la ubicación geográfica partiendo del nivel más general (país) hasta el más específico (unidad o conjunto residencial).
+
+## Criterios de aceptación:
+- Listar todos los paises
+- Listar departamentos por pais
+- Listar ciudad por departamento
+- Listar barrio por ciudad
+- Listar unidad por barrio
+- Registrar item en la tabla
+- Borrar item
+- Actualizar dirección a un item
+
 ## Creación de la tabla dynamoDB en ambiente local
 
+1. Comandos ambiente local (si usas docker cambias *podman* por *docker*)
+    ```
+    podman machine start
+    podman start localstack
+    ```
 
-10. Creamos la clase POJO Flight.java en el paquete co.com.microservicio.aws.model.flight para mapear todos los datos de la tabla de dynamoDB
+    ![](./img/webflux-iniciar-ambiente-local.png)
+
+2. Creación de la estructura de la tabla
+    ```
+    aws --endpoint-url=http://localhost:4566 dynamodb create-table --table-name local_worldregions --attribute-definitions AttributeName=PrimaryKey,AttributeType=S AttributeName=SortKey,AttributeType=S AttributeName=EntityTypeKey,AttributeType=S AttributeName=EntityName,AttributeType=S --key-schema AttributeName=PrimaryKey,KeyType=HASH AttributeName=SortKey,KeyType=RANGE --global-secondary-indexes "[{\"IndexName\": \"EntityTypeIndex\",\"KeySchema\": [{\"AttributeName\": \"EntityTypeKey\",\"KeyType\": \"HASH\"},{\"AttributeName\": \"EntityName\",\"KeyType\": \"RANGE\"}],\"Projection\": {\"ProjectionType\": \"ALL\"},\"ProvisionedThroughput\": {\"ReadCapacityUnits\": 5,\"WriteCapacityUnits\": 5}}]" --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+    ```
+### 🧾 Aclaración de atributos en el comando `aws dynamodb create-table`
+
+| Parámetro                    | Valor usado              | ¿Es palabra reservada de AWS? | Descripción                                                                                                                                 |
+|-----------------------------|--------------------------|-------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `AttributeName`             | `PrimaryKey`             | ❌ No                         | Nombre personalizado del atributo que usas como clave de partición (HASH).                                                                 |
+| `AttributeName`             | `SortKey`                | ❌ No                         | Nombre personalizado del atributo que usas como clave de ordenamiento (RANGE).                                                              |
+| `AttributeName`             | `EntityTypeKey`          | ❌ No                         | Atributo personalizado para clasificar el tipo de entidad (por ejemplo: país, ciudad, unidad).                                              |
+| `AttributeName`             | `EntityName`             | ❌ No                         | Atributo personalizado que representa el nombre de la entidad (ejemplo: "Colombia", "Bogotá", "Chapinero").                                |
+| `KeyType`                   | `HASH` / `RANGE`         | ✅ Sí                        | Palabras reservadas de AWS que indican si el atributo es una clave de partición (HASH) o de ordenamiento (RANGE).                          |
+| `ProjectionType`            | `ALL`                    | ✅ Sí                        | Palabra reservada que indica que todos los atributos del ítem estarán disponibles en el índice secundario global.                         |
+
+3. Así queda creada la tabla
+    ```
+    {
+        "TableDescription": {
+            "AttributeDefinitions": [
+                {
+                    "AttributeName": "PrimaryKey",
+                    "AttributeType": "S"
+                },
+                {
+                    "AttributeName": "SortKey",
+                    "AttributeType": "S"
+                },
+                {
+                    "AttributeName": "EntityTypeKey",
+                    "AttributeType": "S"
+                },
+                {
+                    "AttributeName": "EntityName",
+                    "AttributeType": "S"
+                }
+            ],
+            "TableName": "local_worldregions",
+            "KeySchema": [
+                {
+                    "AttributeName": "PrimaryKey",
+                    "KeyType": "HASH"
+                },
+                {
+                    "AttributeName": "SortKey",
+                    "KeyType": "RANGE"
+                }
+            ],
+            "TableStatus": "ACTIVE",
+            "CreationDateTime": "2025-06-22T10:08:20.727000-05:00",
+            "ProvisionedThroughput": {
+                "LastIncreaseDateTime": "1969-12-31T19:00:00-05:00",
+                "LastDecreaseDateTime": "1969-12-31T19:00:00-05:00",
+                "NumberOfDecreasesToday": 0,
+                "ReadCapacityUnits": 5,
+                "WriteCapacityUnits": 5
+            },
+            "TableSizeBytes": 0,
+            "ItemCount": 0,
+            "TableArn": "arn:aws:dynamodb:us-east-1:000000000000:table/local_worldregions",
+            "GlobalSecondaryIndexes": [
+                {
+                    "IndexName": "EntityTypeIndex",
+                    "KeySchema": [
+                        {
+                            "AttributeName": "EntityTypeKey",
+                            "KeyType": "HASH"
+                        },
+                        {
+                            "AttributeName": "EntityName",
+                            "KeyType": "RANGE"
+                        }
+                    ],
+                    "Projection": {
+                        "ProjectionType": "ALL"
+                    },
+                    "IndexStatus": "ACTIVE",
+                    "ProvisionedThroughput": {
+                        "ReadCapacityUnits": 5,
+                        "WriteCapacityUnits": 5
+                    },
+                    "IndexSizeBytes": 0,
+                    "ItemCount": 0,
+                    "IndexArn": "arn:aws:dynamodb:ddblocal:000000000000:table/local_worldregions/index/EntityTypeIndex"
+                }
+            ]
+        }
+    }
+    ```
+
+4. Ingreso items a la tabla (*Los comandos estan organizados para ejecutar en command line de windows*)
+    ```
+    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"PrimaryKey\":{\"S\":\"CITY#MED\"},\"SortKey\":{\"S\":\"NEIGHBORHOOD#ROB\"},\"EntityType\":{\"S\":\"NEIGHBORHOOD\"},\"Code\":{\"S\":\"ROB\"},\"Name\":{\"S\":\"Robledo\"},\"ParentCode\":{\"S\":\"MED\"},\"EntityTypeKey\":{\"S\":\"NEIGHBORHOOD\"},\"EntityName\":{\"S\":\"Robledo\"},\"Address\":{\"S\":\"Calle 65 #97-50\"}}"
+
+    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"PrimaryKey\":{\"S\":\"CITY#MED\"},\"SortKey\":{\"S\":\"NEIGHBORHOOD#LAU\"},\"EntityType\":{\"S\":\"NEIGHBORHOOD\"},\"Code\":{\"S\":\"LAU\"},\"Name\":{\"S\":\"Laureles\"},\"ParentCode\":{\"S\":\"MED\"},\"EntityTypeKey\":{\"S\":\"NEIGHBORHOOD\"},\"EntityName\":{\"S\":\"Laureles\"},\"Address\":{\"S\":\"Av Nutibara #33\"}}"
+
+    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"PrimaryKey\":{\"S\":\"CITY#MED\"},\"SortKey\":{\"S\":\"NEIGHBORHOOD#POB\"},\"EntityType\":{\"S\":\"NEIGHBORHOOD\"},\"Code\":{\"S\":\"POB\"},\"Name\":{\"S\":\"El Poblado\"},\"ParentCode\":{\"S\":\"MED\"},\"EntityTypeKey\":{\"S\":\"NEIGHBORHOOD\"},\"EntityName\":{\"S\":\"El Poblado\"},\"Address\":{\"S\":\"Cra 43A #6 Sur - 26\"}}"
+
+    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"PrimaryKey\":{\"S\":\"DEPARTMENT#ANT\"},\"SortKey\":{\"S\":\"CITY#MED\"},\"EntityType\":{\"S\":\"CITY\"},\"Code\":{\"S\":\"MED\"},\"Name\":{\"S\":\"Medellín\"},\"ParentCode\":{\"S\":\"ANT\"},\"EntityTypeKey\":{\"S\":\"CITY\"},\"EntityName\":{\"S\":\"Medellín\"}}"
+
+    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"PrimaryKey\":{\"S\":\"COUNTRY#CO\"},\"SortKey\":{\"S\":\"DEPARTMENT#ANT\"},\"EntityType\":{\"S\":\"DEPARTMENT\"},\"Code\":{\"S\":\"ANT\"},\"Name\":{\"S\":\"Antioquia\"},\"ParentCode\":{\"S\":\"CO\"},\"EntityTypeKey\":{\"S\":\"DEPARTMENT\"},\"EntityName\":{\"S\":\"Antioquia\"}}"
+
+    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"PrimaryKey\":{\"S\":\"COUNTRY#CO\"},\"SortKey\":{\"S\":\"COUNTRY#CO\"},\"EntityType\":{\"S\":\"COUNTRY\"},\"Code\":{\"S\":\"CO\"},\"Name\":{\"S\":\"Colombia\"},\"EntityTypeKey\":{\"S\":\"COUNTRY\"},\"EntityName\":{\"S\":\"Colombia\"}}"
+
+    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"PrimaryKey\":{\"S\":\"COUNTRY#CO\"},\"SortKey\":{\"S\":\"COUNTRY#CO\"},\"EntityType\":{\"S\":\"COUNTRY\"},\"Code\":{\"S\":\"CO\"},\"Name\":{\"S\":\"Colombia\"},\"EntityTypeKey\":{\"S\":\"COUNTRY\"},\"EntityName\":{\"S\":\"Colombia\"}}"
+    ```
+
+## Creación de la capa de dominio y servicios REST
+
+1. Creamos la clase POJO WolrdRegion.java en el paquete co.com.microservicio.aws.model.worldregion para mapear todos los datos de la tabla de dynamoDB
         
     ```
-    package co.com.microservicio.aws.model.flight;
+    package co.com.microservicio.aws.model.worldregion;
 
     import lombok.AllArgsConstructor;
+    import lombok.Builder;
     import lombok.Data;
     import lombok.NoArgsConstructor;
     import java.io.Serial;
@@ -29,110 +165,531 @@
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    public class FlightTicket implements Serializable {
+    @Builder(toBuilder = true)
+    public class WorldRegion implements Serializable {
         @Serial
         private static final long serialVersionUID = 1L;
 
-        private String documentNumber;
-        private String ticket;
-        private String status;
-        private String flightNumber;
-        private String origin;
-        private String destination;
-        private Double price;
-        private String date;
+        private String primaryKey;
+        private String sortKey;
+        private String entityType;
+        private String code;
+        private String name;
+        private String parentCode;
+        private String entityTypeKey;
+        private String entityName;
+        private String address;
     }
     ```
 
-11. Creamos la clase FlightRepository en el paquete co.com.microservicio.aws.model.flight.gateway
+2. Primero definimos nuestros modelos de transporte, enfocándonos en crear las clases necesarias para comunicar la capa REST con el caso de uso. Estas clases contienen la información relevante para el funcionamiento interno del microservicio, así como los datos que podrían ser útiles para integrar con otros microservicios o para ser publicados como eventos en colas o buses de mensajería.
+
+    - Creamos la clase Device.java en el paquete co.com.microservicio.aws.model.worldregion.rq 
     ```
-    package co.com.microservicio.aws.model.flight.gateway;
+    package co.com.microservicio.aws.model.worldregion.rq;
 
-    import co.com.microservicio.aws.model.flight.FlightTicket;
-    import reactor.core.publisher.Mono;
+    import lombok.AllArgsConstructor;
+    import lombok.Builder;
+    import lombok.Getter;
+    import lombok.NoArgsConstructor;
+    import lombok.Setter;
 
-    import java.util.Map;
-
-    public interface FlightRepository {
-        Mono<FlightTicket> getAllRows(Map<String, String> param);
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    public class Device {
+        private String userAgent;
+        private String platformType;
     }
     ```
 
-12. Creamos la clase FlightTicketUseCase.java en el paquete co.com.microservicio.aws.usecase.flight para obtener todos los datos de la tabla de dynamoDB, hacemos una pequeña validación del message-id para aplicar metodos webflux
+    - Creamos la clase Customer.java en el paquete co.com.microservicio.aws.model.worldregion.rq 
     ```
-    package co.com.microservicio.aws.usecase.flight;
+    package co.com.microservicio.aws.model.worldregion.rq;
 
-    import co.com.microservicio.aws.model.flight.FlightTicket;
-    import co.com.microservicio.aws.model.flight.gateway.FlightRepository;
+    import lombok.AllArgsConstructor;
+    import lombok.Builder;
+    import lombok.Getter;
+    import lombok.NoArgsConstructor;
+    import lombok.Setter;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    public class Customer {
+        private String ip;
+        private String username;
+        private Device device;
+    }
+    ```
+
+    - Creamos la clase Context.java en el paquete co.com.microservicio.aws.model.worldregion.rq 
+    ```
+    package co.com.microservicio.aws.model.worldregion.rq;
+
+    import lombok.AllArgsConstructor;
+    import lombok.Builder;
+    import lombok.Getter;
+    import lombok.NoArgsConstructor;
+    import lombok.Setter;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    public class Context {
+        private String id;
+        private Customer customer;
+    }
+    ```
+
+    - Creamos la clase TransactionRequest.java en el paquete co.com.microservicio.aws.model.worldregion.rq 
+    ```
+    package co.com.microservicio.aws.model.worldregion.rq;
+
+    import lombok.*;
+
+    import java.io.Serial;
+    import java.io.Serializable;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    public class TransactionRequest implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        private transient Context context;
+        private transient String request;
+    }
+    ```
+
+    **Nota:** Utilizamos la palabra clave transient para excluir ciertos campos del proceso de serialización. Esto significa que, al convertir un objeto en un flujo de bytes (por ejemplo, para enviarlo por red, almacenarlo en un archivo o en caché), los campos marcados como transient no se incluirán. Aunque estos datos pueden ser útiles para enviar a una cola o integrarse con otros sistemas, en esos casos se deberá construir un objeto específico para tal propósito. En el contexto de este requerimiento, no es necesario serializar dichos campos, ya que contienen información sensible o estrictamente técnica que no debe persistirse ni exponerse
+
+3. Ahora creamos nuestra clase de respuesta la cual contiene información del proceso y resultado esperado.
+
+    - Creamos la clase WorldRegionResponse.java en el paquete co.com.microservicio.aws.model.worldregion.rs
+    ```
+    package co.com.microservicio.aws.model.worldregion.rs;
+
+    import lombok.*;
+
+    import java.io.Serial;
+    import java.io.Serializable;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    public class WorldRegionResponse implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+        
+        private String code;
+        private String name;
+    }
+    ```
+
+    - Creamos la clase TransactionResponse.java en el paquete co.com.microservicio.aws.model.worldregion.rs
+    ```
+    package co.com.microservicio.aws.model.worldregion.rs;
+
+    import lombok.*;
+
+    import java.io.Serial;
+    import java.io.Serializable;
+    import java.util.List;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    public class TransactionResponse implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        private String message;
+        private String size;
+        private List<WorldRegionResponse> response;
+    }
+    ```
+
+    - Creamos la clase WorldRegionType.java en el paquete co.com.microservicio.aws.model.worldregion.util
+    ```
+    package co.com.microservicio.aws.model.worldregion.util;
+
+    import lombok.AccessLevel;
+    import lombok.NoArgsConstructor;
+
+    @NoArgsConstructor(access = AccessLevel.PRIVATE)
+    public class WorldRegionType {
+        public static final String COUNTRY = "COUNTRY";
+        public static final String DEPARTMENT = "DEPARTMENT";
+        public static final String CITY = "CITY";
+        public static final String NEIGHBORHOOD = "NEIGHBORHOOD";
+        public static final String UNIT = "UNIT";
+    }
+    ```
+
+4. Creamos la clase WorldRegionRepository.java en el paquete co.com.microservicio.aws.model.worldregion.gateway
+    ```
+    package co.com.microservicio.aws.model.worldregion.gateway;
+
+    import co.com.microservicio.aws.model.worldregion.WorldRegion;
+    import reactor.core.publisher.Flux;
+
+    public interface WorldRegionRepository {
+
+        Flux<WorldRegion> findByEntityType(String entityType);
+
+        Flux<WorldRegion> findByParentCodeAndEntityType(String parentCode, String entityType);
+    }
+    ```
+
+5. Creamos la clase WorldRegionUseCase.java en el paquete co.com.microservicio.aws.usecase.worldregion para cumplir con los criterios de aceptación; hacemos una validación del user-name para aplicar metodos webflux y lanzar errores
+    ```
+    package co.com.microservicio.aws.usecase.worldregion;
+
+    import co.com.microservicio.aws.model.worldregion.WorldRegion;
+    import co.com.microservicio.aws.model.worldregion.gateway.WorldRegionRepository;
+    import co.com.microservicio.aws.model.worldregion.rq.TransactionRequest;
+    import co.com.microservicio.aws.model.worldregion.rq.Context;
+    import co.com.microservicio.aws.model.worldregion.rq.Customer;
+    import co.com.microservicio.aws.model.worldregion.rs.TransactionResponse;
+    import co.com.microservicio.aws.model.worldregion.rs.WorldRegionResponse;
+    import co.com.microservicio.aws.model.worldregion.util.WorldRegionType;
     import lombok.RequiredArgsConstructor;
     import reactor.core.publisher.Mono;
 
-    import java.util.Map;
+    import java.util.List;
+    import java.util.Optional;
 
     @RequiredArgsConstructor
-    public class FlightTicketUseCase {
-        private static final String KEY_SIZE = "size";
+    public class WorldRegionUseCase {
+        private static final String KEY_USER_NAME = "user-name";
         private static final String ATTRIBUTE_IS_REQUIRED = "The attribute '%s' is required";
-        private final FlightRepository flightRepository;
 
-        public Mono<FlightTicket> getAllRows(Map<String, String> param){
-            return Mono.just(param).filter(this::isEmpty)
-                .flatMap(flightRepository::getAllRows)
-                .switchIfEmpty(Mono.error(new IllegalStateException(String.format(ATTRIBUTE_IS_REQUIRED, KEY_SIZE))));
+        private final WorldRegionRepository regionRepository;
+
+        public Mono<TransactionResponse> listAllCountries(TransactionRequest request){
+            return Mono.just(request)
+                .filter(this::userIsRequired)
+                .flatMap(req -> regionRepository.findByEntityType(WorldRegionType.COUNTRY)
+                        .collectList().flatMap(this::buildResponse)
+                ).switchIfEmpty(Mono.error(new IllegalStateException(
+                        String.format(ATTRIBUTE_IS_REQUIRED, KEY_USER_NAME))));
         }
 
-        private Boolean isEmpty(Map<String, String> param){
-            return !param.get(KEY_SIZE).isEmpty();
+        private Boolean userIsRequired(TransactionRequest request){
+            return Optional.ofNullable(request)
+                    .map(TransactionRequest::getContext)
+                    .map(Context::getCustomer)
+                    .map(Customer::getUsername)
+                    .filter(username -> !username.isEmpty())
+                    .isPresent();
+        }
+
+        private Mono<TransactionResponse> buildResponse(List<WorldRegion> worldRegions){
+            var simplifiedList = worldRegions.stream()
+                .map(wr -> WorldRegionResponse.builder()
+                    .code(wr.getCode())
+                    .name(wr.getName())
+                    .build())
+                .toList();
+
+            TransactionResponse response = TransactionResponse.builder()
+                    .message("countries listed successfull")
+                    .size(worldRegions.size())
+                    .response(simplifiedList)
+                    .build();
+
+            return Mono.just(response);
         }
     }
     ```
 
-13. Modificamos la clase Handler.java para invocar el caso de uso
-    ```
-    package co.com.microservicio.aws.api;
+6. Instalar helper básico
+    
+    - Commons: Contiene información sobre: Estructura para extracción de información de los headers, manipulación de fechas, entre otros.
 
+    Ejecutar en el directorio que contiene el build.gradle general
+    ```
+    gradle generateHelper --name=commons
+    ```
+
+7. Creamos la clase HeadersUtil.java en el paquete co.com.microservicio.aws.commons
+    ```
+    package co.com.microservicio.aws.commons;
+
+    import java.util.LinkedHashMap;
+    import java.util.Map;
+    import java.util.regex.Pattern;
+
+    import lombok.experimental.UtilityClass;
+
+    @UtilityClass
+    public class HeadersUtil {
+
+        private static final String CHARS_TO_CLEAR = "<>(;|'";
+        private static final String REGEXP_CHARS_TO_CLEAR = "[" + CHARS_TO_CLEAR + "]";
+        private static final Pattern PATTERN_CHARS_TO_CLEAR = Pattern.compile(REGEXP_CHARS_TO_CLEAR);
+
+        public static Map<String, String> clearChars(Map<String, String> headers) {
+            var localHeaders = new LinkedHashMap<String, String>();
+            if (null != headers && !headers.isEmpty()) {
+                for (Map.Entry<String, String> entry : headers.entrySet()) {
+                    localHeaders.put(entry.getKey(), PATTERN_CHARS_TO_CLEAR.matcher(entry.getValue()).replaceAll(" "));
+                }
+            }
+            return localHeaders;
+        }
+    }
+    ```
+
+8. Creamos la clase ContextUtil.java en el paquete co.com.microservicio.aws.commons
+    ```
+    package co.com.microservicio.aws.commons;
+
+    import co.com.microservicio.aws.model.worldregion.rq.Context;
+    import co.com.microservicio.aws.model.worldregion.rq.Customer;
+    import co.com.microservicio.aws.model.worldregion.rq.Device;
+    import lombok.experimental.UtilityClass;
+
+    import java.util.Map;
+    import java.util.Optional;
+
+    @UtilityClass
+    public class ContextUtil {
+        private static final String EMPTY_VALUE = "";
+
+        public static Context buildContext(Map<String, String> headers) {
+            var localHeaders = HeadersUtil.clearChars(headers);
+            return Context.builder().id(Optional.ofNullable(localHeaders.get("message-id")).orElse(EMPTY_VALUE))
+                    .customer(buildCustomer(localHeaders)).build();
+        }
+
+        private static Customer buildCustomer(Map<String, String> headers) {
+            return Customer.builder().ip(Optional.ofNullable(headers.get("ip")).orElse(EMPTY_VALUE))
+                    .username(Optional.ofNullable(headers.get("username")).orElse(EMPTY_VALUE))
+                    .device(buildDevice(headers)).build();
+        }
+
+        private static Device buildDevice(Map<String, String> headers) {
+            return Device.builder().userAgent(Optional.ofNullable(headers.get("user-agent")).orElse(EMPTY_VALUE))
+                    .platformType(Optional.ofNullable(headers.get("platform-type")).orElse(EMPTY_VALUE)).build();
+        }
+    }
+    ```
+
+9. Modificamos el build.gradle de la aplicación infrastructure > entry-points para agregar la dependencia de helpers > commons
+    ```
+    implementation project(':commons')
+    ``` 
+
+10. Creamos la clase WorldRegionHandler.java en el paquete co.com.microservicio.aws.api.worldregion
+    ```
+    package co.com.microservicio.aws.api.worldregion;
+
+    import co.com.microservicio.aws.commons.ContextUtil;
     import co.com.microservicio.aws.log.LoggerBuilder;
     import co.com.microservicio.aws.log.TransactionLog;
-    import co.com.microservicio.aws.model.flight.FlightTicket;
-    import co.com.microservicio.aws.usecase.flight.FlightTicketUseCase;
+    import co.com.microservicio.aws.model.worldregion.rq.Context;
+    import co.com.microservicio.aws.model.worldregion.rq.TransactionRequest;
+    import co.com.microservicio.aws.model.worldregion.rs.TransactionResponse;
+    import co.com.microservicio.aws.usecase.worldregion.WorldRegionUseCase;
     import lombok.RequiredArgsConstructor;
     import org.springframework.stereotype.Component;
     import org.springframework.web.reactive.function.server.ServerRequest;
     import org.springframework.web.reactive.function.server.ServerResponse;
     import reactor.core.publisher.Mono;
 
-    import java.util.Collection;
-    import java.util.List;
-    import java.util.Map;
-    import java.util.Set;
-
     @Component
     @RequiredArgsConstructor
-    public class Handler {
-        private static final String NAME_CLASS = Handler.class.getName();
-        private static final String MESSAGE_SERVICE = "Service Api Rest get alls rows by size";
+    public class WorldRegionHandler {
+        private static final String NAME_CLASS = WorldRegionHandler.class.getName();
+        private static final String MESSAGE_SERVICE = "Service Api Rest world regions";
+
         private final LoggerBuilder logger;
-        private final FlightTicketUseCase flightTicketUseCase;
+        private final WorldRegionUseCase worldRegionUseCase;
 
-        public Mono<ServerResponse> getAllRows(ServerRequest serverRequest) {
+        public Mono<ServerResponse> listAllCountries(ServerRequest serverRequest) {
             var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
-            var messageId = headers.get("message-id");
-            logger.info(TransactionLog.Request.builder().body(headers).build(), null,
-                "My first api rest", messageId, MESSAGE_SERVICE, NAME_CLASS);
+            var context = ContextUtil.buildContext(headers);
+            printOnProcess(context, "List all countries");
 
-            return ServerResponse.ok().body(flightTicketUseCase.getAllRows(headers)
-                .onErrorResume(e -> this.printFailed(e, messageId)), FlightTicket.class
+            var request = TransactionRequest.builder().context(context).build();
+            return ServerResponse.ok().body(worldRegionUseCase.listAllCountries(request)
+                    .onErrorResume(e -> this.printFailed(e, context.getId())), TransactionResponse.class
             );
         }
 
-        private Mono<FlightTicket> printFailed(Throwable throwable, String messageId) {
+        private Mono<TransactionResponse> printFailed(Throwable throwable, String messageId) {
             logger.error(throwable.getMessage(), messageId, MESSAGE_SERVICE, NAME_CLASS);
             return Mono.empty();
+        }
+
+        private void printOnProcess(Context context, String messageInfo){
+            logger.info(TransactionLog.Request.builder().body(context).build(), null,
+                    messageInfo, context.getId(), MESSAGE_SERVICE, NAME_CLASS);
+        }
+    }
+    ``` 
+
+11. Modificamos el archivo application.yaml para agregar las nuevas rutas, debe quedar así:
+
+```
+entries:
+  reactive-web:
+    path-base: "${PATH_BASE:/api/v1/microservice-aws}"
+    greet: "/greet"
+    greetReactive: "/greetReactive"
+  world-region-web:
+    path-base: "${PATH_BASE:/api/v1/microservice-aws}"
+    listCountries: "/list-countries"
+    listDepartaments: "/list-departaments"
+    listCities: "/list-cities"
+    listNeighborhoods: "/list-neighborhoods"
+``` 
+
+12. Creamos la clase ApiWorldRegionProperties.java en el paquete co.com.microservicio.aws.api.worldregion.config
+    ```
+    package co.com.microservicio.aws.api.worldregion.config;
+
+    import lombok.Data;
+    import org.springframework.boot.context.properties.ConfigurationProperties;
+    import org.springframework.stereotype.Component;
+
+    @Data
+    @Component
+    @ConfigurationProperties(prefix = "entries.world-region-web")
+    public class ApiWorldRegionProperties {
+        private String pathBase;
+        private String listCountries;
+        private String listDepartaments;
+        private String listCities;
+        private String listNeighborhoods;
+    }
+    ``` 
+
+13. Creamos la clase WorldRegionOpenAPI en el paquete co.com.microservicio.aws.api.worldregion.doc
+    ```
+    package co.com.microservicio.aws.api.worldregion.doc;
+
+    import lombok.experimental.UtilityClass;
+    import org.springdoc.core.fn.builders.operation.Builder;
+
+    import java.util.function.Consumer;
+
+    import static org.springdoc.core.fn.builders.apiresponse.Builder.responseBuilder;
+    import static org.springdoc.core.fn.builders.content.Builder.contentBuilder;
+    import static org.springdoc.core.fn.builders.schema.Builder.schemaBuilder;
+    import static org.springframework.http.HttpStatus.*;
+    import static org.springframework.http.MediaType.APPLICATION_JSON;
+
+    @UtilityClass
+    public class WorldRegionOpenAPI {
+
+        private static final String OPERATION_ID = "Greet";
+        private static final String DESCRIPTION = "Retrieve information of a world regions";
+        private static final String DESCRIPTION_OK = "When the response has status 200";
+        private static final String DESCRIPTION_CONFLICT = "When the request fails";
+        private static final String DESCRIPTION_ERROR = "Internal server error";
+        private static final String TAG = "Payments";
+
+        public static Consumer<Builder> greetRoute() {
+            return ops -> ops
+                    .operationId(OPERATION_ID)
+                    .description(DESCRIPTION)
+                    .tag(TAG)
+                    .summary(OPERATION_ID)
+                    .response(responseOk())
+                    .response(responseBusiness())
+                    .response(responseError())
+                    .response(responseNotFound())
+                    .response(responseBadRequest());
+        }
+
+        public static org.springdoc.core.fn.builders.apiresponse.Builder responseOk(){
+            return responseBuilder().
+                    responseCode(String.valueOf(OK.value()))
+                    .description(DESCRIPTION_OK)
+                    .content(contentBuilder()
+                            .mediaType(APPLICATION_JSON.toString())
+                            .schema(schemaBuilder()
+                                    .implementation(String.class)));
+        }
+
+        public static org.springdoc.core.fn.builders.apiresponse.Builder responseBusiness(){
+            return responseBuilder()
+                    .responseCode(String.valueOf(CONFLICT.value()))
+                    .description(DESCRIPTION_CONFLICT)
+                    .implementation(Error.class);
+        }
+
+        public static org.springdoc.core.fn.builders.apiresponse.Builder responseError(){
+            return responseBuilder()
+                    .responseCode(String.valueOf(INTERNAL_SERVER_ERROR.value()))
+                    .description(DESCRIPTION_ERROR)
+                    .implementation(Error.class);
+        }
+
+        public static org.springdoc.core.fn.builders.apiresponse.Builder responseNotFound(){
+            return responseBuilder()
+                    .responseCode(String.valueOf(NOT_FOUND.value()))
+                    .description(NOT_FOUND.getReasonPhrase())
+                    .implementation(Error.class);
+        }
+
+        public static org.springdoc.core.fn.builders.apiresponse.Builder responseBadRequest() {
+            return responseBuilder()
+                    .responseCode(String.valueOf(BAD_REQUEST.value()))
+                    .description(BAD_REQUEST.getReasonPhrase())
+                    .implementation(Error.class);
+        }
+
+    }
+    ```
+
+14. Creamos la clase WorldRegionRouterRest.java en el paquete co.com.microservicio.aws.api.worldregion
+    ```
+    package co.com.microservicio.aws.api.worldregion;
+
+    import co.com.microservicio.aws.api.greet.doc.GreetOpenAPI;
+    import co.com.microservicio.aws.api.worldregion.config.ApiProperties;
+    import lombok.RequiredArgsConstructor;
+    import org.springdoc.webflux.core.fn.SpringdocRouteBuilder;
+    import org.springframework.context.annotation.Bean;
+    import org.springframework.context.annotation.Configuration;
+    import org.springframework.web.reactive.function.server.RouterFunction;
+    import org.springframework.web.reactive.function.server.ServerResponse;
+
+    @Configuration
+    @RequiredArgsConstructor
+    public class WorldRegionRouterRest {
+        private final ApiWorldRegionProperties properties;
+
+        @Bean
+        public RouterFunction<ServerResponse> routerWorldRegionFunction(WorldRegionHandler worldRegionHandler) {
+            return SpringdocRouteBuilder.route()
+                    .GET(properties.getPathBase().concat(properties.getListCountries()),
+                            worldRegionHandler::listAllCountries, GreetOpenAPI.greetRoute())
+                    .build();
         }
     }
     ```
 
-14. Creamos la conexión con DynamoDB para implementar la interfaz de conexión entre el caso de uso y la infrastructura de conexión con DynamoDB
+## Creación del driver de conexión con dynamoDB
+
+1. Creamos la conexión con DynamoDB para implementar la interfaz de conexión entre el caso de uso y la infrastructura de conexión con DynamoDB
     
     - Ubicarse en la raiz del proyecto, abrir la consola de comandos y ejecutar el comando de creación del driven-adapter con DynamoDB
    ```
@@ -141,7 +698,7 @@
 
    ![](./img/apirest-crear-driven-adapter-dynamodb.png)
 
-15. En el paquete 'co.com.microservicio.aws.dynamodb' creamos la siguiente clase
+2. En el paquete 'co.com.microservicio.aws.dynamodb' creamos la siguiente clase
 
    ```
     package co.com.microservicio.aws.dynamodb;
@@ -158,7 +715,7 @@
     }
    ```
 
-16. En el paquete 'co.com.microservicio.aws.dynamodb.config' creamos la siguiente clase
+3. En el paquete 'co.com.microservicio.aws.dynamodb.config' creamos la siguiente clase
     ```
     package co.com.microservicio.aws.dynamodb.config;
 
@@ -171,7 +728,7 @@
     }
     ```
 
-17. En el paquete 'co.com.microservicio.aws.dynamodb.flight.model' creamos la siguiente clase de acuerdo a los datos a almacenar en la tabla
+4. En el paquete 'co.com.microservicio.aws.dynamodb.model' creamos la siguiente clase de acuerdo a los datos a almacenar en la tabla
     ```
     package co.com.microservicio.aws.dynamodb.model;
 
@@ -186,23 +743,27 @@
 
     @Data
     @DynamoDbBean
-    @DynamoDbTableAdapter(tableName = SourceName.FLIGHT_TICKETS)
-    public class ModelEntityFlight {
+    @DynamoDbTableAdapter(tableName = SourceName.WORLD_REGIONS) // asegúrate que exista esta constante
+    public class ModelEntityWorldRegion {
+
         @Getter(onMethod_ = @DynamoDbPartitionKey)
-        private String documentNumber;
+        private String primaryKey;
+
         @Getter(onMethod_ = @DynamoDbSortKey)
-        private String ticket;
-        @Getter(onMethod_ = @DynamoDbSecondaryPartitionKey(indexNames = "statusIndex"))
-        private String status;
-        private String flightNumber;
-        private String origin;
-        private String destination;
-        private Double price;
-        private String date;
+        private String sortKey;
+
+        @Getter(onMethod_ = @DynamoDbSecondaryPartitionKey(indexNames = "EntityTypeIndex"))
+        private String entityTypeKey;
+
+        private String code;
+        private String name;
+        private String parentCode;
+        private String entityName;
+        private String address;
     }
     ```
 
-18. Cambiamos la clase DynamoDBConfig en el paquete 'co.com.microservicio.aws.dynamodb.config' por el siguiente código
+5. Cambiamos la clase DynamoDBConfig en el paquete 'co.com.microservicio.aws.dynamodb.config' por el siguiente código
     ```
     package co.com.microservicio.aws.dynamodb.config;
 
@@ -244,40 +805,7 @@
     }
     ```
 
-19. En el archivo build.gradle del proyecto dynamo-db colocamos las siguientes dependencias
-    ```
-    dependencies {
-        implementation project(':model')
-        implementation 'org.springframework:spring-context'
-        implementation 'software.amazon.awssdk:dynamodb-enhanced'
-        implementation 'org.reactivecommons.utils:object-mapper-api:0.1.0'
-        implementation 'org.springframework.boot:spring-boot-starter-validation'
-        testImplementation 'org.reactivecommons.utils:object-mapper:0.1.0'
-    }
-    ```
-
-20. En el paquete 'co.com.microservicio.aws.dynamodb.config' creamos la siguiente clase
-    ```
-    package co.com.microservicio.aws.dynamodb.config;
-
-    import java.util.Map;
-
-    import org.springframework.boot.context.properties.ConfigurationProperties;
-    import org.springframework.boot.context.properties.EnableConfigurationProperties;
-    import org.springframework.context.annotation.Configuration;
-
-    import lombok.Data;
-
-    @Data
-    @Configuration
-    @EnableConfigurationProperties
-    @ConfigurationProperties(prefix = "adapters.repositories.tables")
-    public class DynamoDBTablesProperties {
-        private Map<String, String> namesmap;
-    }
-    ```
-
-21. Cambiamos la clase DynamoDBConfigTest en el paquete 'co.com.microservicio.aws.dynamodb.config' por el siguiente código
+6. Cambiamos la clase DynamoDBConfigTest en el paquete 'co.com.microservicio.aws.dynamodb.config' por el siguiente código
     ```
     package co.com.microservicio.aws.dynamodb.config;
 
@@ -286,7 +814,6 @@
     import org.mockito.Mock;
     import org.mockito.junit.jupiter.MockitoExtension;
     import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
-    import software.amazon.awssdk.metrics.MetricPublisher;
     import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient;
 
     import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -317,7 +844,49 @@
         }
     }
     ```
-22. En el paquete 'co.com.microservicio.aws.dynamodb' creamos la siguiente clase
+
+7. En el archivo build.gradle del proyecto dynamo-db colocamos las siguientes dependencias
+    ```
+    dependencies {
+        implementation project(':model')
+        implementation 'org.springframework:spring-context'
+        implementation 'software.amazon.awssdk:dynamodb-enhanced'
+        implementation 'org.reactivecommons.utils:object-mapper-api:0.1.0'
+        implementation 'org.springframework.boot:spring-boot-starter-validation'
+        implementation 'org.springframework.boot:spring-boot-starter-actuator'
+        implementation 'org.mapstruct:mapstruct:1.3.1.Final'
+        implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+
+        annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+        annotationProcessor 'org.mapstruct:mapstruct-processor:1.3.1.Final'
+
+        testImplementation 'org.reactivecommons.utils:object-mapper:0.1.0'
+    }
+    ```
+
+8. En el paquete 'co.com.microservicio.aws.dynamodb.config' creamos la siguiente clase
+    ```
+    package co.com.microservicio.aws.dynamodb.config;
+
+    import java.util.Map;
+
+    import org.springframework.boot.context.properties.ConfigurationProperties;
+    import org.springframework.boot.context.properties.EnableConfigurationProperties;
+    import org.springframework.context.annotation.Configuration;
+
+    import lombok.Data;
+
+    @Data
+    @Configuration
+    @EnableConfigurationProperties
+    @ConfigurationProperties(prefix = "adapters.repositories.tables")
+    public class DynamoDBTablesProperties {
+        private Map<String, String> namesmap;
+    }
+    ```
+
+
+9. En el paquete 'co.com.microservicio.aws.dynamodb' creamos la siguiente clase
     ```
     package co.com.microservicio.aws.dynamodb;
 
@@ -365,73 +934,32 @@
     }
     ```
 
-23. En el paquete 'co.com.microservicio.aws.model.flight' creamos la siguiente clase
+10. En el paquete 'co.com.microservicio.aws.dynamodb.mapper' creamos la siguiente clase a cargo de mapear los datos de la clase DTO a la clase Entity o viceversa
     ```
-    package co.com.microservicio.aws.model.flight;
+    package co.com.microservicio.aws.dynamodb.mapper;
 
-    import java.io.Serializable;
-    import lombok.AllArgsConstructor;
-    import lombok.Builder;
-    import lombok.Data;
-    import lombok.NoArgsConstructor;
-
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder(toBuilder = true)
-    public class ValidationResponse implements Serializable {
-        private static final long serialVersionUID = 1L;
-        private boolean valid;
-        private String reason;
-        private String validationCode;
-    }
-    ```
-
-23. En el paquete 'co.com.microservicio.aws.dynamodb.flight.mapper' creamos la siguiente clase a cargo de mapear los datos de la clase DTO a la clase Entity
-    ```
-    package co.com.microservicio.aws.dynamodb.flight.mapper;
-
-    import co.com.microservicio.aws.dynamodb.flight.model.ModelEntityFlight;
-    import co.com.microservicio.aws.model.flight.FlightTicket;
-
-    import java.util.List;
-
-    import co.com.microservicio.aws.model.flight.ValidationResponse;
-    import org.apache.logging.log4j.util.Strings;
+    import co.com.microservicio.aws.dynamodb.model.ModelEntityWorldRegion;
+    import co.com.microservicio.aws.model.worldregion.WorldRegion;
     import org.mapstruct.Mapper;
-    import org.mapstruct.Mapping;
-    import org.mapstruct.Named;
     import org.mapstruct.ReportingPolicy;
 
-    import com.fasterxml.jackson.core.type.TypeReference;
-    import com.fasterxml.jackson.databind.ObjectMapper;
-
-    import lombok.SneakyThrows;
-
     @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
-    public interface FlightTicketDataMapper {
-        ModelEntityFlight toData(FlightTicket flightTicket);
-
-        @Mapping(target = "errors", source = "errors", qualifiedByName = "mapErrors")
-        FlightTicket toEntity(ModelEntityFlight modelEntityFlight);
-
-        @SneakyThrows
-        default String getErrors(List<ValidationResponse> errors) {
-            var mapper = new ObjectMapper();
-            return errors != null ? mapper.writeValueAsString(errors) : null;
-        }
-
-        @SneakyThrows
-        @Named("mapErrors")
-        default List<ValidationResponse> getErrors(String errors) {
-            var mapper = new ObjectMapper();
-            return Strings.isBlank(errors) ? List.of() : mapper.readValue(errors, new TypeReference<>() {
-            });
-        }
+    public interface WorldRegionDataMapper {
+        ModelEntityWorldRegion toData(WorldRegion worldRegion);
+        WorldRegion toEntity(ModelEntityWorldRegion modelEntityWorldRegion);
     }
     ```
 
-23. En el paquete 'co.com.microservicio.aws.dynamodb' creamos la siguiente clase correspondiente al adaptador que implementa la consulta en la bd
+11. Eliminamos las clases autogeneradas: TemplateAdapterOperationsTest, DynamoDBTemplateAdapter
+
+12. Creamos la clase WorldRegionRepositoryAdapter.java quien implementará la interfaz Gateway en el paquete 'co.com.microservicio.aws.dynamodb.mapper'
+    ```
+
+    ```
+
+
+
+13. En el paquete 'co.com.microservicio.aws.dynamodb' creamos la siguiente clase correspondiente al adaptador que implementa la consulta en la bd
     ```
 
     ```
