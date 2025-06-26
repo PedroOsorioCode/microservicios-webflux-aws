@@ -22,11 +22,12 @@
 Permitir crear, actualizar, borrar y consultar la ubicación geográfica partiendo del nivel más general (país) hasta el más específico (unidad o conjunto residencial).
 
 ## Criterios de aceptación:
-- Listar todos los paises
+- Listar todos los paises por region
 - Listar departamentos por pais
 - Listar ciudad por departamento
 - Listar barrio por ciudad
 - Listar unidad por barrio
+- Listar un item en especifico
 - Registrar item en la tabla
 - Borrar item
 - Actualizar dirección a un item
@@ -43,18 +44,28 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
 
 2. Creación de la estructura de la tabla
     ```
-    aws --endpoint-url=http://localhost:4566 dynamodb create-table --table-name local_worldregions --attribute-definitions AttributeName=PrimaryKey,AttributeType=S AttributeName=SortKey,AttributeType=S AttributeName=EntityTypeKey,AttributeType=S AttributeName=EntityName,AttributeType=S --key-schema AttributeName=PrimaryKey,KeyType=HASH AttributeName=SortKey,KeyType=RANGE --global-secondary-indexes "[{\"IndexName\": \"EntityTypeIndex\",\"KeySchema\": [{\"AttributeName\": \"EntityTypeKey\",\"KeyType\": \"HASH\"},{\"AttributeName\": \"EntityName\",\"KeyType\": \"RANGE\"}],\"Projection\": {\"ProjectionType\": \"ALL\"},\"ProvisionedThroughput\": {\"ReadCapacityUnits\": 5,\"WriteCapacityUnits\": 5}}]" --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+    aws --endpoint-url=http://localhost:4566 dynamodb create-table --table-name local_worldregions --attribute-definitions AttributeName=region,AttributeType=S AttributeName=code,AttributeType=S --key-schema AttributeName=region,KeyType=HASH AttributeName=code,KeyType=RANGE --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
     ```
-### 🧾 Aclaración de atributos en el comando `aws dynamodb create-table`
+    ### Aclaración de atributos en el comando `aws dynamodb create-table`
 
-| Parámetro                    | Valor usado              | ¿Es palabra reservada de AWS? | Descripción                                                                                                                                 |
-|-----------------------------|--------------------------|-------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
-| `AttributeName`             | `PrimaryKey`             | ❌ No                         | Nombre personalizado del atributo que usas como clave de partición (HASH).                                                                 |
-| `AttributeName`             | `SortKey`                | ❌ No                         | Nombre personalizado del atributo que usas como clave de ordenamiento (RANGE).                                                              |
-| `AttributeName`             | `EntityTypeKey`          | ❌ No                         | Atributo personalizado para clasificar el tipo de entidad (por ejemplo: país, ciudad, unidad).                                              |
-| `AttributeName`             | `EntityName`             | ❌ No                         | Atributo personalizado que representa el nombre de la entidad (ejemplo: "Colombia", "Bogotá", "Chapinero").                                |
-| `KeyType`                   | `HASH` / `RANGE`         | ✅ Sí                        | Palabras reservadas de AWS que indican si el atributo es una clave de partición (HASH) o de ordenamiento (RANGE).                          |
-| `ProjectionType`            | `ALL`                    | ✅ Sí                        | Palabra reservada que indica que todos los atributos del ítem estarán disponibles en el índice secundario global.                         |
+    - partitionkey → region, country-col, dept-ant, etc.
+
+    - sortkey → code (usaremos UUID para simular unicidad)
+
+    ### Buenas prácticas de diseño
+    | Concepto                      | Explicación breve                                                                 |
+    |------------------------------|------------------------------------------------------------------------------------|
+    | 🔑 partitionKey debe repetirse | Así puedes agrupar varios ítems relacionados y usar query por PK.                 |
+    | 📚 sortKey debe diferenciar ítems | Dentro del grupo de PK, sirve para ordenar o filtrar.                            |
+    | 🔍 getItem(PK, SK)            | Recupera 1 solo ítem (requiere ambos).                                            |
+    | 📈 query(PK)                  | Recupera todos los ítems con esa PK (opcionalmente con condiciones en SK).       |
+
+    ### Conclusiones:
+
+    - ✔️ Usa partitionKey para agrupar ítems relacionados
+    - ✔️ Usa sortKey para ordenar o identificar únicos dentro del grupo
+    - ✔️ La combinación PK+SK es lo que hace único un ítem
+    - ✔️ Puedes hacer query(PK) sin SK para traer todos los del grupo
 
 3. Así queda creada la tabla
     ```
@@ -62,35 +73,27 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
         "TableDescription": {
             "AttributeDefinitions": [
                 {
-                    "AttributeName": "PrimaryKey",
+                    "AttributeName": "region",
                     "AttributeType": "S"
                 },
                 {
-                    "AttributeName": "SortKey",
-                    "AttributeType": "S"
-                },
-                {
-                    "AttributeName": "EntityTypeKey",
-                    "AttributeType": "S"
-                },
-                {
-                    "AttributeName": "EntityName",
+                    "AttributeName": "code",
                     "AttributeType": "S"
                 }
             ],
             "TableName": "local_worldregions",
             "KeySchema": [
                 {
-                    "AttributeName": "PrimaryKey",
+                    "AttributeName": "region",
                     "KeyType": "HASH"
                 },
                 {
-                    "AttributeName": "SortKey",
+                    "AttributeName": "code",
                     "KeyType": "RANGE"
                 }
             ],
             "TableStatus": "ACTIVE",
-            "CreationDateTime": "2025-06-22T10:08:20.727000-05:00",
+            "CreationDateTime": "2025-06-24T23:30:18.460000-05:00",
             "ProvisionedThroughput": {
                 "LastIncreaseDateTime": "1969-12-31T19:00:00-05:00",
                 "LastDecreaseDateTime": "1969-12-31T19:00:00-05:00",
@@ -100,57 +103,29 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
             },
             "TableSizeBytes": 0,
             "ItemCount": 0,
-            "TableArn": "arn:aws:dynamodb:us-east-1:000000000000:table/local_worldregions",
-            "GlobalSecondaryIndexes": [
-                {
-                    "IndexName": "EntityTypeIndex",
-                    "KeySchema": [
-                        {
-                            "AttributeName": "EntityTypeKey",
-                            "KeyType": "HASH"
-                        },
-                        {
-                            "AttributeName": "EntityName",
-                            "KeyType": "RANGE"
-                        }
-                    ],
-                    "Projection": {
-                        "ProjectionType": "ALL"
-                    },
-                    "IndexStatus": "ACTIVE",
-                    "ProvisionedThroughput": {
-                        "ReadCapacityUnits": 5,
-                        "WriteCapacityUnits": 5
-                    },
-                    "IndexSizeBytes": 0,
-                    "ItemCount": 0,
-                    "IndexArn": "arn:aws:dynamodb:ddblocal:000000000000:table/local_worldregions/index/EntityTypeIndex"
-                }
-            ]
+            "TableArn": "arn:aws:dynamodb:us-east-1:000000000000:table/local_worldregions"
         }
     }
     ```
 
 4. Ingreso items a la tabla (*Los comandos estan organizados para ejecutar en command line de windows*)
     ```
-    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"PrimaryKey\":{\"S\":\"CITY#MED\"},\"SortKey\":{\"S\":\"NEIGHBORHOOD#ROB\"},\"EntityType\":{\"S\":\"NEIGHBORHOOD\"},\"Code\":{\"S\":\"ROB\"},\"Name\":{\"S\":\"Robledo\"},\"ParentCode\":{\"S\":\"MED\"},\"EntityTypeKey\":{\"S\":\"NEIGHBORHOOD\"},\"EntityName\":{\"S\":\"Robledo\"},\"Address\":{\"S\":\"Calle 65 #97-50\"}}"
+    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"region\":{\"S\":\"REGION-LATAM\"},\"code\":{\"S\":\"d40b2031-2e14-4845-91cb-af0bf87a8ce3\"},\"name\":{\"S\":\"Colombia\"},\"codeRegion\":{\"S\":\"COUNTRY-COL\"},\"creationDate\":{\"S\":\"2025-06-24T20:15:00Z\"}}"
 
-    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"PrimaryKey\":{\"S\":\"CITY#MED\"},\"SortKey\":{\"S\":\"NEIGHBORHOOD#LAU\"},\"EntityType\":{\"S\":\"NEIGHBORHOOD\"},\"Code\":{\"S\":\"LAU\"},\"Name\":{\"S\":\"Laureles\"},\"ParentCode\":{\"S\":\"MED\"},\"EntityTypeKey\":{\"S\":\"NEIGHBORHOOD\"},\"EntityName\":{\"S\":\"Laureles\"},\"Address\":{\"S\":\"Av Nutibara #33\"}}"
+    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"region\":{\"S\":\"REGION-LATAM\"},\"code\":{\"S\":\"ff50f4f8-2dd1-4466-a55f-47ce560e1f19\"},\"name\":{\"S\":\"argentina\"},\"codeRegion\":{\"S\":\"COUNTRY-ARG\"},\"creationDate\":{\"S\":\"2025-06-24T20:16:00Z\"}}"
 
-    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"PrimaryKey\":{\"S\":\"CITY#MED\"},\"SortKey\":{\"S\":\"NEIGHBORHOOD#POB\"},\"EntityType\":{\"S\":\"NEIGHBORHOOD\"},\"Code\":{\"S\":\"POB\"},\"Name\":{\"S\":\"El Poblado\"},\"ParentCode\":{\"S\":\"MED\"},\"EntityTypeKey\":{\"S\":\"NEIGHBORHOOD\"},\"EntityName\":{\"S\":\"El Poblado\"},\"Address\":{\"S\":\"Cra 43A #6 Sur - 26\"}}"
+    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"region\":{\"S\":\"COUNTRY-COL\"},\"code\":{\"S\":\"0c3cbfbb-ef59-4e7e-a629-d64394f3dd77\"},\"name\":{\"S\":\"Antioquia\"},\"codeRegion\":{\"S\":\"DEPARTMENT-ANT\"},\"creationDate\":{\"S\":\"2025-06-24T20:17:00Z\"}}"
 
-    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"PrimaryKey\":{\"S\":\"DEPARTMENT#ANT\"},\"SortKey\":{\"S\":\"CITY#MED\"},\"EntityType\":{\"S\":\"CITY\"},\"Code\":{\"S\":\"MED\"},\"Name\":{\"S\":\"Medellín\"},\"ParentCode\":{\"S\":\"ANT\"},\"EntityTypeKey\":{\"S\":\"CITY\"},\"EntityName\":{\"S\":\"Medellín\"}}"
+    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"region\":{\"S\":\"DEPARTMENT-ANT\"},\"code\":{\"S\":\"f46a680a-5b1d-4d18-a01b-a07e90176e3c\"},\"name\":{\"S\":\"Medellin\"},\"codeRegion\":{\"S\":\"CITY-MED\"},\"creationDate\":{\"S\":\"2025-06-24T20:18:00Z\"}}"
 
-    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"PrimaryKey\":{\"S\":\"COUNTRY#CO\"},\"SortKey\":{\"S\":\"DEPARTMENT#ANT\"},\"EntityType\":{\"S\":\"DEPARTMENT\"},\"Code\":{\"S\":\"ANT\"},\"Name\":{\"S\":\"Antioquia\"},\"ParentCode\":{\"S\":\"CO\"},\"EntityTypeKey\":{\"S\":\"DEPARTMENT\"},\"EntityName\":{\"S\":\"Antioquia\"}}"
+    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"region\":{\"S\":\"city-med\"},\"code\":{\"S\":\"fac3129d-a6ae-4ac4-b894-17a9e3664235\"},\"name\":{\"S\":\"Poblado\"},\"codeRegion\":{\"S\":\"NEIGHBORHOOD-POB\"},\"address\":{\"S\":\"calle 123 #45-67\"},\"creationDate\":{\"S\":\"2025-06-24T20:19:00Z\"}}"
 
-    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"PrimaryKey\":{\"S\":\"COUNTRY#CO\"},\"SortKey\":{\"S\":\"COUNTRY#CO\"},\"EntityType\":{\"S\":\"COUNTRY\"},\"Code\":{\"S\":\"CO\"},\"Name\":{\"S\":\"Colombia\"},\"EntityTypeKey\":{\"S\":\"COUNTRY\"},\"EntityName\":{\"S\":\"Colombia\"}}"
-
-    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"PrimaryKey\":{\"S\":\"COUNTRY#CO\"},\"SortKey\":{\"S\":\"COUNTRY#CO\"},\"EntityType\":{\"S\":\"COUNTRY\"},\"Code\":{\"S\":\"CO\"},\"Name\":{\"S\":\"Colombia\"},\"EntityTypeKey\":{\"S\":\"COUNTRY\"},\"EntityName\":{\"S\":\"Colombia\"}}"
+    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"region\":{\"S\":\"NEIGHBORHOOD-POB\"},\"code\":{\"S\":\"230c7945-7085-4f1d-9640-1d68aa12bf21\"},\"name\":{\"S\":\"Los almendros\"},\"codeRegion\":{\"S\":\"UNIT-ALM\"},\"address\":{\"S\":\"calle 123 #45-67\"},\"creationDate\":{\"S\":\"2025-06-24T20:19:00Z\"}}"
     ```
 
 ## Creación de la capa de dominio y servicios REST
 
-1. Creamos la clase POJO WolrdRegion.java en el paquete co.com.microservicio.aws.model.worldregion para mapear todos los datos de la tabla de dynamoDB
+1. Ubicarse en el proyecto domain > model en el paquete co.com.microservicio.aws.model, creamos la clase POJO WolrdRegion.java para mapear todos los datos de la tabla de dynamoDB
         
     ```
     package co.com.microservicio.aws.model.worldregion;
@@ -170,21 +145,17 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
         @Serial
         private static final long serialVersionUID = 1L;
 
-        private String primaryKey;
-        private String sortKey;
-        private String entityType;
+        private String region;
         private String code;
         private String name;
-        private String parentCode;
-        private String entityTypeKey;
-        private String entityName;
-        private String address;
+        private String codeRegion;
+        private String creationDate;
     }
     ```
 
 2. Primero definimos nuestros modelos de transporte, enfocándonos en crear las clases necesarias para comunicar la capa REST con el caso de uso. Estas clases contienen la información relevante para el funcionamiento interno del microservicio, así como los datos que podrían ser útiles para integrar con otros microservicios o para ser publicados como eventos en colas o buses de mensajería.
 
-    - Creamos la clase Device.java en el paquete co.com.microservicio.aws.model.worldregion.rq 
+    - Ubicarse en el proyecto domain > model en el paquete co.com.microservicio.aws.model.worldregion.rq y crear la clase Device.java
     ```
     package co.com.microservicio.aws.model.worldregion.rq;
 
@@ -205,7 +176,7 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
     }
     ```
 
-    - Creamos la clase Customer.java en el paquete co.com.microservicio.aws.model.worldregion.rq 
+    - Ubicarse en el proyecto domain > model en el paquete co.com.microservicio.aws.model.worldregion.rq y crear la clase Customer.java
     ```
     package co.com.microservicio.aws.model.worldregion.rq;
 
@@ -227,7 +198,7 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
     }
     ```
 
-    - Creamos la clase Context.java en el paquete co.com.microservicio.aws.model.worldregion.rq 
+    - Ubicarse en el proyecto domain > model en el paquete co.com.microservicio.aws.model.worldregion.rq y crear la clase Context.java
     ```
     package co.com.microservicio.aws.model.worldregion.rq;
 
@@ -248,7 +219,7 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
     }
     ```
 
-    - Creamos la clase TransactionRequest.java en el paquete co.com.microservicio.aws.model.worldregion.rq 
+    - Ubicarse en el proyecto domain > model en el paquete co.com.microservicio.aws.model.worldregion.rq y crear la clase TransactionRequest.java
     ```
     package co.com.microservicio.aws.model.worldregion.rq;
 
@@ -267,7 +238,9 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
         private static final long serialVersionUID = 1L;
 
         private transient Context context;
-        private transient String request;
+        private transient String placeType;
+        private transient String place;
+        private transient String code;
     }
     ```
 
@@ -275,7 +248,7 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
 
 3. Ahora creamos nuestra clase de respuesta la cual contiene información del proceso y resultado esperado.
 
-    - Creamos la clase WorldRegionResponse.java en el paquete co.com.microservicio.aws.model.worldregion.rs
+    - Ubicarse en el proyecto domain > model en el paquete co.com.microservicio.aws.model.worldregion.rs y crear la clase  WorldRegionResponse.java
     ```
     package co.com.microservicio.aws.model.worldregion.rs;
 
@@ -292,13 +265,15 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
     public class WorldRegionResponse implements Serializable {
         @Serial
         private static final long serialVersionUID = 1L;
-        
+
         private String code;
         private String name;
+        private String codeRegion;
+        private String creationDate;
     }
     ```
 
-    - Creamos la clase TransactionResponse.java en el paquete co.com.microservicio.aws.model.worldregion.rs
+    - Ubicarse en el proyecto domain > model en el paquete co.com.microservicio.aws.model.worldregion.rs y crear la clase  TransactionResponse.java
     ```
     package co.com.microservicio.aws.model.worldregion.rs;
 
@@ -323,7 +298,7 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
     }
     ```
 
-    - Creamos la clase WorldRegionType.java en el paquete co.com.microservicio.aws.model.worldregion.util
+    - Ubicarse en el proyecto domain > model en el paquete co.com.microservicio.aws.model.worldregion.util y crear la clase  WorldRegionConstant.java
     ```
     package co.com.microservicio.aws.model.worldregion.util;
 
@@ -331,88 +306,83 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
     import lombok.NoArgsConstructor;
 
     @NoArgsConstructor(access = AccessLevel.PRIVATE)
-    public class WorldRegionType {
-        public static final String COUNTRY = "COUNTRY";
-        public static final String DEPARTMENT = "DEPARTMENT";
-        public static final String CITY = "CITY";
-        public static final String NEIGHBORHOOD = "NEIGHBORHOOD";
-        public static final String UNIT = "UNIT";
+    public class WorldRegionConstant {
+        public static final String PARAM_PLACE_TYPE = "placeType";
+        public static final String PARAM_PLACE = "place";
+        public static final String SEPARATOR_CODE = "-";
+        public static final String MSG_LIST_SUCCESS = "listed successfull";
     }
     ```
 
-4. Creamos la clase WorldRegionRepository.java en el paquete co.com.microservicio.aws.model.worldregion.gateway
+4. Ubicarse en el proyecto domain > model en el paquete co.com.microservicio.aws.model.worldregion.gateway y crear la clase  WorldRegionRepository.java
     ```
     package co.com.microservicio.aws.model.worldregion.gateway;
 
     import co.com.microservicio.aws.model.worldregion.WorldRegion;
     import reactor.core.publisher.Flux;
+    import reactor.core.publisher.Mono;
 
     public interface WorldRegionRepository {
 
-        Flux<WorldRegion> findByEntityType(String entityType);
+        Flux<WorldRegion> findByRegion(String region);
 
-        Flux<WorldRegion> findByParentCodeAndEntityType(String parentCode, String entityType);
+        Mono<WorldRegion> findOne(String region, String code);
     }
     ```
 
-5. Creamos la clase WorldRegionUseCase.java en el paquete co.com.microservicio.aws.usecase.worldregion para cumplir con los criterios de aceptación; hacemos una validación del user-name para aplicar metodos webflux y lanzar errores
+5. Ubicarse en el proyecto domain > usecase en el paquete co.com.microservicio.aws.usecase.worldregion y crear la clase WorldRegionUseCase.java para cumplir con los criterios de aceptación; hacemos una validación del user-name para aplicar metodos webflux y lanzar errores que de momento se registrarán en logs.
     ```
-    package co.com.microservicio.aws.usecase.worldregion;
+    package co.com.microservicio.aws.api.worldregion;
 
-    import co.com.microservicio.aws.model.worldregion.WorldRegion;
-    import co.com.microservicio.aws.model.worldregion.gateway.WorldRegionRepository;
-    import co.com.microservicio.aws.model.worldregion.rq.TransactionRequest;
+    import co.com.microservicio.aws.commons.ContextUtil;
+    import co.com.microservicio.aws.log.LoggerBuilder;
+    import co.com.microservicio.aws.log.TransactionLog;
     import co.com.microservicio.aws.model.worldregion.rq.Context;
-    import co.com.microservicio.aws.model.worldregion.rq.Customer;
+    import co.com.microservicio.aws.model.worldregion.rq.TransactionRequest;
     import co.com.microservicio.aws.model.worldregion.rs.TransactionResponse;
-    import co.com.microservicio.aws.model.worldregion.rs.WorldRegionResponse;
-    import co.com.microservicio.aws.model.worldregion.util.WorldRegionType;
+    import co.com.microservicio.aws.usecase.worldregion.WorldRegionUseCase;
     import lombok.RequiredArgsConstructor;
+    import org.springframework.stereotype.Component;
+    import org.springframework.web.reactive.function.server.ServerRequest;
+    import org.springframework.web.reactive.function.server.ServerResponse;
     import reactor.core.publisher.Mono;
 
-    import java.util.List;
-    import java.util.Optional;
+    import static co.com.microservicio.aws.model.worldregion.util.LogMessage.MESSAGE_SERVICE;
+    import static co.com.microservicio.aws.model.worldregion.util.LogMessage.METHOD_LISTCOUNTRIES;
+    import static co.com.microservicio.aws.model.worldregion.util.WorldRegionConstant.PARAM_PLACE;
+    import static co.com.microservicio.aws.model.worldregion.util.WorldRegionConstant.PARAM_PLACE_TYPE;
 
+    @Component
     @RequiredArgsConstructor
-    public class WorldRegionUseCase {
-        private static final String KEY_USER_NAME = "user-name";
-        private static final String ATTRIBUTE_IS_REQUIRED = "The attribute '%s' is required";
+    public class WorldRegionHandler {
+        private static final String NAME_CLASS = WorldRegionHandler.class.getName();
+        private static final String EMPTY_VALUE = "";
 
-        private final WorldRegionRepository regionRepository;
+        private final LoggerBuilder logger;
+        private final WorldRegionUseCase worldRegionUseCase;
 
-        public Mono<TransactionResponse> listAllCountries(TransactionRequest request){
-            return Mono.just(request)
-                .filter(this::userIsRequired)
-                .flatMap(req -> regionRepository.findByEntityType(WorldRegionType.COUNTRY)
-                        .collectList().flatMap(this::buildResponse)
-                ).switchIfEmpty(Mono.error(new IllegalStateException(
-                        String.format(ATTRIBUTE_IS_REQUIRED, KEY_USER_NAME))));
+        public Mono<ServerResponse> listAllCountries(ServerRequest serverRequest) {
+            var placeType = serverRequest.queryParam(PARAM_PLACE_TYPE).orElse(EMPTY_VALUE);
+            var place = serverRequest.queryParam(PARAM_PLACE).orElse(EMPTY_VALUE);
+            var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+            var context = ContextUtil.buildContext(headers);
+            printOnProcess(context, METHOD_LISTCOUNTRIES);
+
+            var request = TransactionRequest.builder()
+                    .context(context).placeType(placeType).place(place).build();
+            return ServerResponse.ok().body(worldRegionUseCase.listByRegion(request)
+                    .onErrorResume(e -> this.printFailed(e, context.getId())), TransactionResponse.class
+            );
         }
 
-        private Boolean userIsRequired(TransactionRequest request){
-            return Optional.ofNullable(request)
-                    .map(TransactionRequest::getContext)
-                    .map(Context::getCustomer)
-                    .map(Customer::getUsername)
-                    .filter(username -> !username.isEmpty())
-                    .isPresent();
+        private Mono<TransactionResponse> printFailed(Throwable throwable, String messageId) {
+            logger.error(throwable.getMessage(), messageId, MESSAGE_SERVICE, NAME_CLASS);
+            return Mono.empty();
         }
 
-        private Mono<TransactionResponse> buildResponse(List<WorldRegion> worldRegions){
-            var simplifiedList = worldRegions.stream()
-                .map(wr -> WorldRegionResponse.builder()
-                    .code(wr.getCode())
-                    .name(wr.getName())
-                    .build())
-                .toList();
-
-            TransactionResponse response = TransactionResponse.builder()
-                    .message("countries listed successfull")
-                    .size(worldRegions.size())
-                    .response(simplifiedList)
-                    .build();
-
-            return Mono.just(response);
+        private void printOnProcess(Context context, String messageInfo){
+            logger.info(TransactionLog.Request.builder().body(context).build(), null,
+                    messageInfo, context.getId(), MESSAGE_SERVICE, NAME_CLASS);
         }
     }
     ```
@@ -426,7 +396,7 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
     gradle generateHelper --name=commons
     ```
 
-7. Creamos la clase HeadersUtil.java en el paquete co.com.microservicio.aws.commons
+7. Ubicarse en el proyecto infrastructure > helpers en el paquete co.com.microservicio.aws.commons y crear la clase HeadersUtil.java
     ```
     package co.com.microservicio.aws.commons;
 
@@ -455,7 +425,7 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
     }
     ```
 
-8. Creamos la clase ContextUtil.java en el paquete co.com.microservicio.aws.commons
+8. Ubicarse en el proyecto infrastructure > helpers en el paquete co.com.microservicio.aws.commons y crear la clase ContextUtil.java
     ```
     package co.com.microservicio.aws.commons;
 
@@ -495,7 +465,7 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
     implementation project(':commons')
     ``` 
 
-10. Creamos la clase WorldRegionHandler.java en el paquete co.com.microservicio.aws.api.worldregion
+10. Ubicarse en el proyecto infrastructure > entry-points en el paquete co.com.microservicio.aws.api.worldregion y crear la clase WorldRegionHandler.java  
     ```
     package co.com.microservicio.aws.api.worldregion;
 
@@ -544,7 +514,7 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
     }
     ``` 
 
-11. Modificamos el archivo application.yaml para agregar las nuevas rutas, debe quedar así:
+11. Ubicarse en el proyecto applications > app-service Modificamos el archivo application-local.yaml para agregar las nuevas rutas, debe quedar así:
 
 ```
 entries:
@@ -553,11 +523,12 @@ entries:
     greet: "/greet"
     greetReactive: "/greetReactive"
   world-region-web:
-    path-base: "${PATH_BASE:/api/v1/microservice-aws}"
-    listCountries: "/list-countries"
-    listDepartaments: "/list-departaments"
-    listCities: "/list-cities"
-    listNeighborhoods: "/list-neighborhoods"
+    path-base: "${PATH_BASE:/api/v2/microservice-aws}"
+    listByRegion: "/list-by-region"
+    findOne: "/find-one/{placeType}/{place}/{code}"
+    saveRegion: "/save-region"
+    updateRegion: "/update-region"
+    deleteRegion: "/delete-region/{placeType}/{place}/{code}"
 ``` 
 
 12. Creamos la clase ApiWorldRegionProperties.java en el paquete co.com.microservicio.aws.api.worldregion.config
@@ -573,20 +544,20 @@ entries:
     @ConfigurationProperties(prefix = "entries.world-region-web")
     public class ApiWorldRegionProperties {
         private String pathBase;
-        private String listCountries;
-        private String listDepartaments;
-        private String listCities;
-        private String listNeighborhoods;
+        private String listByRegion;
+        private String findOne;
+        private String saveRegion;
+        private String updateRegion;
+        private String deleteRegion;
     }
     ``` 
 
-13. Creamos la clase WorldRegionOpenAPI en el paquete co.com.microservicio.aws.api.worldregion.doc
+13. Ubicarse en el proyecto infrastructure > entry-points en el paquete co.com.microservicio.aws.api.worldregion.doc y crear la clase WorldRegionOpenAPI.java
     ```
     package co.com.microservicio.aws.api.worldregion.doc;
 
     import lombok.experimental.UtilityClass;
     import org.springdoc.core.fn.builders.operation.Builder;
-
     import java.util.function.Consumer;
 
     import static org.springdoc.core.fn.builders.apiresponse.Builder.responseBuilder;
@@ -659,7 +630,7 @@ entries:
     }
     ```
 
-14. Creamos la clase WorldRegionRouterRest.java en el paquete co.com.microservicio.aws.api.worldregion
+14. Ubicarse en el proyecto infrastructure > entry-points en el paquete co.com.microservicio.aws.api.worldregion y crear la clase WorldRegionRouterRest.java
     ```
     package co.com.microservicio.aws.api.worldregion;
 
@@ -950,7 +921,7 @@ entries:
     }
     ```
 
-11. Eliminamos las clases autogeneradas: TemplateAdapterOperationsTest, DynamoDBTemplateAdapter
+11. Eliminamos las clases autogeneradas: TemplateAdapterOperationsTest, DynamoDBTemplateAdapter, ModelEntity
 
 12. Creamos la clase WorldRegionRepositoryAdapter.java quien implementará la interfaz Gateway en el paquete 'co.com.microservicio.aws.dynamodb.mapper'
     ```

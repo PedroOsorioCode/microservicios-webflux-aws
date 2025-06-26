@@ -16,4 +16,6 @@ public class WorldRegionResponse implements Serializable {
 
     private String code;
     private String name;
+    private String codeRegion;
+    private String creationDate;
 }

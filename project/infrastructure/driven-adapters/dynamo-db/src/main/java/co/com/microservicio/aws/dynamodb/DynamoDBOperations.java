@@ -33,9 +33,29 @@ public class DynamoDBOperations<E, D>{
                 .flatMap(this::saveData)
                 .thenReturn(entity);
     }
+
     protected Mono<E> findOne(Key id) {
         return Mono.fromFuture(dataTable.getItem(id))
                 .map(this::toEntity);
+    }
+
+    protected Mono<E> delete(Key id) {
+        return deleteData(id)
+                .map(this::toEntity);
+    }
+
+    protected Mono<E> update(E entity) {
+        return Mono.fromFuture(dataTable.updateItem(toData(entity)))
+                .map(this::toEntity);
+    }
+
+    protected Mono<D> saveData(D data) {
+        return Mono.fromFuture(dataTable.putItem(data))
+                .thenReturn(data);
+    }
+
+    protected Mono<D> deleteData(Key id) {
+        return Mono.fromFuture(dataTable.deleteItem(id));
     }
 
     protected Flux<E> doQueryMany(Flux<D> query) {
@@ -48,20 +68,5 @@ public class DynamoDBOperations<E, D>{
 
     protected E toEntity(D data) {
         return data != null ? fnToEntity.apply(data) : null;
-    }
-    protected Mono<E> delete(Key id) {
-        return deleteData(id)
-                .map(this::toEntity);
-    }
-    protected Mono<E> update(E entity) {
-        return Mono.fromFuture(dataTable.updateItem(toData(entity)))
-                .map(this::toEntity);
-    }
-    protected Mono<D> saveData(D data) {
-        return Mono.fromFuture(dataTable.putItem(data))
-                .thenReturn(data);
-    }
-    protected Mono<D> deleteData(Key id) {
-        return Mono.fromFuture(dataTable.deleteItem(id));
     }
 }

@@ -15,5 +15,7 @@ public class TransactionRequest implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private transient Context context;
-    private transient String request;
+    private transient String placeType;
+    private transient String place;
+    private transient String code;
 }

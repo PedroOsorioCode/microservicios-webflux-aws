@@ -7,14 +7,15 @@ import co.com.microservicio.aws.model.worldregion.WorldRegion;
 import co.com.microservicio.aws.model.worldregion.gateway.WorldRegionRepository;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
 
 @Component
-public class WorldRegionRepositoryAdapter extends
-        AdapterOperations<WorldRegion, ModelEntityWorldRegion>
+public class WorldRegionRepositoryAdapter
+        extends AdapterOperations<WorldRegion, ModelEntityWorldRegion>
         implements WorldRegionRepository {
 
     public WorldRegionRepositoryAdapter(DynamoDbEnhancedAsyncClient dbEnhancedAsyncClient,
@@ -27,21 +28,21 @@ public class WorldRegionRepositoryAdapter extends
     }
 
     @Override
-    public Flux<WorldRegion> findByEntityType(String entityType) {
+    public Flux<WorldRegion> findByRegion(String region) {
         QueryEnhancedRequest request = QueryEnhancedRequest
                 .builder()
-                .queryConditional(QueryConditional.keyEqualTo(buildKey(entityType)))
+                .queryConditional(QueryConditional.keyEqualTo(buildKey(region)))
                 .build();
 
-        return super.findByIndexWithQuery("EntityTypeIndex", request);
+        return super.findByIndexWithQuery(request);
     }
 
     @Override
-    public Flux<WorldRegion> findByParentCodeAndEntityType(String parentCode, String entityType) {
-        return null;
+    public Mono<WorldRegion> findOne(String region, String code) {
+        return super.findOne(buildKey(region, code));
     }
 
-    private Key buildKey(String sortValue, String partitionValue) {
+    private Key buildKey(String partitionValue, String sortValue) {
         return Key.builder().sortValue(sortValue).partitionValue(partitionValue).build();
     }
 

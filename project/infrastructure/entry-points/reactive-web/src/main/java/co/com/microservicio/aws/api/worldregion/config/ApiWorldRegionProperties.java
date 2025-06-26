@@ -9,8 +9,9 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "entries.world-region-web")
 public class ApiWorldRegionProperties {
     private String pathBase;
-    private String listCountries;
-    private String listDepartaments;
-    private String listCities;
-    private String listNeighborhoods;
+    private String listByRegion;
+    private String findOne;
+    private String saveRegion;
+    private String updateRegion;
+    private String deleteRegion;
 }

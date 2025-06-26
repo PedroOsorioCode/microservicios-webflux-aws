@@ -17,8 +17,14 @@ public class WorldRegionRouterRest {
     @Bean
     public RouterFunction<ServerResponse> routerWorldRegionFunction(WorldRegionHandler worldRegionHandler) {
         return SpringdocRouteBuilder.route()
-                .GET(properties.getPathBase().concat(properties.getListCountries()),
-                        worldRegionHandler::listAllCountries, GreetOpenAPI.greetRoute())
+                .GET(createRoute(properties.getListByRegion()), worldRegionHandler::listByRegion,
+                        GreetOpenAPI.greetRoute())
+                .GET(createRoute(properties.getFindOne()), worldRegionHandler::findOne,
+                        GreetOpenAPI.greetRoute())
                 .build();
+    }
+
+    private String createRoute(String route){
+        return properties.getPathBase().concat(route);
     }
 }

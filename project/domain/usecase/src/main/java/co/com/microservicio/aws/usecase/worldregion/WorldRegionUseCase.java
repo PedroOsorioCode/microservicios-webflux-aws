@@ -7,12 +7,14 @@ import co.com.microservicio.aws.model.worldregion.rq.Context;
 import co.com.microservicio.aws.model.worldregion.rq.Customer;
 import co.com.microservicio.aws.model.worldregion.rs.TransactionResponse;
 import co.com.microservicio.aws.model.worldregion.rs.WorldRegionResponse;
-import co.com.microservicio.aws.model.worldregion.util.WorldRegionType;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Optional;
+
+import static co.com.microservicio.aws.model.worldregion.util.WorldRegionConstant.MSG_LIST_SUCCESS;
+import static co.com.microservicio.aws.model.worldregion.util.WorldRegionConstant.SEPARATOR_CODE;
 
 @RequiredArgsConstructor
 public class WorldRegionUseCase {
@@ -21,13 +23,22 @@ public class WorldRegionUseCase {
 
     private final WorldRegionRepository regionRepository;
 
-    public Mono<TransactionResponse> listAllCountries(TransactionRequest request){
+    public Mono<TransactionResponse> listByRegion(TransactionRequest request){
         return Mono.just(request)
             .filter(this::userIsRequired)
-            .flatMap(req -> regionRepository.findByEntityType(WorldRegionType.COUNTRY)
+            .flatMap(req -> regionRepository.findByRegion(buildKeyRegion(req))
                     .collectList().flatMap(this::buildResponse)
             ).switchIfEmpty(Mono.error(new IllegalStateException(
                     String.format(ATTRIBUTE_IS_REQUIRED, KEY_USER_NAME))));
+    }
+
+    public Mono<TransactionResponse> findOne(TransactionRequest request){
+        return Mono.just(request)
+                .filter(this::userIsRequired)
+                .flatMap(req -> regionRepository.findOne(buildKeyRegion(req), request.getCode()))
+                .flatMap(wr -> this.buildResponse(List.of(wr)))
+                .switchIfEmpty(Mono.error(new IllegalStateException(
+                        String.format(ATTRIBUTE_IS_REQUIRED, KEY_USER_NAME))));
     }
 
     private Boolean userIsRequired(TransactionRequest request){
@@ -39,16 +50,23 @@ public class WorldRegionUseCase {
                 .isPresent();
     }
 
+    private String buildKeyRegion(TransactionRequest request){
+        return request.getPlaceType().toUpperCase()
+                .concat(SEPARATOR_CODE).concat(request.getPlace().toUpperCase());
+    }
+
     private Mono<TransactionResponse> buildResponse(List<WorldRegion> worldRegions){
         var simplifiedList = worldRegions.stream()
             .map(wr -> WorldRegionResponse.builder()
                 .code(wr.getCode())
                 .name(wr.getName())
+                .codeRegion(wr.getCodeRegion())
+                .creationDate(wr.getCreationDate())
                 .build())
             .toList();
 
         TransactionResponse response = TransactionResponse.builder()
-                .message("countries listed successfull")
+                .message(MSG_LIST_SUCCESS)
                 .size(worldRegions.size())
                 .response(simplifiedList)
                 .build();

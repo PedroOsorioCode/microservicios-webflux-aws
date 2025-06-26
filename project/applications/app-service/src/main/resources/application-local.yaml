@@ -44,10 +44,11 @@ entries:
     greetReactive: "/greetReactive"
   world-region-web:
     path-base: "${PATH_BASE:/api/v2/microservice-aws}"
-    listCountries: "/list-countries"
-    listDepartaments: "/list-departaments"
-    listCities: "/list-cities"
-    listNeighborhoods: "/list-neighborhoods"
+    listByRegion: "/list-by-region"
+    findOne: "/find-one/{placeType}/{place}/{code}"
+    saveRegion: "/save-region"
+    updateRegion: "/update-region"
+    deleteRegion: "/delete-region/{placeType}/{place}/{code}"
 
 integration:
   secrets:

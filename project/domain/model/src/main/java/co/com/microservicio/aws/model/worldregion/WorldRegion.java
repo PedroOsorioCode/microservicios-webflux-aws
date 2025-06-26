@@ -15,13 +15,9 @@ public class WorldRegion implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    private String primaryKey;
-    private String sortKey;
-    private String entityType;
+    private String region;
     private String code;
     private String name;
-    private String parentCode;
-    private String entityTypeKey;
-    private String entityName;
-    private String address;
+    private String codeRegion;
+    private String creationDate;
 }

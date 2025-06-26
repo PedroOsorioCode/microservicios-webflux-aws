@@ -13,22 +13,45 @@ import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
 
+import static co.com.microservicio.aws.model.worldregion.util.LogMessage.*;
+import static co.com.microservicio.aws.model.worldregion.util.WorldRegionConstant.*;
+
 @Component
 @RequiredArgsConstructor
 public class WorldRegionHandler {
     private static final String NAME_CLASS = WorldRegionHandler.class.getName();
-    private static final String MESSAGE_SERVICE = "Service Api Rest world regions";
+    private static final String EMPTY_VALUE = "";
 
     private final LoggerBuilder logger;
     private final WorldRegionUseCase worldRegionUseCase;
 
-    public Mono<ServerResponse> listAllCountries(ServerRequest serverRequest) {
+    public Mono<ServerResponse> listByRegion(ServerRequest serverRequest) {
+        var placeType = serverRequest.queryParam(PARAM_PLACE_TYPE).orElse(EMPTY_VALUE);
+        var place = serverRequest.queryParam(PARAM_PLACE).orElse(EMPTY_VALUE);
         var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
         var context = ContextUtil.buildContext(headers);
-        printOnProcess(context, "List all countries");
+        printOnProcess(context, METHOD_LISTCOUNTRIES);
 
-        var request = TransactionRequest.builder().context(context).build();
-        return ServerResponse.ok().body(worldRegionUseCase.listAllCountries(request)
+        var request = TransactionRequest.builder()
+                .context(context).placeType(placeType).place(place).build();
+
+        return ServerResponse.ok().body(worldRegionUseCase.listByRegion(request)
+                .onErrorResume(e -> this.printFailed(e, context.getId())), TransactionResponse.class
+        );
+    }
+
+    public Mono<ServerResponse> findOne(ServerRequest serverRequest) {
+        var placeType = serverRequest.pathVariable(PARAM_PLACE_TYPE);
+        var place = serverRequest.pathVariable(PARAM_PLACE);
+        var code = serverRequest.pathVariable(PARAM_CODE);
+        var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+        var context = ContextUtil.buildContext(headers);
+        printOnProcess(context, METHOD_FINDONE);
+
+        var request = TransactionRequest.builder()
+                .context(context).placeType(placeType).place(place).code(code).build();
+
+        return ServerResponse.ok().body(worldRegionUseCase.findOne(request)
                 .onErrorResume(e -> this.printFailed(e, context.getId())), TransactionResponse.class
         );
     }
@@ -39,7 +62,8 @@ public class WorldRegionHandler {
     }
 
     private void printOnProcess(Context context, String messageInfo){
-        logger.info(TransactionLog.Request.builder().body(context).build(), null,
+        logger.info(TransactionLog.Request.builder().body(context).build(),
+                TransactionLog.Response.builder().build(),
                 messageInfo, context.getId(), MESSAGE_SERVICE, NAME_CLASS);
     }
 }
