@@ -42,13 +42,15 @@ entries:
     path-base: "${PATH_BASE:/api/v1/microservice-aws}"
     greet: "/greet"
     greetReactive: "/greetReactive"
+    greetReactiveQueryParam: "/greetReactiveQueryParam"
+    greetReactivePathVariable: "/greetReactivePathVariable/{place}"
   world-region-web:
     path-base: "${PATH_BASE:/api/v2/microservice-aws}"
     listByRegion: "/list-by-region"
-    findOne: "/find-one/{placeType}/{place}/{code}"
+    findOne: "/find-one"
     saveRegion: "/save-region"
     updateRegion: "/update-region"
-    deleteRegion: "/delete-region/{placeType}/{place}/{code}"
+    deleteRegion: "/delete-region"
 
 integration:
   secrets:
@@ -68,7 +70,6 @@ adapters:
     tables:
       namesmap:
         world_region: local_worldregions
-
   rest-client:
     timeout: ${REST_TIMEOUT_CONNECTION:5000}
     readTimeout: ${REST_TIMEOUT_READ:5000}

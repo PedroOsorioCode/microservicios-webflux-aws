@@ -11,4 +11,6 @@ public class ApiProperties {
     private String pathBase;
     private String greet;
     private String greetReactive;
+    private String greetReactiveQueryParam;
+    private String greetReactivePathVariable;
 }

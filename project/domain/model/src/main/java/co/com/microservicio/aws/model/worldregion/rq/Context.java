@@ -14,4 +14,25 @@ import lombok.Setter;
 public class Context {
     private String id;
     private Customer customer;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    public static class Customer {
+        private String ip;
+        private String username;
+        private Device device;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    public static class Device {
+        private String userAgent;
+        private String platformType;
+    }
 }

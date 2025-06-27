@@ -3,6 +3,7 @@ package co.com.microservicio.aws.api.worldregion;
 import co.com.microservicio.aws.commons.ContextUtil;
 import co.com.microservicio.aws.log.LoggerBuilder;
 import co.com.microservicio.aws.log.TransactionLog;
+import co.com.microservicio.aws.model.worldregion.WorldRegion;
 import co.com.microservicio.aws.model.worldregion.rq.Context;
 import co.com.microservicio.aws.model.worldregion.rq.TransactionRequest;
 import co.com.microservicio.aws.model.worldregion.rs.TransactionResponse;
@@ -26,34 +27,64 @@ public class WorldRegionHandler {
     private final WorldRegionUseCase worldRegionUseCase;
 
     public Mono<ServerResponse> listByRegion(ServerRequest serverRequest) {
-        var placeType = serverRequest.queryParam(PARAM_PLACE_TYPE).orElse(EMPTY_VALUE);
-        var place = serverRequest.queryParam(PARAM_PLACE).orElse(EMPTY_VALUE);
-        var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
-        var context = ContextUtil.buildContext(headers);
-        printOnProcess(context, METHOD_LISTCOUNTRIES);
-
-        var request = TransactionRequest.builder()
-                .context(context).placeType(placeType).place(place).build();
-
+        var request = this.buildRequestWithParams(serverRequest, METHOD_LISTCOUNTRIES);
         return ServerResponse.ok().body(worldRegionUseCase.listByRegion(request)
-                .onErrorResume(e -> this.printFailed(e, context.getId())), TransactionResponse.class
+                .onErrorResume(e -> this.printFailed(e, request.getContext().getId())), TransactionResponse.class
         );
     }
 
     public Mono<ServerResponse> findOne(ServerRequest serverRequest) {
-        var placeType = serverRequest.pathVariable(PARAM_PLACE_TYPE);
-        var place = serverRequest.pathVariable(PARAM_PLACE);
-        var code = serverRequest.pathVariable(PARAM_CODE);
+        var request = this.buildRequestWithParams(serverRequest, METHOD_FINDONE);
+        return ServerResponse.ok().body(worldRegionUseCase.findOne(request)
+            .onErrorResume(e -> this.printFailed(e, request.getContext().getId())), TransactionResponse.class
+        );
+    }
+
+    public Mono<ServerResponse> save(ServerRequest serverRequest) {
         var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
         var context = ContextUtil.buildContext(headers);
-        printOnProcess(context, METHOD_FINDONE);
+        printOnProcess(context, METHOD_SAVE);
 
-        var request = TransactionRequest.builder()
-                .context(context).placeType(placeType).place(place).code(code).build();
+        return this.getWorldRegionRequest(serverRequest)
+                .flatMap(worldRegionUseCase::save)
+                .flatMap(msg -> ServerResponse.ok().bodyValue(msg));
+    }
 
-        return ServerResponse.ok().body(worldRegionUseCase.findOne(request)
-                .onErrorResume(e -> this.printFailed(e, context.getId())), TransactionResponse.class
-        );
+    public Mono<ServerResponse> update(ServerRequest serverRequest) {
+        var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+        var context = ContextUtil.buildContext(headers);
+        printOnProcess(context, METHOD_UPDATE);
+
+        return this.getWorldRegionRequest(serverRequest)
+                .flatMap(worldRegionUseCase::update)
+                .flatMap(msg -> ServerResponse.ok().bodyValue(msg));
+    }
+
+    public Mono<ServerResponse> delete(ServerRequest serverRequest) {
+        var request = this.buildRequestWithParams(serverRequest, METHOD_DELETE);
+        return ServerResponse.ok().body(worldRegionUseCase.delete(request), String.class);
+    }
+
+    private Mono<TransactionRequest> getWorldRegionRequest(ServerRequest serverRequest) {
+        var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+        var context = ContextUtil.buildContext(headers);
+        return serverRequest.bodyToMono(WorldRegion.class)
+                .flatMap(wr -> Mono.just(TransactionRequest.builder()
+                        .context(context).item(wr).build()));
+    }
+
+    private TransactionRequest buildRequestWithParams(ServerRequest serverRequest, String method){
+        var placeType = serverRequest.queryParam(PARAM_PLACE_TYPE).orElse(EMPTY_VALUE);
+        var place = serverRequest.queryParam(PARAM_PLACE).orElse(EMPTY_VALUE);
+        var code = serverRequest.queryParam(PARAM_CODE).orElse(EMPTY_VALUE);
+        var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+        var context = ContextUtil.buildContext(headers);
+        printOnProcess(context, method);
+
+        return TransactionRequest.builder()
+                .context(context)
+                .param(TransactionRequest.Param.builder().placeType(placeType).place(place).code(code).build())
+                .build();
     }
 
     private Mono<TransactionResponse> printFailed(Throwable throwable, String messageId) {

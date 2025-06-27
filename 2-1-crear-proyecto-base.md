@@ -3,11 +3,11 @@
 
 ### Requisitos
 
-- Java 17 o superior
-- Gradle 8.8 o posterior
-- Docker o Podman
-- Postman
-- Intellij
+- ⚠️ Java 17 o superior
+- ⚠️ Gradle 8.8 o posterior
+- ⚠️ Docker o Podman
+- ⚠️ Postman
+- ⚠️ Intellij
 
 ### Gradle Scaffold Clean Architecture: 
 

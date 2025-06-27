@@ -17,11 +17,17 @@ public class WorldRegionRouterRest {
     @Bean
     public RouterFunction<ServerResponse> routerWorldRegionFunction(WorldRegionHandler worldRegionHandler) {
         return SpringdocRouteBuilder.route()
-                .GET(createRoute(properties.getListByRegion()), worldRegionHandler::listByRegion,
-                        GreetOpenAPI.greetRoute())
-                .GET(createRoute(properties.getFindOne()), worldRegionHandler::findOne,
-                        GreetOpenAPI.greetRoute())
-                .build();
+            .GET(createRoute(properties.getListByRegion()), worldRegionHandler::listByRegion,
+                    GreetOpenAPI.greetRoute())
+            .GET(createRoute(properties.getFindOne()), worldRegionHandler::findOne,
+                    GreetOpenAPI.greetRoute())
+            .POST(createRoute(properties.getSaveRegion()), worldRegionHandler::save,
+                    GreetOpenAPI.greetRoute())
+            .PUT(createRoute(properties.getUpdateRegion()), worldRegionHandler::update,
+                    GreetOpenAPI.greetRoute())
+            .DELETE(createRoute(properties.getDeleteRegion()), worldRegionHandler::delete,
+                    GreetOpenAPI.greetRoute())
+            .build();
     }
 
     private String createRoute(String route){

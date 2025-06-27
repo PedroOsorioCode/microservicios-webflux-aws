@@ -40,6 +40,7 @@
             lombokVersion = '1.18.38'
             log4jVersion = '2.24.3'
             openapi = '1.8.0'
+            jacksonVersion = "2.18.3"
         }
     }
     ```
@@ -56,6 +57,8 @@ entries:
     path-base: "${PATH_BASE:/api/v1/microservice-aws}"
     greet: "/greet"
     greetReactive: "/greetReactive"
+    greetReactiveQueryParam: "/greetReactiveQueryParam"
+    greetReactivePathVariable: "/greetReactivePathVariable/{place}"
 ```
 
 5. Crear el paquete **greet** en la ruta infrastructure > entry-points > src > main > java > co.com.microservicio.aws.api y borramos el código generado tanto en main > java como en los test unitarios
@@ -78,6 +81,8 @@ entries:
         private String pathBase;
         private String greet;
         private String greetReactive;
+        private String greetReactiveQueryParam;
+        private String greetReactivePathVariable;
     }
     ```
 
@@ -216,15 +221,35 @@ entries:
     public class GreetHandler {
         private static final String NAME_CLASS = GreetHandler.class.getName();
         private static final String MESSAGE_SERVICE = "Service Api Rest greet";
+        private static final String MESSAGE_ID = "message-id";
 
         private final LoggerBuilder logger;
 
         public Mono<ServerResponse> greet(ServerRequest serverRequest) {
             var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
-            logger.info(MESSAGE_SERVICE, headers.get("message-id"), "Api Rest", NAME_CLASS);
+            printOnProcess(headers.get(MESSAGE_ID), "Api Rest simple");
             return ServerResponse.ok().bodyValue("¡Hi functional, " + headers.get("user-name") + "!");
         }
+
+        public Mono<ServerResponse> greetQueryParam(ServerRequest serverRequest) {
+            var place = serverRequest.queryParam("place").orElse("");
+            var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+            printOnProcess(headers.get(MESSAGE_ID), "Api Rest query param");
+            return ServerResponse.ok().bodyValue("¡Hi functional query param, " + headers.get("user-name") + "! in " + place);
+        }
+
+        public Mono<ServerResponse> greetPathVariable(ServerRequest serverRequest) {
+            var place = serverRequest.pathVariable("place");
+            var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+            printOnProcess(headers.get(MESSAGE_ID), "Api Rest path variable");
+            return ServerResponse.ok().bodyValue("¡Hi functional path variable, " + headers.get("user-name") + "! in " + place);
+        }
+        
+        private void printOnProcess(String messageId, String messageInfo){
+            logger.info(MESSAGE_SERVICE, messageId, messageInfo, NAME_CLASS);
+        }
     }
+
     ```
 
 2. Crear la clase OpenAPIConfig en el paquete co.com.microservicio.aws.api.greet.config
@@ -350,6 +375,10 @@ entries:
             return SpringdocRouteBuilder.route()
                 .GET(properties.getPathBase().concat(properties.getGreetReactive()),
                     greetHandler::greet, GreetOpenAPI.greetRoute())
+                .GET(properties.getPathBase().concat(properties.getGreetReactiveQueryParam()),
+                        greetHandler::greetQueryParam, GreetOpenAPI.greetRoute())
+                .GET(properties.getPathBase().concat(properties.getGreetReactivePathVariable()),
+                        greetHandler::greetPathVariable, GreetOpenAPI.greetRoute())
                 .build();
         }
     }
@@ -358,6 +387,7 @@ entries:
 5. Ejecutamos la aplicación
 
 6. Curl Postman para probar los servicios
+    - Reactive simple
     ```
     curl --location 'localhost:8080/api/v1/microservice-aws/greetReactive' \
     --header 'message-id: 7a214936-5e93-11ec-bf63-0242ac130002' \
@@ -367,7 +397,21 @@ entries:
 
     ![](./img/greet-name-header-reactive.png)
 
+    - Reactive query param
+    ```
+    curl --location 'localhost:8080/api/v1/microservice-aws/greetReactiveQueryParam?place=Medellin' \
+    --header 'message-id: 7a214936-5e93-11ec-bf63-0242ac130002' \
+    --header 'Content-Type: application/json' \
+    --header 'user-name: peter header'
+    ```
 
+    - Reactive path variable
+    ```
+    curl --location 'localhost:8080/api/v1/microservice-aws/greetReactivePathVariable/Medellin' \
+    --header 'message-id: 7a214936-5e93-11ec-bf63-0242ac130002' \
+    --header 'Content-Type: application/json' \
+    --header 'user-name: peter header'
+    ```
     
 7. El log se debe ver así formateado en Json Pretty:
     ```
@@ -387,10 +431,10 @@ entries:
     }
     ```
 
-[< Volver](README-PROYECTO-JAVA-WEBFLUX.md)
+[< Volver al índice](README.md)
 
 ---
 
-**Author**: Pedro Luis Osorio Pavas [Linkedin](www.linkedin.com/in/pedro-luis-osorio-pavas-68b3a7106)  
+**Author**: Pedro Luis Osorio Pavas [Linkedin](https://www.linkedin.com/in/pedro-luis-osorio-pavas-68b3a7106)  
 **Start Date**: 01-06-2025  
 **Update Date**: 01-06-2025.

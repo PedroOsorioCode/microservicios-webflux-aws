@@ -18,19 +18,19 @@ class DynamoDBConfigTest {
 
     @Test
     void testAmazonDynamoDB() {
-        DynamoDbAsyncClient result = dynamoDBConfig.amazonDynamoDB("http://aws.dynamo.test", "region");
+        DynamoDbAsyncClient result = dynamoDBConfig.amazonDynamoDB("http://aws.dynamo.test");
         assertNotNull(result);
     }
 
     @Test
     void testAmazonDynamoDBAsync() {
-        DynamoDbAsyncClient result = dynamoDBConfig.amazonDynamoDBAsync("region");
+        DynamoDbAsyncClient result = dynamoDBConfig.amazonDynamoDBAsync("us-east-1");
         assertNotNull(result);
     }
 
     @Test
     void testGetDynamoDbEnhancedAsyncClient() {
-        DynamoDbEnhancedAsyncClient result = dynamoDBConfig.getDynamoDbEnhancedAsyncClient(dynamoDbAsyncClient);
+        DynamoDbEnhancedAsyncClient result = dynamoDBConfig.dynamoClient(dynamoDbAsyncClient);
         assertNotNull(result);
     }
 }

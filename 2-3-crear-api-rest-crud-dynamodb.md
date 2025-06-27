@@ -25,12 +25,10 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
 - Listar todos los paises por region
 - Listar departamentos por pais
 - Listar ciudad por departamento
-- Listar barrio por ciudad
-- Listar unidad por barrio
 - Listar un item en especifico
 - Registrar item en la tabla
 - Borrar item
-- Actualizar dirección a un item
+- Actualizar nombre a un item
 
 ## Creación de la tabla dynamoDB en ambiente local
 
@@ -48,9 +46,9 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
     ```
     ### Aclaración de atributos en el comando `aws dynamodb create-table`
 
-    - partitionkey → region, country-col, dept-ant, etc.
+    - partitionkey → `region`, country-col, region-latam, etc.
 
-    - sortkey → code (usaremos UUID para simular unicidad)
+    - sortkey → `code` (usaremos UUID para simular unicidad)
 
     ### Buenas prácticas de diseño
     | Concepto                      | Explicación breve                                                                 |
@@ -117,10 +115,6 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
     aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"region\":{\"S\":\"COUNTRY-COL\"},\"code\":{\"S\":\"0c3cbfbb-ef59-4e7e-a629-d64394f3dd77\"},\"name\":{\"S\":\"Antioquia\"},\"codeRegion\":{\"S\":\"DEPARTMENT-ANT\"},\"creationDate\":{\"S\":\"2025-06-24T20:17:00Z\"}}"
 
     aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"region\":{\"S\":\"DEPARTMENT-ANT\"},\"code\":{\"S\":\"f46a680a-5b1d-4d18-a01b-a07e90176e3c\"},\"name\":{\"S\":\"Medellin\"},\"codeRegion\":{\"S\":\"CITY-MED\"},\"creationDate\":{\"S\":\"2025-06-24T20:18:00Z\"}}"
-
-    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"region\":{\"S\":\"city-med\"},\"code\":{\"S\":\"fac3129d-a6ae-4ac4-b894-17a9e3664235\"},\"name\":{\"S\":\"Poblado\"},\"codeRegion\":{\"S\":\"NEIGHBORHOOD-POB\"},\"address\":{\"S\":\"calle 123 #45-67\"},\"creationDate\":{\"S\":\"2025-06-24T20:19:00Z\"}}"
-
-    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"region\":{\"S\":\"NEIGHBORHOOD-POB\"},\"code\":{\"S\":\"230c7945-7085-4f1d-9640-1d68aa12bf21\"},\"name\":{\"S\":\"Los almendros\"},\"codeRegion\":{\"S\":\"UNIT-ALM\"},\"address\":{\"S\":\"calle 123 #45-67\"},\"creationDate\":{\"S\":\"2025-06-24T20:19:00Z\"}}"
     ```
 
 ## Creación de la capa de dominio y servicios REST
@@ -155,49 +149,6 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
 
 2. Primero definimos nuestros modelos de transporte, enfocándonos en crear las clases necesarias para comunicar la capa REST con el caso de uso. Estas clases contienen la información relevante para el funcionamiento interno del microservicio, así como los datos que podrían ser útiles para integrar con otros microservicios o para ser publicados como eventos en colas o buses de mensajería.
 
-    - Ubicarse en el proyecto domain > model en el paquete co.com.microservicio.aws.model.worldregion.rq y crear la clase Device.java
-    ```
-    package co.com.microservicio.aws.model.worldregion.rq;
-
-    import lombok.AllArgsConstructor;
-    import lombok.Builder;
-    import lombok.Getter;
-    import lombok.NoArgsConstructor;
-    import lombok.Setter;
-
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder(toBuilder = true)
-    public class Device {
-        private String userAgent;
-        private String platformType;
-    }
-    ```
-
-    - Ubicarse en el proyecto domain > model en el paquete co.com.microservicio.aws.model.worldregion.rq y crear la clase Customer.java
-    ```
-    package co.com.microservicio.aws.model.worldregion.rq;
-
-    import lombok.AllArgsConstructor;
-    import lombok.Builder;
-    import lombok.Getter;
-    import lombok.NoArgsConstructor;
-    import lombok.Setter;
-
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder(toBuilder = true)
-    public class Customer {
-        private String ip;
-        private String username;
-        private Device device;
-    }
-    ```
-
     - Ubicarse en el proyecto domain > model en el paquete co.com.microservicio.aws.model.worldregion.rq y crear la clase Context.java
     ```
     package co.com.microservicio.aws.model.worldregion.rq;
@@ -216,6 +167,27 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
     public class Context {
         private String id;
         private Customer customer;
+
+        @Getter
+        @Setter
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @Builder(toBuilder = true)
+        public static class Customer {
+            private String ip;
+            private String username;
+            private Device device;
+        }
+
+        @Getter
+        @Setter
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @Builder(toBuilder = true)
+        public static class Device {
+            private String userAgent;
+            private String platformType;
+        }
     }
     ```
 
@@ -223,6 +195,7 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
     ```
     package co.com.microservicio.aws.model.worldregion.rq;
 
+    import co.com.microservicio.aws.model.worldregion.WorldRegion;
     import lombok.*;
 
     import java.io.Serial;
@@ -238,9 +211,19 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
         private static final long serialVersionUID = 1L;
 
         private transient Context context;
-        private transient String placeType;
-        private transient String place;
-        private transient String code;
+        private transient Param param;
+        private transient WorldRegion item;
+
+        @Getter
+        @Setter
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @Builder(toBuilder = true)
+        public static class Param {
+            private String placeType;
+            private String place;
+            private String code;
+        }
     }
     ```
 
@@ -309,8 +292,30 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
     public class WorldRegionConstant {
         public static final String PARAM_PLACE_TYPE = "placeType";
         public static final String PARAM_PLACE = "place";
+        public static final String PARAM_CODE = "code";
         public static final String SEPARATOR_CODE = "-";
-        public static final String MSG_LIST_SUCCESS = "listed successfull";
+        public static final String MSG_LIST_SUCCESS = "Listed successfull!";
+        public static final String MSG_SAVED_SUCCESS = "Saved successfull!";
+        public static final String MSG_UPDATED_SUCCESS = "Updated successfull!";
+        public static final String MSG_DELETED_SUCCESS = "Deleted successfull!";
+    }
+    ```
+
+    - Ubicarse en el proyecto domain > model en el paquete co.com.microservicio.aws.model.worldregion.util y crear la clase LogMessage.java
+    ```
+    package co.com.microservicio.aws.model.worldregion.util;
+
+    import lombok.AccessLevel;
+    import lombok.NoArgsConstructor;
+
+    @NoArgsConstructor(access = AccessLevel.PRIVATE)
+    public class LogMessage {
+        public static final String MESSAGE_SERVICE = "Service Api Rest world regions";
+        public static final String METHOD_LISTCOUNTRIES = "List all by region";
+        public static final String METHOD_FINDONE = "Find one world region";
+        public static final String METHOD_SAVE = "Save one world region";
+        public static final String METHOD_UPDATE = "Update one world region";
+        public static final String METHOD_DELETE = "Delete one world region";
     }
     ```
 
@@ -327,62 +332,119 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
         Flux<WorldRegion> findByRegion(String region);
 
         Mono<WorldRegion> findOne(String region, String code);
+
+        Mono<WorldRegion> save(WorldRegion worldRegion);
+
+        Mono<WorldRegion> update(WorldRegion worldRegion);
+
+        Mono<WorldRegion> delete(String region, String code);
     }
     ```
 
 5. Ubicarse en el proyecto domain > usecase en el paquete co.com.microservicio.aws.usecase.worldregion y crear la clase WorldRegionUseCase.java para cumplir con los criterios de aceptación; hacemos una validación del user-name para aplicar metodos webflux y lanzar errores que de momento se registrarán en logs.
     ```
-    package co.com.microservicio.aws.api.worldregion;
+    package co.com.microservicio.aws.usecase.worldregion;
 
-    import co.com.microservicio.aws.commons.ContextUtil;
-    import co.com.microservicio.aws.log.LoggerBuilder;
-    import co.com.microservicio.aws.log.TransactionLog;
+    import co.com.microservicio.aws.model.worldregion.WorldRegion;
+    import co.com.microservicio.aws.model.worldregion.gateway.WorldRegionRepository;
     import co.com.microservicio.aws.model.worldregion.rq.Context;
     import co.com.microservicio.aws.model.worldregion.rq.TransactionRequest;
     import co.com.microservicio.aws.model.worldregion.rs.TransactionResponse;
-    import co.com.microservicio.aws.usecase.worldregion.WorldRegionUseCase;
+    import co.com.microservicio.aws.model.worldregion.rs.WorldRegionResponse;
+    import co.com.microservicio.aws.model.worldregion.util.WorldRegionConstant;
     import lombok.RequiredArgsConstructor;
-    import org.springframework.stereotype.Component;
-    import org.springframework.web.reactive.function.server.ServerRequest;
-    import org.springframework.web.reactive.function.server.ServerResponse;
     import reactor.core.publisher.Mono;
 
-    import static co.com.microservicio.aws.model.worldregion.util.LogMessage.MESSAGE_SERVICE;
-    import static co.com.microservicio.aws.model.worldregion.util.LogMessage.METHOD_LISTCOUNTRIES;
-    import static co.com.microservicio.aws.model.worldregion.util.WorldRegionConstant.PARAM_PLACE;
-    import static co.com.microservicio.aws.model.worldregion.util.WorldRegionConstant.PARAM_PLACE_TYPE;
+    import java.util.Date;
+    import java.util.List;
+    import java.util.Optional;
+    import java.util.UUID;
 
-    @Component
     @RequiredArgsConstructor
-    public class WorldRegionHandler {
-        private static final String NAME_CLASS = WorldRegionHandler.class.getName();
-        private static final String EMPTY_VALUE = "";
+    public class WorldRegionUseCase {
+        private static final String KEY_USER_NAME = "user-name";
+        private static final String ATTRIBUTE_IS_REQUIRED = "The attribute '%s' is required";
 
-        private final LoggerBuilder logger;
-        private final WorldRegionUseCase worldRegionUseCase;
+        private final WorldRegionRepository regionRepository;
 
-        public Mono<ServerResponse> listAllCountries(ServerRequest serverRequest) {
-            var placeType = serverRequest.queryParam(PARAM_PLACE_TYPE).orElse(EMPTY_VALUE);
-            var place = serverRequest.queryParam(PARAM_PLACE).orElse(EMPTY_VALUE);
-            var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
-            var context = ContextUtil.buildContext(headers);
-            printOnProcess(context, METHOD_LISTCOUNTRIES);
-
-            var request = TransactionRequest.builder()
-                    .context(context).placeType(placeType).place(place).build();
-            return ServerResponse.ok().body(worldRegionUseCase.listByRegion(request)
-                    .onErrorResume(e -> this.printFailed(e, context.getId())), TransactionResponse.class
-            );
+        public Mono<TransactionResponse> listByRegion(TransactionRequest request){
+            return Mono.just(request)
+                .filter(this::userIsRequired)
+                .flatMap(req -> regionRepository.findByRegion(buildKeyRegion(req))
+                        .collectList().flatMap(this::buildResponse)
+                ).switchIfEmpty(Mono.error(new IllegalStateException(
+                        String.format(ATTRIBUTE_IS_REQUIRED, KEY_USER_NAME))));
         }
 
-        private Mono<TransactionResponse> printFailed(Throwable throwable, String messageId) {
-            logger.error(throwable.getMessage(), messageId, MESSAGE_SERVICE, NAME_CLASS);
-            return Mono.empty();
+        public Mono<TransactionResponse> findOne(TransactionRequest request){
+            return Mono.just(request)
+                    .filter(this::userIsRequired)
+                    .flatMap(req -> regionRepository.findOne(buildKeyRegion(req), request.getParam().getCode()))
+                    .flatMap(wr -> this.buildResponse(List.of(wr)))
+                    .switchIfEmpty(Mono.error(new IllegalStateException(
+                            String.format(ATTRIBUTE_IS_REQUIRED, KEY_USER_NAME))));
         }
 
-        private void printOnProcess(Context context, String messageInfo){
-            logger.info(TransactionLog.Request.builder().body(context).build(), null,
-                    messageInfo, context.getId(), MESSAGE_SERVICE, NAME_CLASS);
+        public Mono<String> save(TransactionRequest request){
+            return Mono.just(request)
+                    .filter(this::userIsRequired)
+                    .map(TransactionRequest::getItem)
+                    .map(wr -> WorldRegion
+                            .builder()
+                            .region(wr.getRegion().toUpperCase())
+                            .name(wr.getName())
+                            .code(UUID.randomUUID().toString())
+                            .codeRegion(wr.getCodeRegion().toUpperCase())
+                            .creationDate(new Date().toString()).build())
+                    .flatMap(regionRepository::save)
+                    .thenReturn(WorldRegionConstant.MSG_SAVED_SUCCESS);
+        }
+
+        public Mono<String> update(TransactionRequest request){
+            return Mono.just(request)
+                    .filter(this::userIsRequired)
+                    .map(TransactionRequest::getItem)
+                    .flatMap(regionRepository::update)
+                    .thenReturn(WorldRegionConstant.MSG_UPDATED_SUCCESS);
+        }
+
+        public Mono<String> delete(TransactionRequest request){
+            return Mono.just(request)
+                    .filter(this::userIsRequired)
+                    .flatMap(req -> regionRepository.delete(buildKeyRegion(req), request.getParam().getCode()))
+                    .thenReturn(WorldRegionConstant.MSG_DELETED_SUCCESS);
+        }
+
+        private Boolean userIsRequired(TransactionRequest request){
+            return Optional.ofNullable(request)
+                    .map(TransactionRequest::getContext)
+                    .map(Context::getCustomer).map(Context.Customer::getUsername)
+                    .filter(username -> !username.isEmpty())
+                    .isPresent();
+        }
+
+        private String buildKeyRegion(TransactionRequest request){
+            return request.getParam().getPlaceType().toUpperCase()
+                    .concat(WorldRegionConstant.SEPARATOR_CODE).concat(request.getParam().getPlace().toUpperCase());
+        }
+
+        private Mono<TransactionResponse> buildResponse(List<WorldRegion> worldRegions){
+            var simplifiedList = worldRegions.stream()
+                .map(wr -> WorldRegionResponse.builder()
+                    .code(wr.getCode())
+                    .name(wr.getName())
+                    .codeRegion(wr.getCodeRegion())
+                    .creationDate(wr.getCreationDate())
+                    .build())
+                .toList();
+
+            TransactionResponse response = TransactionResponse.builder()
+                    .message(WorldRegionConstant.MSG_LIST_SUCCESS)
+                    .size(worldRegions.size())
+                    .response(simplifiedList)
+                    .build();
+
+            return Mono.just(response);
         }
     }
     ```
@@ -396,7 +458,7 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
     gradle generateHelper --name=commons
     ```
 
-7. Ubicarse en el proyecto infrastructure > helpers en el paquete co.com.microservicio.aws.commons y crear la clase HeadersUtil.java
+7. Ubicarse en el proyecto infrastructure > helpers > commons en el paquete co.com.microservicio.aws.commons y crear la clase HeadersUtil.java
     ```
     package co.com.microservicio.aws.commons;
 
@@ -425,13 +487,11 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
     }
     ```
 
-8. Ubicarse en el proyecto infrastructure > helpers en el paquete co.com.microservicio.aws.commons y crear la clase ContextUtil.java
+8. Ubicarse en el proyecto infrastructure > helpers > commons en el paquete co.com.microservicio.aws.commons y crear la clase ContextUtil.java
     ```
     package co.com.microservicio.aws.commons;
 
     import co.com.microservicio.aws.model.worldregion.rq.Context;
-    import co.com.microservicio.aws.model.worldregion.rq.Customer;
-    import co.com.microservicio.aws.model.worldregion.rq.Device;
     import lombok.experimental.UtilityClass;
 
     import java.util.Map;
@@ -447,31 +507,32 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
                     .customer(buildCustomer(localHeaders)).build();
         }
 
-        private static Customer buildCustomer(Map<String, String> headers) {
-            return Customer.builder().ip(Optional.ofNullable(headers.get("ip")).orElse(EMPTY_VALUE))
-                    .username(Optional.ofNullable(headers.get("username")).orElse(EMPTY_VALUE))
+        private static Context.Customer buildCustomer(Map<String, String> headers) {
+            return Context.Customer.builder().ip(Optional.ofNullable(headers.get("ip")).orElse(EMPTY_VALUE))
+                    .username(Optional.ofNullable(headers.get("user-name")).orElse(EMPTY_VALUE))
                     .device(buildDevice(headers)).build();
         }
 
-        private static Device buildDevice(Map<String, String> headers) {
-            return Device.builder().userAgent(Optional.ofNullable(headers.get("user-agent")).orElse(EMPTY_VALUE))
+        private static Context.Device buildDevice(Map<String, String> headers) {
+            return Context.Device.builder().userAgent(Optional.ofNullable(headers.get("user-agent")).orElse(EMPTY_VALUE))
                     .platformType(Optional.ofNullable(headers.get("platform-type")).orElse(EMPTY_VALUE)).build();
         }
     }
     ```
 
-9. Modificamos el build.gradle de la aplicación infrastructure > entry-points para agregar la dependencia de helpers > commons
+9. Modificamos el build.gradle de la aplicación infrastructure > entry-points > reactive-web para agregar la dependencia de helpers > commons
     ```
     implementation project(':commons')
     ``` 
 
-10. Ubicarse en el proyecto infrastructure > entry-points en el paquete co.com.microservicio.aws.api.worldregion y crear la clase WorldRegionHandler.java  
+10. Ubicarse en el proyecto infrastructure > entry-points > reactive-web en el paquete co.com.microservicio.aws.api.worldregion y crear la clase WorldRegionHandler.java  
     ```
     package co.com.microservicio.aws.api.worldregion;
 
     import co.com.microservicio.aws.commons.ContextUtil;
     import co.com.microservicio.aws.log.LoggerBuilder;
     import co.com.microservicio.aws.log.TransactionLog;
+    import co.com.microservicio.aws.model.worldregion.WorldRegion;
     import co.com.microservicio.aws.model.worldregion.rq.Context;
     import co.com.microservicio.aws.model.worldregion.rq.TransactionRequest;
     import co.com.microservicio.aws.model.worldregion.rs.TransactionResponse;
@@ -482,24 +543,77 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
     import org.springframework.web.reactive.function.server.ServerResponse;
     import reactor.core.publisher.Mono;
 
+    import static co.com.microservicio.aws.model.worldregion.util.LogMessage.*;
+    import static co.com.microservicio.aws.model.worldregion.util.WorldRegionConstant.*;
+
     @Component
     @RequiredArgsConstructor
     public class WorldRegionHandler {
         private static final String NAME_CLASS = WorldRegionHandler.class.getName();
-        private static final String MESSAGE_SERVICE = "Service Api Rest world regions";
+        private static final String EMPTY_VALUE = "";
 
         private final LoggerBuilder logger;
         private final WorldRegionUseCase worldRegionUseCase;
 
-        public Mono<ServerResponse> listAllCountries(ServerRequest serverRequest) {
+        public Mono<ServerResponse> listByRegion(ServerRequest serverRequest) {
+            var request = this.buildRequestWithParams(serverRequest, METHOD_LISTCOUNTRIES);
+            return ServerResponse.ok().body(worldRegionUseCase.listByRegion(request)
+                    .onErrorResume(e -> this.printFailed(e, request.getContext().getId())), TransactionResponse.class
+            );
+        }
+
+        public Mono<ServerResponse> findOne(ServerRequest serverRequest) {
+            var request = this.buildRequestWithParams(serverRequest, METHOD_FINDONE);
+            return ServerResponse.ok().body(worldRegionUseCase.findOne(request)
+                .onErrorResume(e -> this.printFailed(e, request.getContext().getId())), TransactionResponse.class
+            );
+        }
+
+        public Mono<ServerResponse> save(ServerRequest serverRequest) {
             var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
             var context = ContextUtil.buildContext(headers);
-            printOnProcess(context, "List all countries");
+            printOnProcess(context, METHOD_SAVE);
 
-            var request = TransactionRequest.builder().context(context).build();
-            return ServerResponse.ok().body(worldRegionUseCase.listAllCountries(request)
-                    .onErrorResume(e -> this.printFailed(e, context.getId())), TransactionResponse.class
-            );
+            return this.getWorldRegionRequest(serverRequest)
+                    .flatMap(worldRegionUseCase::save)
+                    .flatMap(msg -> ServerResponse.ok().bodyValue(msg));
+        }
+
+        public Mono<ServerResponse> update(ServerRequest serverRequest) {
+            var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+            var context = ContextUtil.buildContext(headers);
+            printOnProcess(context, METHOD_UPDATE);
+
+            return this.getWorldRegionRequest(serverRequest)
+                    .flatMap(worldRegionUseCase::update)
+                    .flatMap(msg -> ServerResponse.ok().bodyValue(msg));
+        }
+
+        public Mono<ServerResponse> delete(ServerRequest serverRequest) {
+            var request = this.buildRequestWithParams(serverRequest, METHOD_DELETE);
+            return ServerResponse.ok().body(worldRegionUseCase.delete(request), String.class);
+        }
+
+        private Mono<TransactionRequest> getWorldRegionRequest(ServerRequest serverRequest) {
+            var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+            var context = ContextUtil.buildContext(headers);
+            return serverRequest.bodyToMono(WorldRegion.class)
+                    .flatMap(wr -> Mono.just(TransactionRequest.builder()
+                            .context(context).item(wr).build()));
+        }
+
+        private TransactionRequest buildRequestWithParams(ServerRequest serverRequest, String method){
+            var placeType = serverRequest.queryParam(PARAM_PLACE_TYPE).orElse(EMPTY_VALUE);
+            var place = serverRequest.queryParam(PARAM_PLACE).orElse(EMPTY_VALUE);
+            var code = serverRequest.queryParam(PARAM_CODE).orElse(EMPTY_VALUE);
+            var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+            var context = ContextUtil.buildContext(headers);
+            printOnProcess(context, method);
+
+            return TransactionRequest.builder()
+                    .context(context)
+                    .param(TransactionRequest.Param.builder().placeType(placeType).place(place).code(code).build())
+                    .build();
         }
 
         private Mono<TransactionResponse> printFailed(Throwable throwable, String messageId) {
@@ -508,7 +622,8 @@ Permitir crear, actualizar, borrar y consultar la ubicación geográfica partien
         }
 
         private void printOnProcess(Context context, String messageInfo){
-            logger.info(TransactionLog.Request.builder().body(context).build(), null,
+            logger.info(TransactionLog.Request.builder().body(context).build(),
+                    TransactionLog.Response.builder().build(),
                     messageInfo, context.getId(), MESSAGE_SERVICE, NAME_CLASS);
         }
     }
@@ -522,16 +637,18 @@ entries:
     path-base: "${PATH_BASE:/api/v1/microservice-aws}"
     greet: "/greet"
     greetReactive: "/greetReactive"
+    greetReactiveQueryParam: "/greetReactiveQueryParam"
+    greetReactivePathVariable: "/greetReactivePathVariable/{place}"
   world-region-web:
     path-base: "${PATH_BASE:/api/v2/microservice-aws}"
     listByRegion: "/list-by-region"
-    findOne: "/find-one/{placeType}/{place}/{code}"
+    findOne: "/find-one"
     saveRegion: "/save-region"
     updateRegion: "/update-region"
-    deleteRegion: "/delete-region/{placeType}/{place}/{code}"
+    deleteRegion: "/delete-region"
 ``` 
 
-12. Creamos la clase ApiWorldRegionProperties.java en el paquete co.com.microservicio.aws.api.worldregion.config
+12. Ubicarse en el proyecto infrastructure > entry-points > reactive-web en el paquete co.com.microservicio.aws.api.worldregion.config y crear la clase ApiWorldRegionProperties.java
     ```
     package co.com.microservicio.aws.api.worldregion.config;
 
@@ -552,7 +669,7 @@ entries:
     }
     ``` 
 
-13. Ubicarse en el proyecto infrastructure > entry-points en el paquete co.com.microservicio.aws.api.worldregion.doc y crear la clase WorldRegionOpenAPI.java
+13. Ubicarse en el proyecto infrastructure > entry-points > reactive-web en el paquete co.com.microservicio.aws.api.worldregion.doc y crear la clase WorldRegionOpenAPI.java
     ```
     package co.com.microservicio.aws.api.worldregion.doc;
 
@@ -630,12 +747,12 @@ entries:
     }
     ```
 
-14. Ubicarse en el proyecto infrastructure > entry-points en el paquete co.com.microservicio.aws.api.worldregion y crear la clase WorldRegionRouterRest.java
+14. Ubicarse en el proyecto infrastructure > entry-points > reactive-web en el paquete co.com.microservicio.aws.api.worldregion y crear la clase WorldRegionRouterRest.java
     ```
     package co.com.microservicio.aws.api.worldregion;
 
     import co.com.microservicio.aws.api.greet.doc.GreetOpenAPI;
-    import co.com.microservicio.aws.api.worldregion.config.ApiProperties;
+    import co.com.microservicio.aws.api.worldregion.config.ApiWorldRegionProperties;
     import lombok.RequiredArgsConstructor;
     import org.springdoc.webflux.core.fn.SpringdocRouteBuilder;
     import org.springframework.context.annotation.Bean;
@@ -651,9 +768,21 @@ entries:
         @Bean
         public RouterFunction<ServerResponse> routerWorldRegionFunction(WorldRegionHandler worldRegionHandler) {
             return SpringdocRouteBuilder.route()
-                    .GET(properties.getPathBase().concat(properties.getListCountries()),
-                            worldRegionHandler::listAllCountries, GreetOpenAPI.greetRoute())
-                    .build();
+                .GET(createRoute(properties.getListByRegion()), worldRegionHandler::listByRegion,
+                        GreetOpenAPI.greetRoute())
+                .GET(createRoute(properties.getFindOne()), worldRegionHandler::findOne,
+                        GreetOpenAPI.greetRoute())
+                .POST(createRoute(properties.getSaveRegion()), worldRegionHandler::save,
+                        GreetOpenAPI.greetRoute())
+                .PUT(createRoute(properties.getUpdateRegion()), worldRegionHandler::update,
+                        GreetOpenAPI.greetRoute())
+                .DELETE(createRoute(properties.getDeleteRegion()), worldRegionHandler::delete,
+                        GreetOpenAPI.greetRoute())
+                .build();
+        }
+
+        private String createRoute(String route){
+            return properties.getPathBase().concat(route);
         }
     }
     ```
@@ -665,11 +794,11 @@ entries:
     - Ubicarse en la raiz del proyecto, abrir la consola de comandos y ejecutar el comando de creación del driven-adapter con DynamoDB
    ```
    gradle generateDrivenAdapter --type=dynamodb
-   ``` 
+   ```
 
    ![](./img/apirest-crear-driven-adapter-dynamodb.png)
 
-2. En el paquete 'co.com.microservicio.aws.dynamodb' creamos la siguiente clase
+2. Ubicarse en el proyecto infrastructure > driven-adapters > dynamo-db en el paquete co.com.microservicio.aws.dynamodb y crear la clase DynamoDbTableAdapter.java
 
    ```
     package co.com.microservicio.aws.dynamodb;
@@ -686,7 +815,7 @@ entries:
     }
    ```
 
-3. En el paquete 'co.com.microservicio.aws.dynamodb.config' creamos la siguiente clase
+3. Ubicarse en el proyecto infrastructure > driven-adapters > dynamo-db en el paquete co.com.microservicio.aws.dynamodb.config y crear la clase 
     ```
     package co.com.microservicio.aws.dynamodb.config;
 
@@ -695,11 +824,15 @@ entries:
 
     @NoArgsConstructor(access = AccessLevel.PRIVATE)
     public class SourceName {
-        public static final String FLIGHT_TICKETS = "flight_tickets";
+        public static final String WORLD_REGION = "world_region";
     }
     ```
 
-4. En el paquete 'co.com.microservicio.aws.dynamodb.model' creamos la siguiente clase de acuerdo a los datos a almacenar en la tabla
+    **Importante**: se debe colocar tal cual está en el archivo de configuración
+
+    ![](./img/config-driver-dynamodb.png)
+
+4. Ubicarse en el proyecto infrastructure > driven-adapters > dynamo-db en el paquete 'co.com.microservicio.aws.dynamodb.model' y crear la clase  ModelEntityWorldRegion.java de acuerdo a los datos a almacenar en la tabla
     ```
     package co.com.microservicio.aws.dynamodb.model;
 
@@ -707,34 +840,25 @@ entries:
     import co.com.microservicio.aws.dynamodb.config.SourceName;
     import lombok.Data;
     import lombok.Getter;
-    import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
-    import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
-    import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecondaryPartitionKey;
-    import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSortKey;
+    import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.*;
 
     @Data
     @DynamoDbBean
-    @DynamoDbTableAdapter(tableName = SourceName.WORLD_REGIONS) // asegúrate que exista esta constante
+    @DynamoDbTableAdapter(tableName = SourceName.WORLD_REGION)
     public class ModelEntityWorldRegion {
-
         @Getter(onMethod_ = @DynamoDbPartitionKey)
-        private String primaryKey;
+        private String region;
 
         @Getter(onMethod_ = @DynamoDbSortKey)
-        private String sortKey;
-
-        @Getter(onMethod_ = @DynamoDbSecondaryPartitionKey(indexNames = "EntityTypeIndex"))
-        private String entityTypeKey;
-
         private String code;
+
         private String name;
-        private String parentCode;
-        private String entityName;
-        private String address;
+        private String codeRegion;
+        private String creationDate;
     }
     ```
 
-5. Cambiamos la clase DynamoDBConfig en el paquete 'co.com.microservicio.aws.dynamodb.config' por el siguiente código
+5. Ubicarse en el proyecto infrastructure > driven-adapters > dynamo-db en el paquete 'co.com.microservicio.aws.dynamodb.config' y modificar la clase DynamoDBConfig.java por el siguiente código 
     ```
     package co.com.microservicio.aws.dynamodb.config;
 
@@ -744,6 +868,7 @@ entries:
     import org.springframework.context.annotation.Profile;
     import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
     import software.amazon.awssdk.auth.credentials.WebIdentityTokenFileCredentialsProvider;
+    import software.amazon.awssdk.core.SdkSystemSetting;
     import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
     import software.amazon.awssdk.regions.Region;
     import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient;
@@ -752,31 +877,32 @@ entries:
 
     @Configuration
     public class DynamoDBConfig {
-
         @Bean
-        @Profile({ "local" })
-        DynamoDbAsyncClient amazonDynamoDB(@Value("${aws.dynamodb.endpoint}") String endpoint,
-                                        @Value("${aws.region}") String region) {
-            return DynamoDbAsyncClient.builder().credentialsProvider(ProfileCredentialsProvider.create("default"))
-                    .endpointOverride(URI.create(endpoint)).region(Region.of(region)).build();
+        @Profile({"local"})
+        public DynamoDbAsyncClient amazonDynamoDB(@Value("${adapters.dynamodb.endpoint}") String endpoint) {
+            return DynamoDbAsyncClient.builder()
+                    .credentialsProvider(ProfileCredentialsProvider.create("default"))
+                    .endpointOverride(URI.create(endpoint))
+                    .region(Region.of(SdkSystemSetting.AWS_REGION.environmentVariable()))
+                    .build();
         }
-
         @Bean
-        @Profile({ "!local" })
-        DynamoDbAsyncClient amazonDynamoDBAsync(@Value("${aws.region}") String region) {
-            return DynamoDbAsyncClient.builder().credentialsProvider(WebIdentityTokenFileCredentialsProvider.create())
+        @Profile({"!local"})
+        public DynamoDbAsyncClient amazonDynamoDBAsync(@Value("${adapters.dynamodb.region}") String region) {
+            return DynamoDbAsyncClient.builder()
+                    .credentialsProvider(WebIdentityTokenFileCredentialsProvider.create())
                     .region(Region.of(region)).build();
         }
-
         @Bean
-        DynamoDbEnhancedAsyncClient getDynamoDbEnhancedAsyncClient(DynamoDbAsyncClient dynamoDbAsyncClient) {
-            return DynamoDbEnhancedAsyncClient.builder().dynamoDbClient(dynamoDbAsyncClient).build();
+        public DynamoDbEnhancedAsyncClient dynamoClient(DynamoDbAsyncClient dynamoDbAsyncClient){
+            return DynamoDbEnhancedAsyncClient.builder()
+                    .dynamoDbClient(dynamoDbAsyncClient)
+                    .build();
         }
-
     }
     ```
 
-6. Cambiamos la clase DynamoDBConfigTest en el paquete 'co.com.microservicio.aws.dynamodb.config' por el siguiente código
+6. Ubicarse en el proyecto infrastructure > driven-adapters > dynamo-db > test en el paquete 'co.com.microservicio.aws.dynamodb.config' y modificar la clase DynamoDBConfigTest.java por el siguiente código
     ```
     package co.com.microservicio.aws.dynamodb.config;
 
@@ -798,25 +924,25 @@ entries:
 
         @Test
         void testAmazonDynamoDB() {
-            DynamoDbAsyncClient result = dynamoDBConfig.amazonDynamoDB("http://aws.dynamo.test", "region");
+            DynamoDbAsyncClient result = dynamoDBConfig.amazonDynamoDB("http://aws.dynamo.test");
             assertNotNull(result);
         }
 
         @Test
         void testAmazonDynamoDBAsync() {
-            DynamoDbAsyncClient result = dynamoDBConfig.amazonDynamoDBAsync("region");
+            DynamoDbAsyncClient result = dynamoDBConfig.amazonDynamoDBAsync("us-east-1");
             assertNotNull(result);
         }
 
         @Test
         void testGetDynamoDbEnhancedAsyncClient() {
-            DynamoDbEnhancedAsyncClient result = dynamoDBConfig.getDynamoDbEnhancedAsyncClient(dynamoDbAsyncClient);
+            DynamoDbEnhancedAsyncClient result = dynamoDBConfig.dynamoClient(dynamoDbAsyncClient);
             assertNotNull(result);
         }
     }
     ```
 
-7. En el archivo build.gradle del proyecto dynamo-db colocamos las siguientes dependencias
+7. Ubicarse en el proyecto infrastructure > driven-adapters > dynamo-db y en el archivo build.gradle colocamos las siguientes dependencias
     ```
     dependencies {
         implementation project(':model')
@@ -828,23 +954,20 @@ entries:
         implementation 'org.mapstruct:mapstruct:1.3.1.Final'
         implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
 
-        annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
         annotationProcessor 'org.mapstruct:mapstruct-processor:1.3.1.Final'
 
         testImplementation 'org.reactivecommons.utils:object-mapper:0.1.0'
     }
     ```
 
-8. En el paquete 'co.com.microservicio.aws.dynamodb.config' creamos la siguiente clase
+8. Ubicarse en el proyecto infrastructure > driven-adapters > dynamo-db en el paquete co.com.microservicio.aws.dynamodb.config y crear la clase DynamoDBTablesProperties.java
     ```
     package co.com.microservicio.aws.dynamodb.config;
 
     import java.util.Map;
-
     import org.springframework.boot.context.properties.ConfigurationProperties;
     import org.springframework.boot.context.properties.EnableConfigurationProperties;
     import org.springframework.context.annotation.Configuration;
-
     import lombok.Data;
 
     @Data
@@ -856,35 +979,64 @@ entries:
     }
     ```
 
-
-9. En el paquete 'co.com.microservicio.aws.dynamodb' creamos la siguiente clase
+9. Ubicarse en el proyecto infrastructure > driven-adapters > dynamo-db en el paquete co.com.microservicio.aws.dynamodb y crear la clase DynamoDBOperations.java
     ```
     package co.com.microservicio.aws.dynamodb;
 
-    import java.util.function.Function;
-
     import co.com.microservicio.aws.dynamodb.config.DynamoDBTablesProperties;
+    import reactor.core.publisher.Flux;
     import reactor.core.publisher.Mono;
     import software.amazon.awssdk.enhanced.dynamodb.DynamoDbAsyncTable;
     import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
     import software.amazon.awssdk.enhanced.dynamodb.Key;
     import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 
-    public class AdapterOperations<E, D> {
+    import java.util.function.Function;
+
+    public class DynamoDBOperations<E, D>{
         protected DynamoDbEnhancedAsyncClient dbEnhancedAsyncClient;
         protected Function<E, D> fnToData;
         protected Function<D, E> fnToEntity;
         protected DynamoDbAsyncTable<D> dataTable;
 
-        public AdapterOperations(DynamoDbEnhancedAsyncClient dbEnhancedAsyncClient,
-                                DynamoDBTablesProperties tablesProperties, Function<E, D> fnToData, Function<D, E> fnToEntity,
-                                Class<D> dataClass) {
+        public DynamoDBOperations(DynamoDbEnhancedAsyncClient dbEnhancedAsyncClient,
+                                DynamoDBTablesProperties tablesProperties, Function<E, D> fnToData,
+                                Function<D, E> fnToEntity, Class<D> dataClass) {
+
             this.dbEnhancedAsyncClient = dbEnhancedAsyncClient;
             this.fnToData = fnToData;
             this.fnToEntity = fnToEntity;
-            var dynamoDbTableAdapter = dataClass.getAnnotation(DynamoDbTableAdapter.class);
-            var tableName = tablesProperties.getNamesmap().get(dynamoDbTableAdapter.tableName());
+            DynamoDbTableAdapter dynamoDbTableAdapter = dataClass.getAnnotation(DynamoDbTableAdapter.class);
+            String tableName = tablesProperties.getNamesmap().get(dynamoDbTableAdapter.tableName());
             dataTable = dbEnhancedAsyncClient.table(tableName, TableSchema.fromBean(dataClass));
+        }
+
+        public Mono<E> save(E entity) {
+            return Mono.just(entity).map(this::toData).flatMap(this::saveData).thenReturn(entity);
+        }
+
+        protected Mono<E> findOne(Key id) {
+            return Mono.fromFuture(dataTable.getItem(id)).map(this::toEntity);
+        }
+
+        protected Mono<E> delete(Key id) {
+            return deleteData(id).map(this::toEntity);
+        }
+
+        protected Mono<E> update(E entity) {
+            return Mono.fromFuture(dataTable.updateItem(toData(entity))).map(this::toEntity);
+        }
+
+        protected Mono<D> saveData(D data) {
+            return Mono.fromFuture(dataTable.putItem(data)).thenReturn(data);
+        }
+
+        protected Mono<D> deleteData(Key id) {
+            return Mono.fromFuture(dataTable.deleteItem(id));
+        }
+
+        protected Flux<E> doQueryMany(Flux<D> query) {
+            return query.map(this::toEntity);
         }
 
         protected D toData(E entity) {
@@ -892,20 +1044,49 @@ entries:
         }
 
         protected E toEntity(D data) {
-            return fnToEntity.apply(data);
-        }
-
-        protected Mono<E> findOne(Key id) {
-            return Mono.fromFuture(dataTable.getItem(id)).map(this::toEntity);
-        }
-
-        protected Mono<E> update(E entity) {
-            return Mono.fromFuture(dataTable.updateItem(toData(entity))).map(this::toEntity);
+            return data != null ? fnToEntity.apply(data) : null;
         }
     }
     ```
 
-10. En el paquete 'co.com.microservicio.aws.dynamodb.mapper' creamos la siguiente clase a cargo de mapear los datos de la clase DTO a la clase Entity o viceversa
+10. Ubicarse en el proyecto infrastructure > driven-adapters > dynamo-db en el paquete co.com.microservicio.aws.dynamodb y crear la clase AdapterOperations.java
+    ```
+    package co.com.microservicio.aws.dynamodb;
+
+    import co.com.microservicio.aws.dynamodb.config.DynamoDBTablesProperties;
+    import reactor.core.publisher.Flux;
+    import reactor.core.publisher.Mono;
+    import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
+    import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
+
+    import java.util.function.Function;
+
+    public class AdapterOperations<E, D> extends DynamoDBOperations<E, D> {
+
+        public AdapterOperations(DynamoDbEnhancedAsyncClient dbEnhancedAsyncClient,
+                                DynamoDBTablesProperties tablesProperties,
+                                Function<E, D> fnToData, Function<D, E> fnToEntity,
+                                Class<D> dataClass) {
+
+            super(dbEnhancedAsyncClient, tablesProperties, fnToData, fnToEntity, dataClass);
+        }
+
+        @Override
+        protected E toEntity(D data) {
+            return fnToEntity.apply(data);
+        }
+
+        protected Flux<E> findByQuery(QueryEnhancedRequest queryRequest) {
+            return Mono.just(dataTable)
+                    .flatMap(index -> Mono.from(index.query(queryRequest)))
+                    .flatMapMany(page -> doQueryMany(Flux.fromIterable(page.items())))
+                    .onErrorResume(err -> Flux.empty());
+        }
+
+    }
+    ```
+
+11. Ubicarse en el proyecto infrastructure > driven-adapters > dynamo-db en el paquete co.com.microservicio.aws.dynamodb.mapper y crear la clase WorldRegionDataMapper.java a cargo de mapear los datos de la clase DTO a la clase Entity o viceversa
     ```
     package co.com.microservicio.aws.dynamodb.mapper;
 
@@ -916,35 +1097,204 @@ entries:
 
     @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
     public interface WorldRegionDataMapper {
-        ModelEntityWorldRegion toData(WorldRegion worldRegion);
-        WorldRegion toEntity(ModelEntityWorldRegion modelEntityWorldRegion);
+        ModelEntityWorldRegion toEntity(WorldRegion worldRegion);
+        WorldRegion toData(ModelEntityWorldRegion modelEntityWorldRegion);
     }
     ```
 
-11. Eliminamos las clases autogeneradas: TemplateAdapterOperationsTest, DynamoDBTemplateAdapter, ModelEntity
+12. Eliminamos las clases autogeneradas: TemplateAdapterOperationsTest, DynamoDBTemplateAdapter, ModelEntity
 
-12. Creamos la clase WorldRegionRepositoryAdapter.java quien implementará la interfaz Gateway en el paquete 'co.com.microservicio.aws.dynamodb.mapper'
+13. Ubicarse en el proyecto infrastructure > driven-adapters > dynamo-db en el paquete co.com.microservicio.aws.dynamodb.mapper y crear la clase WorldRegionRepositoryAdapter.java
+    ```
+    package co.com.microservicio.aws.dynamodb;
+
+    import co.com.microservicio.aws.dynamodb.config.DynamoDBTablesProperties;
+    import co.com.microservicio.aws.dynamodb.mapper.WorldRegionDataMapper;
+    import co.com.microservicio.aws.dynamodb.model.ModelEntityWorldRegion;
+    import co.com.microservicio.aws.model.worldregion.WorldRegion;
+    import co.com.microservicio.aws.model.worldregion.gateway.WorldRegionRepository;
+    import org.springframework.stereotype.Component;
+    import reactor.core.publisher.Flux;
+    import reactor.core.publisher.Mono;
+    import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
+    import software.amazon.awssdk.enhanced.dynamodb.Key;
+    import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
+    import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
+
+    @Component
+    public class WorldRegionRepositoryAdapter
+            extends AdapterOperations<WorldRegion, ModelEntityWorldRegion>
+            implements WorldRegionRepository {
+
+        public WorldRegionRepositoryAdapter(DynamoDbEnhancedAsyncClient dbEnhancedAsyncClient,
+                                            DynamoDBTablesProperties tablesProperties,
+                                            WorldRegionDataMapper mapper) {
+
+            super(dbEnhancedAsyncClient, tablesProperties, mapper::toEntity,
+                    mapper::toData, ModelEntityWorldRegion.class);
+
+        }
+
+        @Override
+        public Flux<WorldRegion> findByRegion(String region) {
+            QueryEnhancedRequest request = QueryEnhancedRequest
+                    .builder()
+                    .queryConditional(QueryConditional.keyEqualTo(buildKey(region)))
+                    .build();
+
+            return super.findByQuery(request);
+        }
+
+        @Override
+        public Mono<WorldRegion> findOne(String region, String code) {
+            return super.findOne(buildKey(region, code));
+        }
+
+        @Override
+        public Mono<WorldRegion> update(WorldRegion worldRegion) {
+            return super.update(worldRegion);
+        }
+
+        @Override
+        public Mono<WorldRegion> delete(String region, String code) {
+            return super.delete(buildKey(region, code));
+        }
+
+        private Key buildKey(String partitionValue, String sortValue) {
+            return Key.builder().partitionValue(partitionValue).sortValue(sortValue).build();
+        }
+
+        private Key buildKey(String partitionValue) {
+            return Key.builder().partitionValue(partitionValue).build();
+        }
+    }
     ```
 
+14. Ejecutar la aplicación y esta debe subir correctamente
+
+15. Estos son los curls para probar los servicios y los requerimientos al inicio de este documento
+
+    - Listar todos los paises por region
+    ```
+    curl --location 'localhost:8080/api/v2/microservice-aws/list-by-region?placeType=region&place=latam' \
+    --header 'message-id: 7a214936-5e93-11ec-bf63-0242ac130002' \
+    --header 'Content-Type: application/json' \
+    --header 'user-name: peter header'
     ```
 
+    ![](./img/wr-list-all-countries.png)
 
-
-13. En el paquete 'co.com.microservicio.aws.dynamodb' creamos la siguiente clase correspondiente al adaptador que implementa la consulta en la bd
+    - Listar departamentos por pais
+    ```
+    curl --location 'localhost:8080/api/v2/microservice-aws/list-by-region?placeType=country&place=col' \
+    --header 'message-id: 7a214936-5e93-11ec-bf63-0242ac130002' \
+    --header 'Content-Type: application/json' \
+    --header 'user-name: peter header'
     ```
 
+    ![](./img/wr-list-all-departaments.png)
+
+    - Listar ciudad por departamento
+    ```
+    curl --location 'localhost:8080/api/v2/microservice-aws/list-by-region?placeType=departament&place=ant' \
+    --header 'message-id: 7a214936-5e93-11ec-bf63-0242ac130002' \
+    --header 'Content-Type: application/json' \
+    --header 'user-name: peter header'
     ```
 
+    ![](./img/wr-list-all-cities.png)
 
+    - Listar un item en especifico
+    ```
+    curl --location 'localhost:8080/api/v2/microservice-aws/find-one?placeType=region&place=latam&code=ff50f4f8-2dd1-4466-a55f-47ce560e1f19' \
+    --header 'message-id: 7a214936-5e93-11ec-bf63-0242ac130002' \
+    --header 'Content-Type: application/json' \
+    --header 'user-name: user dummy'
+    ```
 
-## API Rest con anotaciones
+    ![](./img/wr-find-one-item.png)
 
+    - Registrar item en la tabla
+    ```
+    curl --location 'localhost:8080/api/v2/microservice-aws/save-region' \
+    --header 'message-id: 7a214936-5e93-11ec-bf63-0242ac130002' \
+    --header 'Content-Type: application/json' \
+    --header 'user-name: user dummy' \
+    --data '{
+        "region": "DEPARTAMENT-ANT",
+        "name": "Medellín",
+        "codeRegion": "CITY-MED"
+    }'
+    ```
 
+    ![](./img/wr-save-new-item.png)
 
-[< Volver](README-PROYECTO-JAVA-WEBFLUX.md)
+    - Borrar item
+    ```
+    dato incorrecto porque medellín debería pertenecer a un departamento y no a un pais:
+    {
+        "code": "d5f11e0b-55c7-4e88-9e4e-454ef19b611e",
+        "name": "Medellín",
+        "codeRegion": "CITY-MED",
+        "creationDate": "Thu Jun 26 22:30:00 COT 2025"
+    }
+
+    petición para delete:
+
+    curl --location --request DELETE 'localhost:8080/api/v2/microservice-aws/delete-region?placeType=country&place=col&code=d5f11e0b-55c7-4e88-9e4e-454ef19b611e' \
+    --header 'message-id: 7a214936-5e93-11ec-bf63-0242ac130002' \
+    --header 'Content-Type: application/json' \
+    --header 'user-name: user dummy'
+    ```
+
+    ![](./img/wr-delete-item.png)
+
+    - Actualizar nombre a un item (nombre está todo en minuscula)
+    ```
+    before:
+    {
+        "region": "REGION-LATAM",
+        "code": "ff50f4f8-2dd1-4466-a55f-47ce560e1f19",
+        "name": "argentina",
+        "codeRegion": "COUNTRY-ARG",
+        "creationDate": "2025-06-24T20:16:00Z"
+    }
+    
+    petición:
+
+    curl --location --request PUT 'localhost:8080/api/v2/microservice-aws/update-region' \
+    --header 'message-id: 7a214936-5e93-11ec-bf63-0242ac130002' \
+    --header 'Content-Type: application/json' \
+    --header 'user-name: user dummy' \
+    --data '{
+        "region": "REGION-LATAM",
+        "code": "ff50f4f8-2dd1-4466-a55f-47ce560e1f19",
+        "name": "Argentina",
+        "codeRegion": "COUNTRY-ARG",
+        "creationDate": "2025-06-24T20:16:00Z"
+    }'
+
+    after:
+    {
+        "message": "Listed successfull!",
+        "size": 1,
+        "response": [
+            {
+                "code": "ff50f4f8-2dd1-4466-a55f-47ce560e1f19",
+                "name": "Argentina",
+                "codeRegion": "COUNTRY-ARG",
+                "creationDate": "2025-06-24T20:16:00Z"
+            }
+        ]
+    }
+    ```
+
+    ![](./img/wr-put-item.png)
+
+[< Volver al índice](README.md)
 
 ---
 
-**Author**: Pedro Luis Osorio Pavas [Linkedin](www.linkedin.com/in/pedro-luis-osorio-pavas-68b3a7106)  
+**Author**: Pedro Luis Osorio Pavas [Linkedin](https://www.linkedin.com/in/pedro-luis-osorio-pavas-68b3a7106)  
 **Start Date**: 01-06-2025  
 **Update Date**: 01-06-2025.

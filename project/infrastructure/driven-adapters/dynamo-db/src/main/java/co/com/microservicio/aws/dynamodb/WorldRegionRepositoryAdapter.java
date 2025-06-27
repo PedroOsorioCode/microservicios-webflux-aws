@@ -34,7 +34,7 @@ public class WorldRegionRepositoryAdapter
                 .queryConditional(QueryConditional.keyEqualTo(buildKey(region)))
                 .build();
 
-        return super.findByIndexWithQuery(request);
+        return super.findByQuery(request);
     }
 
     @Override
@@ -42,8 +42,18 @@ public class WorldRegionRepositoryAdapter
         return super.findOne(buildKey(region, code));
     }
 
+    @Override
+    public Mono<WorldRegion> update(WorldRegion worldRegion) {
+        return super.update(worldRegion);
+    }
+
+    @Override
+    public Mono<WorldRegion> delete(String region, String code) {
+        return super.delete(buildKey(region, code));
+    }
+
     private Key buildKey(String partitionValue, String sortValue) {
-        return Key.builder().sortValue(sortValue).partitionValue(partitionValue).build();
+        return Key.builder().partitionValue(partitionValue).sortValue(sortValue).build();
     }
 
     private Key buildKey(String partitionValue) {

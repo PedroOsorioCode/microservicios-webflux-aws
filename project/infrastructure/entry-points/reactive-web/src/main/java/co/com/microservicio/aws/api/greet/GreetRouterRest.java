@@ -19,6 +19,10 @@ public class GreetRouterRest {
         return SpringdocRouteBuilder.route()
             .GET(properties.getPathBase().concat(properties.getGreetReactive()),
                 greetHandler::greet, GreetOpenAPI.greetRoute())
+            .GET(properties.getPathBase().concat(properties.getGreetReactiveQueryParam()),
+                    greetHandler::greetQueryParam, GreetOpenAPI.greetRoute())
+            .GET(properties.getPathBase().concat(properties.getGreetReactivePathVariable()),
+                    greetHandler::greetPathVariable, GreetOpenAPI.greetRoute())
             .build();
     }
 }

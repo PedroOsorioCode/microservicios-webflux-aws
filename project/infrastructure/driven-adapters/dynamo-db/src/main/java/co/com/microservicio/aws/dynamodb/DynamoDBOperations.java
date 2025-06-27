@@ -19,6 +19,7 @@ public class DynamoDBOperations<E, D>{
     public DynamoDBOperations(DynamoDbEnhancedAsyncClient dbEnhancedAsyncClient,
                               DynamoDBTablesProperties tablesProperties, Function<E, D> fnToData,
                               Function<D, E> fnToEntity, Class<D> dataClass) {
+
         this.dbEnhancedAsyncClient = dbEnhancedAsyncClient;
         this.fnToData = fnToData;
         this.fnToEntity = fnToEntity;
@@ -28,30 +29,23 @@ public class DynamoDBOperations<E, D>{
     }
 
     public Mono<E> save(E entity) {
-        return Mono.just(entity)
-                .map(this::toData)
-                .flatMap(this::saveData)
-                .thenReturn(entity);
+        return Mono.just(entity).map(this::toData).flatMap(this::saveData).thenReturn(entity);
     }
 
     protected Mono<E> findOne(Key id) {
-        return Mono.fromFuture(dataTable.getItem(id))
-                .map(this::toEntity);
+        return Mono.fromFuture(dataTable.getItem(id)).map(this::toEntity);
     }
 
     protected Mono<E> delete(Key id) {
-        return deleteData(id)
-                .map(this::toEntity);
+        return deleteData(id).map(this::toEntity);
     }
 
     protected Mono<E> update(E entity) {
-        return Mono.fromFuture(dataTable.updateItem(toData(entity)))
-                .map(this::toEntity);
+        return Mono.fromFuture(dataTable.updateItem(toData(entity))).map(this::toEntity);
     }
 
     protected Mono<D> saveData(D data) {
-        return Mono.fromFuture(dataTable.putItem(data))
-                .thenReturn(data);
+        return Mono.fromFuture(dataTable.putItem(data)).thenReturn(data);
     }
 
     protected Mono<D> deleteData(Key id) {
