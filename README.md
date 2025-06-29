@@ -8,13 +8,19 @@
   * [1.2 Servicios AWS](#id1-2)
     * [1.2.1 DynamoDB](#id1-2-1)
     * [1.2.2 SecretManager](#id1-2-2)
-    * [1.2.3 S3 bucket](#id1-2-1)
+    * [1.2.3 S3 bucket](#id1-2-3)
+    * [1.2.4 Redis cache](#id1-2-4)
   * [1.3 Arquitectura limpia](#id1-3)
   * [1.4 Spring Webflux](#id1-4)
-* [2. Proyecto Java Webflux](#id2)
+* [2. Proyecto Java Webflux (Caso práctico)](#id2)
   * [2.1 Proyecto base](#id2-1)
   * [2.2 API Rest webflux GET](#id2-2)
   * [2.3 API Rest webflux CRUD dynamoDB](#id2-3)
+  * [2.3.1 API Rest webflux informar errores](#id2-3-1)
+  * [2.4 Load variables en Redis cache](#id2-4)
+  * [2.5 Microservio exponer parámetros](#id2-5)
+  * [2.6 Enviar eventos RabbitMQ](#id2-6)
+  * [2.7 Microservicio leer eventos RabbitMQ](#id2-7)
 
 # <div id='id1'/>
 # 1 Documentación
@@ -123,7 +129,34 @@ Se indica paso a paso como crear un api rest para crear, actualizar, borrar y co
 
 [>> Crear proyecto api rest CRUD DynamoDB](2-3-crear-api-rest-crud-dynamodb.md)
 
+# <div id='id2-3-1'/>
+### 2.3.1 API Rest webflux informar errores
 
+### Ejecutar primeros pasos
+
+Se indica paso a paso como confirgurar el proyecto para retornar errores técnicos o de negocio personalizados, evitando exponer la estructura del proyecto
+
+[>> Crear proyecto api rest Informar errores técnicos y negocio](2-3-1-crear-api-rest-informar-errores.md)
+
+# <div id='id2-4'/>
+## 2.4 Load variables en Redis cache
+
+[>> Crear proyecto load variables en Redis](2-4-crear-load-variables-redis.md)
+
+# <div id='id2-5'/>
+## 2.5 Microservio exponer parámetros
+
+[>> Crear proyecto microservio exponer parámetros](2-5-crear-ms-exponer-parametros.md)
+
+# <div id='id2-6'/>
+## 2.6 Enviar eventos RabbitMQ
+
+[>> Crear proyecto enviar eventos RabbitMQ](2-6-crear-enviar-eventos-rabbit,q.md)
+
+# <div id='id2-7'/>
+## 2.7 Leer eventos RabbitMQ
+
+[>> Crear proyecto microservicio leer eventos RabbitMQ](2-7-crear-ms-leer-eventos-rabbit,q.md)
 
 ---
 

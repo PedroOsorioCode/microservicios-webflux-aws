@@ -28,9 +28,10 @@ public class WorldRegionHandler {
 
     public Mono<ServerResponse> listByRegion(ServerRequest serverRequest) {
         var request = this.buildRequestWithParams(serverRequest, METHOD_LISTCOUNTRIES);
-        return ServerResponse.ok().body(worldRegionUseCase.listByRegion(request)
-                .onErrorResume(e -> this.printFailed(e, request.getContext().getId())), TransactionResponse.class
-        );
+
+        return worldRegionUseCase.listByRegion(request)
+            .doOnError(e -> this.printFailed(e, request.getContext().getId()))
+            .flatMap(response -> ServerResponse.ok().bodyValue(response));
     }
 
     public Mono<ServerResponse> findOne(ServerRequest serverRequest) {

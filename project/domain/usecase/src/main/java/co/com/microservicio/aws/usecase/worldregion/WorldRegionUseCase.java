@@ -1,5 +1,7 @@
 package co.com.microservicio.aws.usecase.worldregion;
 
+import co.com.microservicio.aws.commons.enums.BusinessExceptionMessage;
+import co.com.microservicio.aws.commons.exceptions.BusinessException;
 import co.com.microservicio.aws.model.worldregion.WorldRegion;
 import co.com.microservicio.aws.model.worldregion.gateway.WorldRegionRepository;
 import co.com.microservicio.aws.model.worldregion.rq.Context;
@@ -15,6 +17,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static co.com.microservicio.aws.commons.enums.BusinessExceptionMessage.BUSINESS_USERNAME_REQUIRED;
+
 @RequiredArgsConstructor
 public class WorldRegionUseCase {
     private static final String KEY_USER_NAME = "user-name";
@@ -27,17 +31,15 @@ public class WorldRegionUseCase {
             .filter(this::userIsRequired)
             .flatMap(req -> regionRepository.findByRegion(buildKeyRegion(req))
                     .collectList().flatMap(this::buildResponse)
-            ).switchIfEmpty(Mono.error(new IllegalStateException(
-                    String.format(ATTRIBUTE_IS_REQUIRED, KEY_USER_NAME))));
+            ).switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_USERNAME_REQUIRED))));
     }
 
     public Mono<TransactionResponse> findOne(TransactionRequest request){
         return Mono.just(request)
-                .filter(this::userIsRequired)
-                .flatMap(req -> regionRepository.findOne(buildKeyRegion(req), request.getParam().getCode()))
-                .flatMap(wr -> this.buildResponse(List.of(wr)))
-                .switchIfEmpty(Mono.error(new IllegalStateException(
-                        String.format(ATTRIBUTE_IS_REQUIRED, KEY_USER_NAME))));
+            .filter(this::userIsRequired)
+            .flatMap(req -> regionRepository.findOne(buildKeyRegion(req), request.getParam().getCode()))
+            .flatMap(wr -> this.buildResponse(List.of(wr)))
+            .switchIfEmpty(Mono.error(new IllegalStateException(String.format(ATTRIBUTE_IS_REQUIRED, KEY_USER_NAME))));
     }
 
     public Mono<String> save(TransactionRequest request){

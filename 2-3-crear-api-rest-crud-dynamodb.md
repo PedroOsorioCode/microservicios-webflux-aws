@@ -19,7 +19,7 @@
 [Spring webflux](./1-3-spring-webflux.md)
 
 ## Caso de uso:
-Permitir crear, actualizar, borrar y consultar la ubicación geográfica partiendo del nivel más general (país) hasta el más específico (unidad o conjunto residencial).
+Permitir crear, actualizar, borrar y consultar la ubicación geográfica partiendo del nivel más general (país) hasta el más específico (ciudad).
 
 ## Criterios de aceptación:
 - Listar todos los paises por region
