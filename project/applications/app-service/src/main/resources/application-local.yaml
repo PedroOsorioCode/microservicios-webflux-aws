@@ -52,8 +52,8 @@ entries:
     updateRegion: "/update-region"
     deleteRegion: "/delete-region"
   regex-body-wr:
-    region: "${REGEX_WR_REGION:^[a-zA-Z]{5,15}-[a-zA-Z]{2,5}$}"
-    name: "${REGEX_WR_NAME:^[a-zA-Z]{5,30}$}"
+    region: "${REGEX_WR_REGION:^[a-zA-Z]{4,15}-[a-zA-Z]{2,5}$}"
+    name: "${REGEX_WR_NAME:^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]{1,50}$}"
     code-region: "${REGEX_WR_CODE_REGION:^[a-zA-Z]{5,15}-[a-zA-Z]{2,5}$}"
 
 integration:

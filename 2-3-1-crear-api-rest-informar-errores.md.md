@@ -424,7 +424,7 @@ entries:
     deleteRegion: "/delete-region"
   regex-body-wr:
     region: "${REGEX_WR_REGION:^[a-zA-Z]{5,15}-[a-zA-Z]{2,5}$}"
-    name: "${REGEX_WR_NAME:^[a-zA-Z]{5,30}$}"
+    name: "${REGEX_WR_NAME:^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]{1,50}$}"
     code-region: "${REGEX_WR_CODE_REGION:^[a-zA-Z]{5,15}-[a-zA-Z]{2,5}$}"
 ```
 
@@ -478,20 +478,367 @@ entries:
     }
     ```
 
-6. Ubicarse en el proyecto helpers > utils en el paquete co.com.microservicio.aws.utils.validator y crear la clase RegionValidator.java
+6. Ubicarse en el proyecto helpers > utils en el paquete co.com.microservicio.aws.utils.validator y crear la clase NameValidator.java
     ```
+    package co.com.microservicio.aws.utils.validator;
+
+    import co.com.microservicio.aws.utils.validator.gateways.ValidName;
+    import jakarta.validation.ConstraintValidator;
+    import jakarta.validation.ConstraintValidatorContext;
+    import org.springframework.beans.factory.annotation.Value;
+
+    public class NameValidator implements ConstraintValidator<ValidName, String> {
+        private String namePattern;
+
+        public NameValidator(@Value("${entries.regex-body-wr.name}") String namePattern) {
+            this.namePattern = namePattern;
+        }
+
+        @Override
+        public boolean isValid(String value, ConstraintValidatorContext context) {
+            return value != null && value.matches(namePattern);
+        }
+    }
     ```
 
-7. Ubicarse en el proyecto helpers > utils en el paquete co.com.microservicio.aws.utils.validator y crear la clase ValidRegion.java
+7. Ubicarse en el proyecto helpers > utils en el paquete co.com.microservicio.aws.utils.validator y crear la clase ValidName.java
     ```
+    package co.com.microservicio.aws.utils.validator.gateways;
+
+    import co.com.microservicio.aws.utils.validator.NameValidator;
+    import jakarta.validation.Constraint;
+    import jakarta.validation.Payload;
+
+    import java.lang.annotation.ElementType;
+    import java.lang.annotation.Retention;
+    import java.lang.annotation.RetentionPolicy;
+    import java.lang.annotation.Target;
+
+    @Constraint(validatedBy = NameValidator.class)
+    @Target({ ElementType.METHOD, ElementType.FIELD, ElementType.ANNOTATION_TYPE, ElementType.PARAMETER })
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface ValidName {
+        String message() default "Name must contain only letters and must not exceed 50 characters. " +
+            "Numbers and special characters are not allowed.";
+
+        Class<?>[] groups() default {};
+
+        Class<? extends Payload>[] payload() default {};
+    }
     ```
 
-8. Ubicarse en el proyecto helpers > utils en el paquete co.com.microservicio.aws.utils.validator y crear la clase RegionValidator.java
+8. Ubicarse en el proyecto helpers > utils en el paquete co.com.microservicio.aws.utils.validator y crear la clase CodeRegionValidator.java
     ```
+    package co.com.microservicio.aws.utils.validator;
+
+    import co.com.microservicio.aws.utils.validator.gateways.ValidCodeRegion;
+    import jakarta.validation.ConstraintValidator;
+    import jakarta.validation.ConstraintValidatorContext;
+    import org.springframework.beans.factory.annotation.Value;
+
+    public class CodeRegionValidator implements ConstraintValidator<ValidCodeRegion, String> {
+        private String codeRegionPattern;
+
+        public CodeRegionValidator(@Value("${entries.regex-body-wr.code-region}") String codeRegionPattern) {
+            this.codeRegionPattern = codeRegionPattern;
+        }
+
+        @Override
+        public boolean isValid(String value, ConstraintValidatorContext context) {
+            return value != null && value.matches(codeRegionPattern);
+        }
+    }
     ```
 
-9. Ubicarse en el proyecto helpers > utils en el paquete co.com.microservicio.aws.utils.validator y crear la clase ValidRegion.java
+9. Ubicarse en el proyecto helpers > utils en el paquete co.com.microservicio.aws.utils.validator y crear la clase ValidCodeRegion.java
     ```
+    package co.com.microservicio.aws.utils.validator.gateways;
+
+    import java.lang.annotation.ElementType;
+    import java.lang.annotation.Retention;
+    import java.lang.annotation.RetentionPolicy;
+    import java.lang.annotation.Target;
+
+    import co.com.microservicio.aws.utils.validator.CodeRegionValidator;
+    import jakarta.validation.Constraint;
+    import jakarta.validation.Payload;
+
+    @Constraint(validatedBy = CodeRegionValidator.class)
+    @Target({ ElementType.METHOD, ElementType.FIELD, ElementType.ANNOTATION_TYPE, ElementType.PARAMETER })
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface ValidCodeRegion {
+        String message() default "Code region must contain only letters, with 5 to 15 characters before the hyphen and 2 to 5 after. " +
+                "No numbers or special characters are allowed";
+
+        Class<?>[] groups() default {};
+
+        Class<? extends Payload>[] payload() default {};
+    }
+    ```
+
+10. Ubicarse en el proyecto infrastructure > entry-points > reactive-web en el paquete co.com.microservicio.aws.api.commons y crear la clase RequestUtil.java
+    ```
+    package co.com.microservicio.aws.api.commons;
+
+    import java.util.List;
+    import java.util.Set;
+    import java.util.stream.Collectors;
+
+    import co.com.microservicio.aws.commons.exceptions.TechnicalException;
+    import co.com.microservicio.aws.log.LoggerBuilder;
+    import co.com.microservicio.aws.log.TransactionLog;
+    import org.springframework.stereotype.Component;
+    import jakarta.validation.ConstraintViolation;
+    import jakarta.validation.Validator;
+    import lombok.RequiredArgsConstructor;
+    import reactor.core.publisher.Mono;
+
+    import static co.com.microservicio.aws.commons.enums.TechnicalExceptionMessage.TECHNICAL_REQUEST_ERROR;
+    import static co.com.microservicio.aws.model.worldregion.util.LogMessage.MESSAGE_SERVICE;
+
+    @Component
+    @RequiredArgsConstructor
+    public class RequestUtil {
+        private static final String NAME_CLASS = RequestUtil.class.getName();
+        private static final String MSG_VALID_REQUEST_DATA = "Validation with errors";
+        private final LoggerBuilder logger;
+        private final Validator validator;
+
+        public <T> Mono<T> checkBodyRequest(T rq, String transactionId) {
+            return Mono.defer(() -> validateDto(rq, transactionId)).thenReturn(rq);
+        }
+
+        private <T> Mono<Void> validateDto(T rq, String transactionId) {
+            var message = "";
+
+            Set<ConstraintViolation<T>> violations = validator.validate(rq);
+            if (!violations.isEmpty()) {
+                logger.info(TransactionLog.Request.builder().body(rq).build(),
+                        TransactionLog.Response.builder().build(),
+                        MSG_VALID_REQUEST_DATA, transactionId, MESSAGE_SERVICE, NAME_CLASS);
+
+                message = getMessageValidationErrors(violations);
+                logger.error(message, transactionId, MESSAGE_SERVICE, NAME_CLASS);
+            }
+
+            return message.isEmpty() ? Mono.empty() : Mono.error(new TechnicalException(message, TECHNICAL_REQUEST_ERROR));
+        }
+
+        private static String getMessageValidationErrors(Set<? extends ConstraintViolation<?>> constraintViolations) {
+            return constraintViolations.stream().map(cv -> "[**" + cv.getPropertyPath() + "**: " + cv.getMessage() + "]")
+                    .collect(Collectors.joining(" - "));
+        }
+    }
+    ```
+
+11. Ubicarse en el proyecto infrastructure > entry-points > reactive-web y modificamos el archivo build.gradle para agregar la dependencia del proyecto que creamos utils en helpers
+    ```
+    implementation project(':utils')
+    ```
+    Actulizar dependencias
+
+12. Ubicarse en el proyecto infrastructure > entry-points > reactive-web en el paquete co.com.microservicio.aws.api.worldregion.rq y crear la clase WorldRegionRQ.java
+    ```
+    package co.com.microservicio.aws.api.worldregion.rq;
+
+    import co.com.microservicio.aws.utils.validator.gateways.ValidCodeRegion;
+    import co.com.microservicio.aws.utils.validator.gateways.ValidName;
+    import co.com.microservicio.aws.utils.validator.gateways.ValidRegion;
+    import lombok.AllArgsConstructor;
+    import lombok.Builder;
+    import lombok.Data;
+    import lombok.NoArgsConstructor;
+
+    import java.io.Serial;
+    import java.io.Serializable;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    public class WorldRegionRQ implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        @ValidRegion
+        private String region;
+        private String code;
+        @ValidName
+        private String name;
+        @ValidCodeRegion
+        private String codeRegion;
+        private String creationDate;
+    }
+    ```
+
+13. Ubicarse en el proyecto infrastructure > entry-points > reactive-web en el paquete co.com.microservicio.aws.api.worldregion y modificamos la clase WorldRegionHandler.java
+    ```
+    package co.com.microservicio.aws.api.worldregion;
+
+    import co.com.microservicio.aws.api.commons.RequestUtil;
+    import co.com.microservicio.aws.api.worldregion.rq.WorldRegionRQ;
+    import co.com.microservicio.aws.commons.ContextUtil;
+    import co.com.microservicio.aws.log.LoggerBuilder;
+    import co.com.microservicio.aws.log.TransactionLog;
+    import co.com.microservicio.aws.model.worldregion.WorldRegion;
+    import co.com.microservicio.aws.model.worldregion.rq.Context;
+    import co.com.microservicio.aws.model.worldregion.rq.TransactionRequest;
+    import co.com.microservicio.aws.usecase.worldregion.WorldRegionUseCase;
+    import lombok.RequiredArgsConstructor;
+    import org.springframework.stereotype.Component;
+    import org.springframework.web.reactive.function.server.ServerRequest;
+    import org.springframework.web.reactive.function.server.ServerResponse;
+    import reactor.core.publisher.Mono;
+
+    import static co.com.microservicio.aws.model.worldregion.util.LogMessage.*;
+    import static co.com.microservicio.aws.model.worldregion.util.WorldRegionConstant.*;
+
+    @Component
+    @RequiredArgsConstructor
+    public class WorldRegionHandler {
+        private final RequestUtil requestUtil;
+        private static final String NAME_CLASS = WorldRegionHandler.class.getName();
+        private static final String EMPTY_VALUE = "";
+
+        private final LoggerBuilder logger;
+        private final WorldRegionUseCase worldRegionUseCase;
+
+        public Mono<ServerResponse> listByRegion(ServerRequest serverRequest) {
+            var request = this.buildRequestWithParams(serverRequest, METHOD_LISTCOUNTRIES);
+            return worldRegionUseCase.listByRegion(request)
+                .doOnError(e -> this.printFailed(e, request.getContext().getId()))
+                .flatMap(response -> ServerResponse.ok().bodyValue(response));
+        }
+
+        public Mono<ServerResponse> findOne(ServerRequest serverRequest) {
+            var request = this.buildRequestWithParams(serverRequest, METHOD_FINDONE);
+            return worldRegionUseCase.findOne(request)
+                .doOnError(e -> this.printFailed(e, request.getContext().getId()))
+                .flatMap(response -> ServerResponse.ok().bodyValue(response));
+        }
+
+        public Mono<ServerResponse> save(ServerRequest serverRequest) {
+            var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+            var context = ContextUtil.buildContext(headers);
+            printOnProcess(context, METHOD_SAVE);
+
+            return this.getWorldRegionRequest(serverRequest)
+                    .flatMap(worldRegionUseCase::save)
+                    .flatMap(msg -> ServerResponse.ok().bodyValue(msg));
+        }
+
+        public Mono<ServerResponse> update(ServerRequest serverRequest) {
+            var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+            var context = ContextUtil.buildContext(headers);
+            printOnProcess(context, METHOD_UPDATE);
+
+            return this.getWorldRegionRequest(serverRequest)
+                    .flatMap(worldRegionUseCase::update)
+                    .flatMap(msg -> ServerResponse.ok().bodyValue(msg));
+        }
+
+        public Mono<ServerResponse> delete(ServerRequest serverRequest) {
+            var request = this.buildRequestWithParams(serverRequest, METHOD_DELETE);
+            return worldRegionUseCase.delete(request)
+                    .doOnError(e -> this.printFailed(e, request.getContext().getId()))
+                    .flatMap(response -> ServerResponse.ok().bodyValue(response));
+        }
+
+        private Mono<TransactionRequest> getWorldRegionRequest(ServerRequest serverRequest) {
+            var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+            var context = ContextUtil.buildContext(headers);
+            return serverRequest.bodyToMono(WorldRegionRQ.class)
+                    .flatMap(wr -> requestUtil.checkBodyRequest(wr, context.getId()))
+                    .flatMap(wr -> Mono.just(TransactionRequest.builder()
+                        .context(context).item(
+                            WorldRegion.builder()
+                            .region(wr.getRegion()).code(wr.getCode()).name(wr.getName())
+                            .codeRegion(wr.getCodeRegion()).creationDate(wr.getCreationDate())
+                            .build()
+                        ).build()));
+        }
+
+        private TransactionRequest buildRequestWithParams(ServerRequest serverRequest, String method){
+            var placeType = serverRequest.queryParam(PARAM_PLACE_TYPE).orElse(EMPTY_VALUE);
+            var place = serverRequest.queryParam(PARAM_PLACE).orElse(EMPTY_VALUE);
+            var code = serverRequest.queryParam(PARAM_CODE).orElse(EMPTY_VALUE);
+            var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+            var context = ContextUtil.buildContext(headers);
+            printOnProcess(context, method);
+
+            return TransactionRequest.builder()
+                    .context(context)
+                    .param(TransactionRequest.Param.builder().placeType(placeType).place(place).code(code).build())
+                    .build();
+        }
+
+        private void printFailed(Throwable throwable, String messageId) {
+            logger.error(throwable.getMessage(), messageId, MESSAGE_SERVICE, NAME_CLASS);
+        }
+
+        private void printOnProcess(Context context, String messageInfo){
+            logger.info(TransactionLog.Request.builder().body(context).build(),
+                    TransactionLog.Response.builder().build(),
+                    messageInfo, context.getId(), MESSAGE_SERVICE, NAME_CLASS);
+        }
+    }
+    ```
+
+11. Validación de la implementación con el metodo guardar
+
+    - Prueba postman
+    ![](./img/wr-save-new-item-validator.png)
+
+    - Prueba logs
+    ```
+    printOnProcess()
+
+    {
+        "instant": {
+            "epochSecond": 1751215453,
+            "nanoOfSecond": 865449600
+        },
+        "thread": "reactor-http-nio-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservicio.aws.log.LoggerBuilder",
+        "message": "{\"dataLog\":{\"message\":\"Save one world region\",\"messageId\":\"7a214936-5e93-11ec-bf63-0242ac130002\",\"service\":\"Service Api Rest world regions\",\"method\":\"co.com.microservicio.aws.api.worldregion.WorldRegionHandler\",\"appName\":\"MicroserviceAws\"},\"request\":{\"headers\":null,\"body\":{\"id\":\"7a214936-5e93-11ec-bf63-0242ac130002\",\"customer\":{\"ip\":\"\",\"username\":\"user dummy\",\"device\":{\"userAgent\":\"\",\"platformType\":\"\"}}}},\"response\":{\"headers\":null,\"body\":null}}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 58,
+        "threadPriority": 5
+    }
+
+    Informativo Validations con errores
+    {
+        "instant": {
+            "epochSecond": 1751215454,
+            "nanoOfSecond": 109292100
+        },
+        "thread": "reactor-http-nio-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservicio.aws.log.LoggerBuilder",
+        "message": "{\"dataLog\":{\"message\":\"Validation with errors\",\"messageId\":\"7a214936-5e93-11ec-bf63-0242ac130002\",\"service\":\"Service Api Rest world regions\",\"method\":\"co.com.microservicio.aws.api.commons.RequestUtil\",\"appName\":\"MicroserviceAws\"},\"request\":{\"headers\":null,\"body\":{\"region\":\"DEPARTAMENT1-ANT\",\"code\":null,\"name\":\"Medellín-\",\"codeRegion\":\"CITYMED\",\"creationDate\":null}},\"response\":{\"headers\":null,\"body\":null}}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 58,
+        "threadPriority": 5
+    }
+
+    Respuesta al cliente
+    {
+        "instant": {
+            "epochSecond": 1751215454,
+            "nanoOfSecond": 111334600
+        },
+        "thread": "reactor-http-nio-3",
+        "level": "ERROR",
+        "loggerName": "co.com.microservicio.aws.log.LoggerBuilder",
+        "message": "{\"dataLog\":{\"message\":\"[**codeRegion**: Code region must contain only letters, with 5 to 15 characters before the hyphen and 2 to 5 after. No numbers or special characters are allowed] - [**name**: Name must contain only letters and must not exceed 50 characters. Numbers and special characters are not allowed.] - [**region**: Region must contain only letters, with 5 to 15 characters before the hyphen and 2 to 5 after. No numbers or special characters are allowed]\",\"messageId\":\"7a214936-5e93-11ec-bf63-0242ac130002\",\"service\":\"Service Api Rest world regions\",\"method\":\"co.com.microservicio.aws.api.commons.RequestUtil\",\"appName\":\"MicroserviceAws\"},\"request\":{\"headers\":null,\"body\":null},\"response\":{\"headers\":null,\"body\":null}}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 58,
+        "threadPriority": 5
+    }
     ```
 
 [< Volver al índice](README.md)
