@@ -1,6 +1,12 @@
 apply plugin: 'org.springframework.boot'
 
 dependencies {
+	implementation project(':async-event-bus')
+	implementation project(':reactive-redis')
+	implementation project(':secrets-manager')
+	implementation 'software.amazon.awssdk:sts'
+	implementation 'com.github.bancolombia:aws-secrets-manager-async:4.4.31'
+	implementation project(':load-variables')
 	implementation project(':utils')
 	implementation 'org.reactivecommons.utils:object-mapper:0.1.0'
 	implementation project(':dynamo-db')

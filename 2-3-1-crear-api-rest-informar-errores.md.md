@@ -1,5 +1,6 @@
-# Creación microservicio APIREST Java Webflux con DynamoDB
-> A continuación se indica el paso a paso que se debe realizar para continuar con el proyecto de creación de microservicios basados en la nube de AWS, esta guía comprende la creación de API REST con metodos HTTP a una tabla en dynamo db con un caso practico real
+# Creación microservicio APIREST Java Webflux con DynamoDB - Manejo de errores
+
+> A continuación se indica el paso a paso que se debe realizar para continuar con el proyecto de creación de microservicios basados en la nube de AWS, esta guía comprende el manejo de excepciones, mensajes para el usuario y validaciones de datos con expresiones regulares
 
 ### Requisitos: 
 
@@ -10,7 +11,7 @@
 Reportar errores técnicos o de negocio
 
 ## Criterios de aceptación:
-- Información requerida se debe información al cliente
+- Informar al cliente sobre información requerida o reglas sobre los datos esperados
 - Excepciones deben informarse al cliente sin exponer la estructura del proyecto.
 
 ## Crear Enums donde estarán la descripción de los errores

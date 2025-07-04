@@ -92,3 +92,17 @@ registration:
     publish:
       updateCountry: "${event_audit_update_region:microservice.audit.updateRegion"
       deleteCountry: "${event_audit_delete_region:microservice.audit.deleteRegion"
+
+aws:
+  secrets-manager:
+    region: ${AWS_REGION:us-east-1}
+  secrets:
+    rabbitmq: "${SECRET_NAME_RABBITMQ}"
+    redis: "${SECRET_NAME_REDIS}"
+  redis:
+    cache:
+      expireTime: 3600
+
+audit:
+  world-region:
+    audit-on-list: ${APPLY_AUDIT_LIST_WR:true}

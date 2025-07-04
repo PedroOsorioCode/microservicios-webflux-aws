@@ -21,9 +21,10 @@ import static co.com.microservicio.aws.model.worldregion.util.WorldRegionConstan
 @Component
 @RequiredArgsConstructor
 public class WorldRegionHandler {
-    private final RequestUtil requestUtil;
     private static final String NAME_CLASS = WorldRegionHandler.class.getName();
     private static final String EMPTY_VALUE = "";
+
+    private final RequestUtil requestUtil;
 
     private final LoggerBuilder logger;
     private final WorldRegionUseCase worldRegionUseCase;

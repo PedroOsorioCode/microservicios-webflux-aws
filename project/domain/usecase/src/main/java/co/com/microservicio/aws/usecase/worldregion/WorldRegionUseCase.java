@@ -1,6 +1,5 @@
 package co.com.microservicio.aws.usecase.worldregion;
 
-import co.com.microservicio.aws.commons.enums.BusinessExceptionMessage;
 import co.com.microservicio.aws.commons.exceptions.BusinessException;
 import co.com.microservicio.aws.model.worldregion.WorldRegion;
 import co.com.microservicio.aws.model.worldregion.gateway.WorldRegionRepository;
@@ -9,6 +8,8 @@ import co.com.microservicio.aws.model.worldregion.rq.TransactionRequest;
 import co.com.microservicio.aws.model.worldregion.rs.TransactionResponse;
 import co.com.microservicio.aws.model.worldregion.rs.WorldRegionResponse;
 import co.com.microservicio.aws.model.worldregion.util.WorldRegionConstant;
+import co.com.microservicio.aws.usecase.sentevent.SentEventUseCase;
+import co.com.microservicio.aws.variables.gateway.LoadVariablesGateway;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
@@ -25,13 +26,16 @@ public class WorldRegionUseCase {
     private static final String ATTRIBUTE_IS_REQUIRED = "The attribute '%s' is required";
 
     private final WorldRegionRepository regionRepository;
+    private final LoadVariablesGateway loadVariablesGateway;
+    private final SentEventUseCase sentEventUseCase;
 
     public Mono<TransactionResponse> listByRegion(TransactionRequest request){
         return Mono.just(request)
             .filter(this::userIsRequired)
             .flatMap(req -> regionRepository.findByRegion(buildKeyRegion(req))
-                    .collectList().flatMap(this::buildResponse)
-            ).switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_USERNAME_REQUIRED))));
+                .collectList().flatMap(this::buildResponse))
+            .doOnNext(res -> sentEventUseCase.sendAudit(request))
+            .switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_USERNAME_REQUIRED))));
     }
 
     public Mono<TransactionResponse> findOne(TransactionRequest request){
@@ -103,4 +107,5 @@ public class WorldRegionUseCase {
 
         return Mono.just(response);
     }
+
 }

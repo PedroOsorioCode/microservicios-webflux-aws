@@ -1,0 +1,6 @@
+dependencies {
+    implementation project(':model')
+    implementation project(':log')
+    implementation "org.springframework.boot:spring-boot-starter-webflux:${springBootVersion}"
+    implementation "org.springframework.boot:spring-boot-starter-validation:${springBootVersion}"
+}

@@ -9,6 +9,7 @@ buildscript {
         log4jVersion = '2.24.3'
         openapi = '1.8.0'
         jacksonVersion = "2.18.3"
+        reactiveCommonsVersion = '4.1.4'
 	}
 }
 

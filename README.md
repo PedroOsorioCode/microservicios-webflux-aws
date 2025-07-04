@@ -8,8 +8,9 @@
   * [1.2 Servicios AWS](#id1-2)
     * [1.2.1 DynamoDB](#id1-2-1)
     * [1.2.2 SecretManager](#id1-2-2)
-    * [1.2.3 S3 bucket](#id1-2-3)
-    * [1.2.4 Redis cache](#id1-2-4)
+    * [1.2.3 Redis cache](#id1-2-3)
+    * [1.2.4 WireMock (Api rest)](#id1-2-3)
+    * [1.2.5 Almacenamiento S3 bucket](#id1-2-4)
   * [1.3 Arquitectura limpia](#id1-3)
   * [1.4 Spring Webflux](#id1-4)
 * [2. Proyecto Java Webflux (Caso práctico)](#id2)
@@ -66,7 +67,18 @@ AWS Secrets Manager es un servicio de Amazon Web Services que te permite almacen
 [>> Primeros pasos Secret Manager](1-2-2-secret-manager.md)
 
 # <div id='id1-2-3'/>
-### 1.2.3 S3 (Simple Storage Service)
+### 1.2.3 Redis cache
+
+### ¿AWS Cache?
+
+Los servicios de caché están pensados para mejorar el rendimiento y reducir la latencia de tus aplicaciones, especialmente cuando acceden frecuentemente a datos que no cambian con frecuencia.
+
+### Ejecutar primeros pasos
+
+[>> Primeros pasos Secret Manager](1-2-3-redis-cache.md)
+
+# <div id='id1-2-3'/>
+### 1.2.4 Almacenamiento S3 Bucket (Simple Storage Service)
 
 ### ¿Qué es Amazon S3 (Simple Storage Service)?
 
@@ -78,8 +90,7 @@ Un bucket en Amazon S3 es un contenedor lógico donde se almacenan objetos (arch
 
 ### Ejecutar primeros pasos
 
-[>> Primeros pasos Secret Manager](1-2-2-secret-manager.md)
-
+[>> Primeros pasos Secret Manager](1-2-4-almacenamiento-s3.md)
 
 [](README-SERVICIO-RABBITMQ.md)
 [](README-WIREMOCK.md)
@@ -140,6 +151,8 @@ Se indica paso a paso como confirgurar el proyecto para retornar errores técnic
 
 # <div id='id2-4'/>
 ## 2.4 Load variables en Redis cache
+
+Se indica paso a paso como confirgurar el proyecto para obtener variables locales, por consumos de servicios, servicios mockeados; almacenar dichos valores en RedisCache
 
 [>> Crear proyecto load variables en Redis](2-4-crear-load-variables-redis.md)
 
