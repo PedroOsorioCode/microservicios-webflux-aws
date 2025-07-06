@@ -10,9 +10,15 @@ public class SentEventUseCase {
     private final LoadVariablesGateway loadVariablesGateway;
     private final EventGateway eventGateway;
 
-    public void sendAudit(TransactionRequest request){
+    public void sendAuditList(TransactionRequest request){
         if (loadVariablesGateway.isAuditOnList()){
-            eventGateway.emitEvent(request);
+            eventGateway.emitEvent(request, "audit on list");
+        }
+    }
+
+    public void sendAuditSave(TransactionRequest request, Boolean auditOnSave){
+        if (Boolean.TRUE.equals(auditOnSave)){
+            eventGateway.emitEvent(request, "audit on save");
         }
     }
 }

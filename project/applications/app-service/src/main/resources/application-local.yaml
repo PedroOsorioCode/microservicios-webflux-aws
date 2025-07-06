@@ -54,7 +54,7 @@ entries:
   regex-body-wr:
     region: "${REGEX_WR_REGION:^[a-zA-Z]{4,15}-[a-zA-Z]{2,5}$}"
     name: "${REGEX_WR_NAME:^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]{1,50}$}"
-    code-region: "${REGEX_WR_CODE_REGION:^[a-zA-Z]{5,15}-[a-zA-Z]{2,5}$}"
+    code-region: "${REGEX_WR_CODE_REGION:^[a-zA-Z]{4,15}-[a-zA-Z]{2,5}$}"
 
 integration:
   secrets:
@@ -74,12 +74,14 @@ adapters:
     tables:
       namesmap:
         world_region: local_worldregions
-  rest-client:
-    timeout: ${REST_TIMEOUT_CONNECTION:5000}
-    readTimeout: ${REST_TIMEOUT_READ:5000}
-    writeTimeout: ${REST_TIMEOUT_WRITE:5000}
-    microservice-external:
-      url: ${URL-MOCK-SITE:http://localhost:8010}
+  rest-audit:
+    timeout: ${TIMEOUT:5000}
+    url: ${PARAM_URL:http://localhost:8089/api/v3/microservice-param}
+    parameter:
+      name: "${PARAM_NAME:/auditOnSave}"
+    retry:
+      retries: ${REST_AUDIT_RETRIES:3}
+      retryDelay: ${REST_AUDIT_RETRY_DELAY:2}
   s3:
     endpoint: "${S3_ENDPOINT:http://localhost:4566}"
     bucket: "${S3_BUCKET_NAME:exampleaws}"

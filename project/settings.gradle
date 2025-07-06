@@ -34,3 +34,5 @@ include ':reactive-redis'
 project(':reactive-redis').projectDir = file('./infrastructure/driven-adapters/reactive-redis')
 include ':async-event-bus'
 project(':async-event-bus').projectDir = file('./infrastructure/driven-adapters/async-event-bus')
+include ':rest-consumer'
+project(':rest-consumer').projectDir = file('./infrastructure/driven-adapters/rest-consumer')

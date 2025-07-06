@@ -1,6 +1,7 @@
 apply plugin: 'org.springframework.boot'
 
 dependencies {
+	implementation project(':rest-consumer')
 	implementation project(':async-event-bus')
 	implementation project(':reactive-redis')
 	implementation project(':secrets-manager')

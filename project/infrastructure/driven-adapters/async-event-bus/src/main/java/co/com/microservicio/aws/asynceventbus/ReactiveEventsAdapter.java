@@ -13,9 +13,9 @@ public class ReactiveEventsAdapter implements EventGateway {
     private final LoggerBuilder logger;
 
     @Override
-    public Mono<Void> emitEvent(TransactionRequest request) {
+    public Mono<Void> emitEvent(TransactionRequest request, String message) {
         logger.info(request.getContext().getCustomer().getUsername(),
-                request.getContext().getId(), "audit on list", "emitEvent");
+                request.getContext().getId(), message, "emitEvent");
         return Mono.empty();
     }
 }

@@ -18,10 +18,11 @@
   * [2.2 API Rest webflux GET](#id2-2)
   * [2.3 API Rest webflux CRUD dynamoDB](#id2-3)
   * [2.3.1 API Rest webflux informar errores](#id2-3-1)
-  * [2.4 Load variables en Redis cache](#id2-4)
-  * [2.5 Microservio exponer parámetros](#id2-5)
-  * [2.6 Enviar eventos RabbitMQ](#id2-6)
-  * [2.7 Microservicio leer eventos RabbitMQ](#id2-7)
+  * [2.4 Load variables y rest consumer](#id2-4)
+  * [2.5 Secrets manager y redis cache](#id2-5)
+  * [2.6 Microservio exponer parámetros](#id2-6)
+  * [2.7 Enviar eventos RabbitMQ](#id2-7)
+  * [2.8 Microservicio leer eventos RabbitMQ](#id2-8)
 
 # <div id='id1'/>
 # 1 Documentación
@@ -145,28 +146,36 @@ Se indica paso a paso como crear un api rest para crear, actualizar, borrar y co
 
 ### Ejecutar primeros pasos
 
-Se indica paso a paso como confirgurar el proyecto para retornar errores técnicos o de negocio personalizados, evitando exponer la estructura del proyecto
+Se indica paso a paso como configurar el proyecto para retornar errores técnicos o de negocio personalizados, evitando exponer la estructura del proyecto
 
 [>> Crear proyecto api rest Informar errores técnicos y negocio](2-3-1-crear-api-rest-informar-errores.md)
 
 # <div id='id2-4'/>
-## 2.4 Load variables en Redis cache
+## 2.4 Load variables locales y consumo api rest con reintentos
 
-Se indica paso a paso como confirgurar el proyecto para obtener variables locales, por consumos de servicios, servicios mockeados; almacenar dichos valores en RedisCache
+Se indica paso a paso como configurar el proyecto para obtener variables locales, por consumos de servicios externos con reintentos en casos de fallo y servicios mockeados
 
-[>> Crear proyecto load variables en Redis](2-4-crear-load-variables-redis.md)
+[>> Crear proyecto load variables locales y consumo de servicios externos](2-4-crear-load-variables-rest-consumer.md)
 
 # <div id='id2-5'/>
+## 2.4 Almacenar parámetros en redis cache, uso de secretos
+
+Se indica paso a paso como configurar el proyecto para guardar un parámetro en redis cache y configuración de la conexión con secrets-manager
+
+[>> Crear proyecto secrets-manager y redis cache](2-5-crear-secrest-manager-redis-cache.md)
+
+
+# <div id='id2-6'/>
 ## 2.5 Microservio exponer parámetros
 
 [>> Crear proyecto microservio exponer parámetros](2-5-crear-ms-exponer-parametros.md)
 
-# <div id='id2-6'/>
+# <div id='id2-7'/>
 ## 2.6 Enviar eventos RabbitMQ
 
 [>> Crear proyecto enviar eventos RabbitMQ](2-6-crear-enviar-eventos-rabbit,q.md)
 
-# <div id='id2-7'/>
+# <div id='id2-8'/>
 ## 2.7 Leer eventos RabbitMQ
 
 [>> Crear proyecto microservicio leer eventos RabbitMQ](2-7-crear-ms-leer-eventos-rabbit,q.md)

@@ -13,7 +13,7 @@ import jakarta.validation.Payload;
 @Target({ ElementType.METHOD, ElementType.FIELD, ElementType.ANNOTATION_TYPE, ElementType.PARAMETER })
 @Retention(RetentionPolicy.RUNTIME)
 public @interface ValidRegion {
-    String message() default "Region must contain only letters, with 5 to 15 characters before the hyphen and 2 to 5 after. " +
+    String message() default "Region must contain only letters, with 4 to 15 characters before the hyphen and 2 to 5 after. " +
         "No numbers or special characters are allowed";
 
     Class<?>[] groups() default {};

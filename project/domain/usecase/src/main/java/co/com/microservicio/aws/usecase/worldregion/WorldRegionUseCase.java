@@ -8,8 +8,8 @@ import co.com.microservicio.aws.model.worldregion.rq.TransactionRequest;
 import co.com.microservicio.aws.model.worldregion.rs.TransactionResponse;
 import co.com.microservicio.aws.model.worldregion.rs.WorldRegionResponse;
 import co.com.microservicio.aws.model.worldregion.util.WorldRegionConstant;
+import co.com.microservicio.aws.usecase.restconsumer.RestParameterUseCase;
 import co.com.microservicio.aws.usecase.sentevent.SentEventUseCase;
-import co.com.microservicio.aws.variables.gateway.LoadVariablesGateway;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
@@ -26,15 +26,15 @@ public class WorldRegionUseCase {
     private static final String ATTRIBUTE_IS_REQUIRED = "The attribute '%s' is required";
 
     private final WorldRegionRepository regionRepository;
-    private final LoadVariablesGateway loadVariablesGateway;
     private final SentEventUseCase sentEventUseCase;
+    private final RestParameterUseCase restParameterUseCase;
 
     public Mono<TransactionResponse> listByRegion(TransactionRequest request){
         return Mono.just(request)
             .filter(this::userIsRequired)
             .flatMap(req -> regionRepository.findByRegion(buildKeyRegion(req))
                 .collectList().flatMap(this::buildResponse))
-            .doOnNext(res -> sentEventUseCase.sendAudit(request))
+            .doOnNext(res -> sentEventUseCase.sendAuditList(request))
             .switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_USERNAME_REQUIRED))));
     }
 
@@ -58,6 +58,8 @@ public class WorldRegionUseCase {
                         .codeRegion(wr.getCodeRegion().toUpperCase())
                         .creationDate(new Date().toString()).build())
                 .flatMap(regionRepository::save)
+                .flatMap(res -> restParameterUseCase.getParameterAuditOnSave(request.getContext()))
+                .doOnNext(res -> sentEventUseCase.sendAuditSave(request, res))
                 .thenReturn(WorldRegionConstant.MSG_SAVED_SUCCESS);
     }
 

@@ -35,6 +35,10 @@ public class LoggerBuilder {
                 buildDataLog(message, messageId, service, method))));
     }
 
+    public void error(Throwable throwable) {
+        log.error("throwable: " + throwable);
+    }
+
     private TransactionLog.DataLog buildDataLog(String message, String messageId, String service, String method){
         return new TransactionLog.DataLog(message, messageId, service, method, appName);
     }
