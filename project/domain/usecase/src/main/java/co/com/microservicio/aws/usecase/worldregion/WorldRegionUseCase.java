@@ -1,5 +1,6 @@
 package co.com.microservicio.aws.usecase.worldregion;
 
+import co.com.microservicio.aws.cache.gateway.CacheGateway;
 import co.com.microservicio.aws.commons.exceptions.BusinessException;
 import co.com.microservicio.aws.model.worldregion.WorldRegion;
 import co.com.microservicio.aws.model.worldregion.gateway.WorldRegionRepository;
@@ -8,6 +9,7 @@ import co.com.microservicio.aws.model.worldregion.rq.TransactionRequest;
 import co.com.microservicio.aws.model.worldregion.rs.TransactionResponse;
 import co.com.microservicio.aws.model.worldregion.rs.WorldRegionResponse;
 import co.com.microservicio.aws.model.worldregion.util.WorldRegionConstant;
+import co.com.microservicio.aws.restconsumer.Parameter;
 import co.com.microservicio.aws.usecase.restconsumer.RestParameterUseCase;
 import co.com.microservicio.aws.usecase.sentevent.SentEventUseCase;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,7 @@ public class WorldRegionUseCase {
     private final WorldRegionRepository regionRepository;
     private final SentEventUseCase sentEventUseCase;
     private final RestParameterUseCase restParameterUseCase;
+    private final CacheGateway<Parameter> cacheGateway;
 
     public Mono<TransactionResponse> listByRegion(TransactionRequest request){
         return Mono.just(request)
@@ -68,6 +71,7 @@ public class WorldRegionUseCase {
                 .filter(this::userIsRequired)
                 .map(TransactionRequest::getItem)
                 .flatMap(regionRepository::update)
+
                 .thenReturn(WorldRegionConstant.MSG_UPDATED_SUCCESS);
     }
 

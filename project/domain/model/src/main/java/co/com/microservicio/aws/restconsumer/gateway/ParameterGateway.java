@@ -5,4 +5,5 @@ import reactor.core.publisher.Mono;
 
 public interface ParameterGateway {
     Mono<Boolean> isAuditOnSave(Context context);
+    Mono<Boolean> isAuditOnUpdate(Context context);
 }

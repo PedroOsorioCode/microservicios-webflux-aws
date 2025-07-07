@@ -28,11 +28,11 @@ include ':utils'
 project(':utils').projectDir = file('./infrastructure/helpers/utils')
 include ':load-variables'
 project(':load-variables').projectDir = file('./infrastructure/entry-points/load-variables')
-include ':secrets-manager'
-project(':secrets-manager').projectDir = file('./infrastructure/driven-adapters/secrets-manager')
 include ':reactive-redis'
 project(':reactive-redis').projectDir = file('./infrastructure/driven-adapters/reactive-redis')
 include ':async-event-bus'
 project(':async-event-bus').projectDir = file('./infrastructure/driven-adapters/async-event-bus')
 include ':rest-consumer'
 project(':rest-consumer').projectDir = file('./infrastructure/driven-adapters/rest-consumer')
+include ':secrets-manager-commons'
+project(':secrets-manager-commons').projectDir = file('./infrastructure/helpers/secrets-manager-commons')

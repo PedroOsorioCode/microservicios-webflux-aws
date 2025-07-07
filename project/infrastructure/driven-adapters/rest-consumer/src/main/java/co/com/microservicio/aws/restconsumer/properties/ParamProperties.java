@@ -14,5 +14,6 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConfigurationProperties(prefix = "adapters.rest-audit.parameter")
 public class ParamProperties {
-    private String name;
+    private String nameAuditOnSave;
+    private String nameAuditOnUpdate;
 }

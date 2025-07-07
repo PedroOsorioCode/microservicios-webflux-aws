@@ -47,7 +47,8 @@ adapters:
     timeout: ${TIMEOUT:5000}
     url: ${PARAM_URL:http://localhost:3000/api/v3/microservice-param}
     parameter:
-      name: "${PARAM_NAME:/auditOnSave}"
+      nameAuditOnSave: "${PARAM_NAME_ONSAVE:/auditOnSave}"
+      nameAuditOnUpdate: "${PARAM_NAME_ONUPDATE:/auditOnUpdate}"
     retry:
       retries: ${REST_AUDIT_RETRIES:3}
       retryDelay: ${REST_AUDIT_RETRY_DELAY:2}
@@ -353,7 +354,8 @@ adapters:
         @Configuration
         @ConfigurationProperties(prefix = "adapters.rest-audit.parameter")
         public class ParamProperties {
-            private String name;
+            private String nameAuditOnSave;
+            private String nameAuditOnUpdate;
         }
         ```
 
@@ -461,11 +463,7 @@ adapters:
             public ParameterService(@Qualifier(value = "webClientConfig") WebClient webClientConfig,
                                     ParamProperties paramProperties, LoggerBuilder loggerBuilder,
                                     RetryProperties retryProperties){
-                this.webClientConfig = webClientConfig.mutate()
-                        .filter((request, next) -> {
-                            System.out.println("Peticion a: " + request.url());
-                            return next.exchange(request);
-                        }).build();
+                this.webClientConfig = webClientConfig.mutate().build();
                 this.paramProperties = paramProperties;
                 this.logger = loggerBuilder;
                 this.retryProperties = retryProperties;
@@ -474,11 +472,11 @@ adapters:
             @Override
             public Mono<Boolean> isAuditOnSave(Context context) {
                 logger.info("rest get parameter", context.getId(), NAME_CLASS, "isAuditOnList");
-                return this.getParameter(context);
+                return this.getParameter(context, paramProperties.getNameAuditOnSave());
             }
 
-            private Mono<Boolean> getParameter(Context context) {
-                return this.buildGetRequestWithHeaders(context)
+            private Mono<Boolean> getParameter(Context context, String urlPath) {
+                return this.buildGetRequestWithHeaders(context, urlPath)
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, res -> this.errorStatusFunction(res, context))
@@ -498,8 +496,8 @@ adapters:
                         Mono.just(Boolean.TRUE): Mono.just(Boolean.FALSE);
             }
 
-            private RequestHeadersSpec<?> buildGetRequestWithHeaders(Context context) {
-                return webClientConfig.get().uri(paramProperties.getName())
+            private RequestHeadersSpec<?> buildGetRequestWithHeaders(Context context, String urlPath) {
+                return webClientConfig.get().uri(urlPath)
                         .header("message-id", context.getId())
                         .header("ip", context.getCustomer().getIp())
                         .header("user-name", context.getCustomer().getUsername());

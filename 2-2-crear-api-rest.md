@@ -42,6 +42,8 @@
             openapi = '1.8.0'
             jacksonVersion = "2.18.3"
             reactiveCommonsVersion = '4.1.4'
+            awsSecretManagerAsyncVersion ='4.4.0'
+            awsSecretManagerSyncVersion = '3.2.0'
         }
     }
     ```

@@ -9,15 +9,16 @@
     * [1.2.1 DynamoDB](#id1-2-1)
     * [1.2.2 SecretManager](#id1-2-2)
     * [1.2.3 Redis cache](#id1-2-3)
-    * [1.2.4 WireMock (Api rest)](#id1-2-3)
-    * [1.2.5 Almacenamiento S3 bucket](#id1-2-4)
+    * [1.2.4 Almacenamiento S3 bucket](#id1-2-4)
   * [1.3 Arquitectura limpia](#id1-3)
   * [1.4 Spring Webflux](#id1-4)
+  * [1.5 Servicios utilidades Docker](#id1-5)
+    * [1.5.1 WireMock (Api rest)](#id1-5-1)
 * [2. Proyecto Java Webflux (Caso práctico)](#id2)
   * [2.1 Proyecto base](#id2-1)
   * [2.2 API Rest webflux GET](#id2-2)
   * [2.3 API Rest webflux CRUD dynamoDB](#id2-3)
-  * [2.3.1 API Rest webflux informar errores](#id2-3-1)
+    * [2.3.1 API Rest webflux informar errores](#id2-3-1)
   * [2.4 Load variables y rest consumer](#id2-4)
   * [2.5 Secrets manager y redis cache](#id2-5)
   * [2.6 Microservio exponer parámetros](#id2-6)
@@ -78,7 +79,7 @@ Los servicios de caché están pensados para mejorar el rendimiento y reducir la
 
 [>> Primeros pasos Secret Manager](1-2-3-redis-cache.md)
 
-# <div id='id1-2-3'/>
+# <div id='id1-2-4'/>
 ### 1.2.4 Almacenamiento S3 Bucket (Simple Storage Service)
 
 ### ¿Qué es Amazon S3 (Simple Storage Service)?
@@ -94,7 +95,6 @@ Un bucket en Amazon S3 es un contenedor lógico donde se almacenan objetos (arch
 [>> Primeros pasos Secret Manager](1-2-4-almacenamiento-s3.md)
 
 [](README-SERVICIO-RABBITMQ.md)
-[](README-WIREMOCK.md)
 [](README-KAFKA.md)
 [](README-KUBERNETES.md)
 
@@ -112,6 +112,17 @@ Un bucket en Amazon S3 es un contenedor lógico donde se almacenan objetos (arch
 ### Ejecutar primeros pasos
 
 [>> Primeros pasos spring webflux)](1-3-spring-webflux.md)
+
+# <div id='id1-5'/>
+## 1.5 Mocks api rest
+
+## ¿Qué es WireMock?
+
+> WireMock es una herramienta de simulación de APIs (mock server) que permite emular servicios HTTP externos para pruebas.  Te permite simular respuestas de servicios REST sin necesidad de que estén realmente disponibles.  Ideal para pruebas unitarias, de integración o para trabajar desconectado del backend real.
+
+### Ejecutar primeros pasos
+
+[>> Primeros pasos spring webflux)](1-5-1-wiremock-apirest.md)
 
 # <div id='id2'/>
 # 2. Proyecto Java Webflux

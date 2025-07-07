@@ -44,11 +44,17 @@ public class ParameterService implements ParameterGateway {
     @Override
     public Mono<Boolean> isAuditOnSave(Context context) {
         logger.info("rest get parameter", context.getId(), NAME_CLASS, "isAuditOnList");
-        return this.getParameter(context);
+        return this.getParameter(context, paramProperties.getNameAuditOnSave());
     }
 
-    private Mono<Boolean> getParameter(Context context) {
-        return this.buildGetRequestWithHeaders(context)
+    @Override
+    public Mono<Boolean> isAuditOnUpdate(Context context) {
+        logger.info("rest get parameter", context.getId(), NAME_CLASS, "isAuditOnUpdate");
+        return this.getParameter(context, paramProperties.getNameAuditOnUpdate());
+    }
+
+    private Mono<Boolean> getParameter(Context context, String urlPath) {
+        return this.buildGetRequestWithHeaders(context, urlPath)
             .accept(MediaType.APPLICATION_JSON)
             .retrieve()
             .onStatus(HttpStatusCode::isError, res -> this.errorStatusFunction(res, context))
@@ -68,8 +74,8 @@ public class ParameterService implements ParameterGateway {
                 Mono.just(Boolean.TRUE): Mono.just(Boolean.FALSE);
     }
 
-    private RequestHeadersSpec<?> buildGetRequestWithHeaders(Context context) {
-        return webClientConfig.get().uri(paramProperties.getName())
+    private RequestHeadersSpec<?> buildGetRequestWithHeaders(Context context, String urlPath) {
+        return webClientConfig.get().uri(urlPath)
                 .header("message-id", context.getId())
                 .header("ip", context.getCustomer().getIp())
                 .header("user-name", context.getCustomer().getUsername());

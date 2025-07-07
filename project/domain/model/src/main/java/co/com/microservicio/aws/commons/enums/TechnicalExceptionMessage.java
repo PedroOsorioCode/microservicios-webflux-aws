@@ -18,7 +18,15 @@ public enum TechnicalExceptionMessage {
     TECHNICAL_GENERATE_FILE_ERROR("WRT08", "An error occurred transforming the messaging to generate the file"),
     TECHNICAL_S3_EXCEPTION("WRT07", "An error occurred while trying to get S3 object"),
     TECHNICAL_S3_PUT_OBJECT_FAIL("WRT09", "An error has occurred upload an object in S3"),
-    TECHNICAL_EXCEPTION_REPOSITORY("WRT10", "An error has occurred in the repository");
+    TECHNICAL_EXCEPTION_REPOSITORY("WRT10", "An error has occurred in the repository"),
+    GET_KEY_FROM_REDIS("WRT10", "An error occurred getting one key from redis"),
+    SAVE_IN_REDIS("WRT11", "An error occurred saving collection from redis"),
+    DELETE_KEY_FROM_REDIS("WRT12", "An error occurred deleting from key from redis"),
+    GET_KEY_FOR_VALUE_FROM_REDIS("WRT13", "An error occurred getting one key from redis"),
+    SAVE_FOR_VALUE_IN_REDIS("WRT14", "An error occurred saving collection in redis"),
+    DELETE_COLLECTION_FROM_REDIS("WRT15", "An error occurred deleting collection from redis"),
+    GET_VALUES_FROM_REDIS("WRT16", "Error retrieving routes in redis caching"),
+    CONFIG_REDIS_NOT_FOUND("WRT17", "Redis configuration not found");
 
     private final String code;
     private final String message;
