@@ -14,7 +14,7 @@
   * [1.4 Spring Webflux](#id1-4)
   * [1.5 Servicios utilidades Docker](#id1-5)
     * [1.5.1 WireMock (Api rest)](#id1-5-1)
-* [2. Proyecto Java Webflux (Caso práctico)](#id2)
+* [2. Proyecto Java Webflux (Caso práctico con plugin scaffold)](#id2)
   * [2.1 Proyecto base](#id2-1)
   * [2.2 API Rest webflux GET](#id2-2)
   * [2.3 API Rest webflux CRUD dynamoDB](#id2-3)
@@ -24,6 +24,8 @@
   * [2.6 Microservio exponer parámetros](#id2-6)
   * [2.7 Enviar eventos RabbitMQ](#id2-7)
   * [2.8 Microservicio leer eventos RabbitMQ](#id2-8)
+* [3. Proyecto Java Webflux (Caso práctico con spring initializr)](#id3)
+  * [3.1 API Rest webflux CRUD Postgre SQL](#id3-1)
 
 # <div id='id1'/>
 # 1 Documentación
@@ -125,7 +127,7 @@ Un bucket en Amazon S3 es un contenedor lógico donde se almacenan objetos (arch
 [>> Primeros pasos spring webflux)](1-5-1-wiremock-apirest.md)
 
 # <div id='id2'/>
-# 2. Proyecto Java Webflux
+# 2. Proyecto Java Webflux (Caso práctico con plugin scaffold)
 
 # <div id='id2-1'/>
 ## 2.1 Proyecto base
@@ -190,6 +192,18 @@ Se indica paso a paso como configurar el proyecto para guardar un parámetro en 
 ## 2.7 Leer eventos RabbitMQ
 
 [>> Crear proyecto microservicio leer eventos RabbitMQ](2-7-crear-ms-leer-eventos-rabbit,q.md)
+
+# <div id='id3'/>
+# 3. Proyecto Java Webflux (Caso práctico con spring initializr)
+
+# <div id='id3-1'/>
+## 3.1 API Rest webflux CRUD PostgreSQL
+
+### Ejecutar primeros pasos
+
+Se indica paso a paso como crear un api rest para crear, actualizar, borrar y consultar información en una tabla en postgresql
+
+[>> Crear proyecto api rest CRUD PostgreSQL](3-1-crear-api-rest-crud-postgresql.md)
 
 ---
 

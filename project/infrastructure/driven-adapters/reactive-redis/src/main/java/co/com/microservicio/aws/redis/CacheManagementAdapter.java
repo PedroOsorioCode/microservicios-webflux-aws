@@ -21,7 +21,11 @@ import static org.springframework.data.redis.serializer.RedisSerializationContex
 
 @Configuration
 public class CacheManagementAdapter<T> implements CacheGateway<T> {
-    private final ReactiveRedisTemplate<String, T> cacheOperationsForHash;
+    @Override
+    public Mono<Boolean> saveDataInCacheFromEvent(String key, T entity) {
+        return null;
+    }
+    /*private final ReactiveRedisTemplate<String, T> cacheOperationsForHash;
     private final ReactiveRedisTemplate<String, T> cacheOperationsForValue;
     private final Class<T> type;
     private final CacheProperties cacheProperties;
@@ -120,5 +124,5 @@ public class CacheManagementAdapter<T> implements CacheGateway<T> {
     @Bean
     public Class<?> getType() {
         return Boolean.class;
-    }
+    }*/
 }

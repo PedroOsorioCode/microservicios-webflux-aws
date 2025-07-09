@@ -6,9 +6,9 @@ import reactor.core.publisher.Mono;
 import java.util.function.Function;
 
 public interface CacheGateway<T> {
-    Flux<T> save(CacheKey key, Flux<T> list, Function<T, String> retrieveKey);
-
     Mono<Boolean> saveDataInCacheFromEvent(String key, T entity);
+
+    /*Flux<T> save(CacheKey key, Flux<T> list, Function<T, String> retrieveKey);
 
     Mono<T> getByKey(CacheKey key, String name);
 
@@ -20,5 +20,5 @@ public interface CacheGateway<T> {
 
     Mono<T> saveFromEventByHash(CacheKey key, Object hasKey, T entity);
 
-    Flux<T> getValuesByKey(CacheKey key);
+    Flux<T> getValuesByKey(CacheKey key);*/
 }

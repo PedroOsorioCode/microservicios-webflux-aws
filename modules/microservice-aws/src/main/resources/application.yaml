@@ -1,0 +1,56 @@
+server:
+  port: ${APP_PORT:8080}
+
+spring:
+  application:
+    name: "${APP_NAME:MicroserviceAws}"
+  r2dbc:
+    url: r2dbc:h2:mem:///testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+
+management:
+  health:
+    probes:
+      enabled: true
+  endpoint:
+    health:
+      show-details: ${SHOW_DETAILS:never}
+      enabled: true
+      cache:
+        time-to-live: "10s"
+  endpoints:
+    web:
+      base-path: "${PATH_BASE:/api/v1/microservice-aws/}"
+      path-mapping:
+        health: "health"
+        liveness: "liveness"
+        readiness: "readiness"
+      exposure:
+        include: "health, liveness, readiness, metrics"
+
+logging:
+  level:
+    root: ${LOG4J_LEVEL:INFO}
+
+entries:
+  countries-web:
+    path-base: "${PATH_BASE:/api/v2/microservice-aws}"
+    listAll: "/list-all"
+    findOne: "/find-one/{name}"
+    save: "/save"
+    update: "/update"
+    delete: "/delete/{id}"
+  regex-body-wr:
+    name: "${REGEX_COUNTRY_NAME:^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]{3,50}$}"
+    codeShort: "${REGEX_COUNTRY_CODE_SHORT:^[a-zA-Z]{3,4}$}"
+
+adapters:
+  postgresql:
+    url: r2dbc:postgresql://localhost:5432/my_postgres_db
+    username: postgres
+    password: postgres123
+  mysql:
+    url: r2dbc:mysql://localhost:3306/my_mysql_db
+    username: root
+    password: root123

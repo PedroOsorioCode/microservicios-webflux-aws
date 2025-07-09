@@ -342,13 +342,13 @@ registration:
             }
 
             public void info(TransactionLog.Request rq, TransactionLog.Response rs,
-                        String message, String messageId, String service, String method) {
+                            String message, String messageId, String service, String method) {
                 log.info(new ObjectMessage(buildObject(rq, rs, buildDataLog(message, messageId, service, method))));
             }
 
             public void info(String message, String messageId, String service, String method) {
                 log.info(new ObjectMessage(buildObject(new TransactionLog.Request(), new TransactionLog.Response(),
-                    buildDataLog(message, messageId, service, method))));
+                        buildDataLog(message, messageId, service, method))));
             }
 
             public void error(String message, String messageId, String service, String method) {
@@ -356,12 +356,16 @@ registration:
                         buildDataLog(message, messageId, service, method))));
             }
 
+            public void error(Throwable throwable) {
+                log.error("throwable: " + throwable);
+            }
+
             private TransactionLog.DataLog buildDataLog(String message, String messageId, String service, String method){
                 return new TransactionLog.DataLog(message, messageId, service, method, appName);
             }
 
             private String buildObject(TransactionLog.Request rq, TransactionLog.Response rs,
-                        TransactionLog.DataLog dataLog) {
+                                      TransactionLog.DataLog dataLog) {
                 var logObject = new TransactionLog(dataLog, rq, rs);
                 try {
                     return objectMapper.writeValueAsString(logObject);
@@ -398,6 +402,11 @@ registration:
     ![](./img/crear-aplication-local.png)
 
 8. Ejecutar aplicación con los cambios realizados configurando que se usará el application local
+
+    ```
+    SPRING_PROFILES_ACTIVE=local
+    ```
+
     ![](./img/proyecto-base-abrir-config-perfil-local.png)
 
     ![](./img/proyecto-base-config-perfil-local.png)
