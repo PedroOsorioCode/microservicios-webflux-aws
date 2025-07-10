@@ -1,4 +1,4 @@
-package co.com.microservice.aws.infrastructure.helpers.logs;
+package co.com.microservice.aws.application.helpers.logs;
 
 import java.io.Serial;
 import java.io.Serializable;

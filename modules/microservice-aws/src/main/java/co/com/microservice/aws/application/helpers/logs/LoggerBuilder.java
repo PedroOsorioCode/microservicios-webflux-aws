@@ -1,4 +1,4 @@
-package co.com.microservice.aws.infrastructure.helpers.logs;
+package co.com.microservice.aws.application.helpers.logs;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,15 +20,15 @@ public class LoggerBuilder {
         this.objectMapper = objectMapper;
     }
 
-    public void infoReq(TransactionLog.Request rq, String message, String messageId, String service, String method) {
+    public void info(TransactionLog.Request rq, String message, String messageId, String service, String method) {
         log.info(new ObjectMessage(buildObjectReq(rq, buildDataLog(message, messageId, service, method))));
     }
 
-    public void infoRes(TransactionLog.Response rs, String message, String messageId, String service, String method) {
+    public void info(TransactionLog.Response rs, String message, String messageId, String service, String method) {
         log.info(new ObjectMessage(buildObjectRes(rs, buildDataLog(message, messageId, service, method))));
     }
 
-    public void infoApp(String message, String messageId, String service, String method) {
+    public void info(String message, String messageId, String service, String method) {
         log.info(new ObjectMessage(buildObjectApp(buildDataLog(message, messageId, service, method))));
     }
 
