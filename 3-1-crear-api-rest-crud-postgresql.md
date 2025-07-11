@@ -87,6 +87,9 @@
             implementation "org.apache.logging.log4j:log4j-to-slf4j:2.24.3"
             implementation 'com.fasterxml.jackson.core:jackson-databind'
             implementation 'io.r2dbc:r2dbc-h2'
+            implementation 'org.mapstruct:mapstruct:1.5.2.Final'
+            annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.2.Final'
+
             compileOnly 'org.projectlombok:lombok'
             developmentOnly 'org.springframework.boot:spring-boot-devtools'
             runtimeOnly 'org.postgresql:postgresql'
@@ -112,64 +115,65 @@
         Actualizar dependencias
 
     - Ubicarse en src > main > resources y crear el archivo application.yaml y de igual forma application-local.yaml con lo siguiente
-        ```
-        server:
-        port: ${APP_PORT:8080}
+```
+server:
+  port: ${APP_PORT:8080}
 
-        spring:
-        application:
-            name: "${APP_NAME:MicroserviceAws}"
-        r2dbc:
-            url: r2dbc:h2:mem:///testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-            username: sa
-            password:
+spring:
+  application:
+    name: "${APP_NAME:MicroserviceAws}"
+  r2dbc:
+    url: r2dbc:h2:mem:///testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
 
-        management:
-        health:
-            probes:
-            enabled: true
-        endpoint:
-            health:
-            show-details: ${SHOW_DETAILS:never}
-            enabled: true
-            cache:
-                time-to-live: "10s"
-        endpoints:
-            web:
-            base-path: "${PATH_BASE:/api/v1/microservice-aws/}"
-            path-mapping:
-                health: "health"
-                liveness: "liveness"
-                readiness: "readiness"
-            exposure:
-                include: "health, liveness, readiness, metrics"
+management:
+  health:
+    probes:
+      enabled: true
+  endpoint:
+    health:
+      show-details: ${SHOW_DETAILS:never}
+      enabled: true
+      cache:
+        time-to-live: "10s"
+  endpoints:
+    web:
+      base-path: "${PATH_BASE:/api/v1/microservice-aws/}"
+      path-mapping:
+        health: "health"
+        liveness: "liveness"
+        readiness: "readiness"
+      exposure:
+        include: "health, liveness, readiness, metrics"
 
-        logging:
-        level:
-            root: ${LOG4J_LEVEL:INFO}
+logging:
+  level:
+    root: ${LOG4J_LEVEL:INFO}
 
-        entries:
-        countries-web:
-            path-base: "${PATH_BASE:/api/v2/microservice-aws}"
-            listAll: "/list-all"
-            findOne: "/find-one/{name}"
-            save: "/save"
-            update: "/update"
-            delete: "/delete/{id}"
-        regex-body-wr:
-            name: "${REGEX_COUNTRY_NAME:^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]{3,50}$}"
-            codeShort: "${REGEX_COUNTRY_CODE_SHORT:^[a-zA-Z]{3,4}$}"
+entries:
+  web:
+    path-base: "${PATH_BASE:/api/v1/microservice-aws}"
+    path-countries: "${PATH_COUNTRY:/country}"
+    listAll: "/list-all"
+    findByShortCode: "/findByShortCode/{name}"
+    save: "/save"
+    update: "/update"
+    delete: "/delete/{id}"
+  regex-body-wr:
+    name: "${REGEX_COUNTRY_NAME:^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]{3,50}$}"
+    codeShort: "${REGEX_COUNTRY_CODE_SHORT:^[a-zA-Z]{3,4}$}"
 
-        adapters:
-        postgresql:
-            url: r2dbc:postgresql://localhost:5432/my_postgres_db
-            username: postgres
-            password: postgres123
-        mysql:
-            url: r2dbc:mysql://localhost:3306/my_mysql_db
-            username: root
-            password: root123
-        ```
+adapters:
+  postgresql:
+    url: r2dbc:postgresql://localhost:5432/my_postgres_db
+    username: postgres
+    password: postgres123
+  mysql:
+    url: r2dbc:mysql://localhost:3306/my_mysql_db
+    username: root
+    password: root123
+```
 
     - Abrir el archivo MicroserviceAwsApplication.java y click derecho y ejecutar la aplicación
     
@@ -735,7 +739,6 @@
         import java.io.Serial;
         import java.io.Serializable;
         import java.util.List;
-        import java.util.Map;
 
         @Getter
         @Setter
@@ -747,7 +750,6 @@
             private static final long serialVersionUID = 1L;
 
             private transient Context context;
-            private transient Map<String, String> params;
             private transient Object item;
             private transient List<Object> items;
         }
@@ -772,59 +774,456 @@
             private static final long serialVersionUID = 1L;
 
             private String message;
-            private String size;
+            private int size;
             private List<Object> response;
         }
         ```
-    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.exception y crear la clase ExceptionHandler.java
+    - Ubicarse en el paquete co.com.microservice.aws.application.helpers.commons y crear la clase HeadersUtil.java
         ```
+        package co.com.microservice.aws.application.helpers.commons;
 
-        ```
-    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.exception y crear la clase ExceptionHandler.java
-        ```
+        import java.util.LinkedHashMap;
+        import java.util.Map;
+        import java.util.regex.Pattern;
 
-        ```
-    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.exception y crear la clase ExceptionHandler.java
-        ```
+        import lombok.experimental.UtilityClass;
 
-        ```
-    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.exception y crear la clase ExceptionHandler.java
-        ```
+        @UtilityClass
+        public class HeadersUtil {
 
-        ```
-    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.exception y crear la clase ExceptionHandler.java
-        ```
+            private static final String CHARS_TO_CLEAR = "<>(;|'";
+            private static final String REGEXP_CHARS_TO_CLEAR = "[" + CHARS_TO_CLEAR + "]";
+            private static final Pattern PATTERN_CHARS_TO_CLEAR = Pattern.compile(REGEXP_CHARS_TO_CLEAR);
 
+            public static Map<String, String> clearChars(Map<String, String> headers) {
+                var localHeaders = new LinkedHashMap<String, String>();
+                if (null != headers && !headers.isEmpty()) {
+                    for (Map.Entry<String, String> entry : headers.entrySet()) {
+                        localHeaders.put(entry.getKey(), PATTERN_CHARS_TO_CLEAR.matcher(entry.getValue()).replaceAll(" "));
+                    }
+                }
+                return localHeaders;
+            }
+        }
         ```
-    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.exception y crear la clase ExceptionHandler.java
+    - Ubicarse en el paquete co.com.microservice.aws.application.helpers.commons y crear la clase ContextUtil.java
         ```
+        package co.com.microservice.aws.application.helpers.commons;
 
-        ```
-    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.exception y crear la clase ExceptionHandler.java
-        ```
+        import co.com.microservice.aws.domain.model.rq.Context;
+        import lombok.experimental.UtilityClass;
 
-        ```
-    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.exception y crear la clase ExceptionHandler.java
-        ```
+        import java.util.Map;
+        import java.util.Optional;
 
-        ```
-    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.exception y crear la clase ExceptionHandler.java
-        ```
+        @UtilityClass
+        public class ContextUtil {
+            private static final String EMPTY_VALUE = "";
 
-        ```
-    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.exception y crear la clase ExceptionHandler.java
-        ```
+            public static Context buildContext(Map<String, String> headers) {
+                var localHeaders = HeadersUtil.clearChars(headers);
+                return Context.builder().id(Optional.ofNullable(localHeaders.get("message-id")).orElse(EMPTY_VALUE))
+                        .customer(buildCustomer(localHeaders)).build();
+            }
 
-        ```
-    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.exception y crear la clase ExceptionHandler.java
-        ```
+            private static Context.Customer buildCustomer(Map<String, String> headers) {
+                return Context.Customer.builder().ip(Optional.ofNullable(headers.get("ip")).orElse(EMPTY_VALUE))
+                        .username(Optional.ofNullable(headers.get("user-name")).orElse(EMPTY_VALUE))
+                        .device(buildDevice(headers)).build();
+            }
 
+            private static Context.Device buildDevice(Map<String, String> headers) {
+                return Context.Device.builder().userAgent(Optional.ofNullable(headers.get("user-agent")).orElse(EMPTY_VALUE))
+                        .platformType(Optional.ofNullable(headers.get("platform-type")).orElse(EMPTY_VALUE)).build();
+            }
+        }
         ```
-    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.exception y crear la clase ExceptionHandler.java
+    - Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in y crear la clase ListAllUseCase.java
         ```
+        package co.com.microservice.aws.domain.usecase.in;
 
+        import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+        import co.com.microservice.aws.domain.model.rs.TransactionResponse;
+        import reactor.core.publisher.Mono;
+
+        public interface ListAllUseCase {
+            Mono<TransactionResponse> listAll(TransactionRequest request);
+        }
         ```
-    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.exception y crear la clase ExceptionHandler.java
+    - Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in y crear la clase ListAllUseCase.java
+        ```
+        package co.com.microservice.aws.domain.usecase.in;
+
+        import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+        import co.com.microservice.aws.domain.model.rs.TransactionResponse;
+        import reactor.core.publisher.Mono;
+
+        public interface SaveUseCase {
+            Mono<String> save(TransactionRequest request);
+        }
+        ```
+    - Ubicarse en el paquete co.com.microservice.aws.domain.usecase.out y crear la clase ListAllPort.java
+        ```
+        package co.com.microservice.aws.domain.usecase.out;
+
+        import co.com.microservice.aws.domain.model.rq.Context;
+        import reactor.core.publisher.Flux;
+
+        public interface ListAllPort<T> {
+            Flux<T> listAll(Context context);
+        }
+        ```
+    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.exception y crear la clase SavePort.java
+        ```
+        package co.com.microservice.aws.domain.usecase.out;
+
+        import co.com.microservice.aws.domain.model.rq.Context;
+        import reactor.core.publisher.Mono;
+
+        public interface SavePort<T> {
+            Mono<T> save(T t, Context context);
+        }
+        ```
+    - Ubicarse en el paquete co.com.microservice.aws.domain.model.commons.util y crear la clase ResponseMessageConstant.java
+        ```
+        package co.com.microservice.aws.domain.model.commons.util;
+
+        import lombok.AccessLevel;
+        import lombok.NoArgsConstructor;
+
+        @NoArgsConstructor(access = AccessLevel.PRIVATE)
+        public class ResponseMessageConstant {
+            public static final String MSG_LIST_SUCCESS = "Listed successfull!";
+            public static final String MSG_SAVED_SUCCESS = "Saved successfull!";
+            public static final String MSG_UPDATED_SUCCESS = "Updated successfull!";
+            public static final String MSG_DELETED_SUCCESS = "Deleted successfull!";
+        }
+        ```
+    - Ubicarse en el paquete co.com.microservice.aws.domain.model.commons.util y crear la clase LogMessage.java
+        ```
+        package co.com.microservice.aws.domain.model.commons.util;
+
+        import lombok.AccessLevel;
+        import lombok.NoArgsConstructor;
+
+        @NoArgsConstructor(access = AccessLevel.PRIVATE)
+        public class LogMessage {
+            public static final String MESSAGE_SERVICE = "Service Api Rest world regions";
+            public static final String METHOD_LISTCOUNTRIES = "List all by region";
+            public static final String METHOD_FINDONE = "Find one world region";
+            public static final String METHOD_SAVE = "Save one world region";
+            public static final String METHOD_UPDATE = "Update one world region";
+            public static final String METHOD_DELETE = "Delete one world region";
+        }
+        ```
+    - Ubicarse en el paquete co.com.microservice.aws.application.usecase y crear la clase CountryUseCase.java
+        ```
+        package co.com.microservice.aws.application.usecase;
+
+        import co.com.microservice.aws.domain.model.Country;
+        import co.com.microservice.aws.domain.model.commons.exception.TechnicalException;
+        import co.com.microservice.aws.domain.model.commons.util.ResponseMessageConstant;
+        import co.com.microservice.aws.domain.model.rq.Context;
+        import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+        import co.com.microservice.aws.domain.model.rs.TransactionResponse;
+        import co.com.microservice.aws.domain.usecase.in.ListAllUseCase;
+        import co.com.microservice.aws.domain.usecase.in.SaveUseCase;
+        import co.com.microservice.aws.domain.usecase.out.ListAllPort;
+        import co.com.microservice.aws.domain.usecase.out.SavePort;
+        import lombok.RequiredArgsConstructor;
+        import reactor.core.publisher.Mono;
+
+        import java.util.Collections;
+        import java.util.List;
+        import java.util.Optional;
+
+        import static co.com.microservice.aws.domain.model.commons.enums.TechnicalExceptionMessage.TECHNICAL_REQUEST_ERROR;
+
+        @RequiredArgsConstructor
+        public class CountryUseCase implements SaveUseCase, ListAllUseCase {
+            private static final String KEY_USER_NAME = "user-name";
+            private static final String ATTRIBUTE_IS_REQUIRED = "The attribute '%s' is required";
+
+            private final SavePort<Country> countrySaver;
+            private final ListAllPort<Country> countryLister;
+
+            @Override
+            public Mono<TransactionResponse> listAll(TransactionRequest request) {
+                return Mono.just(request)
+                    .filter(this::userIsRequired)
+                    .flatMap(req -> countryLister.listAll(req.getContext()).collectList().flatMap(this::buildResponse)
+                    ).switchIfEmpty(Mono.error(
+                        new IllegalStateException(String.format(ATTRIBUTE_IS_REQUIRED, KEY_USER_NAME))));
+            }
+
+            @Override
+            public Mono<String> save(TransactionRequest request) {
+                return Mono.just(request)
+                    .filter(this::userIsRequired)
+                    .map(TransactionRequest::getItem)
+                    .flatMap(this::buildCountry)
+                    .flatMap(country -> countrySaver.save(country, request.getContext()))
+                    .thenReturn(ResponseMessageConstant.MSG_SAVED_SUCCESS);
+            }
+
+            private Boolean userIsRequired(TransactionRequest request){
+                return Optional.ofNullable(request)
+                    .map(TransactionRequest::getContext)
+                    .map(Context::getCustomer).map(Context.Customer::getUsername)
+                    .filter(username -> !username.isEmpty())
+                    .isPresent();
+            }
+
+            private Mono<Country> buildCountry(Object object){
+                if (object instanceof Country country) {
+                    return Mono.just(Country.builder().id(country.getId()).name(country.getName())
+                        .shortCode(country.getShortCode()).status(country.isStatus())
+                        .dateCreation(country.getDateCreation())
+                        .build());
+                } else {
+                    return Mono.error(new TechnicalException(TECHNICAL_REQUEST_ERROR));
+                }
+            }
+
+            private Mono<TransactionResponse> buildResponse(List<Country> countries){
+                var simplifiedList = countries.stream()
+                    .map(country -> Country.builder().id(country.getId()).name(country.getName())
+                        .shortCode(country.getShortCode()).status(country.isStatus())
+                        .dateCreation(country.getDateCreation())
+                        .build())
+                    .toList();
+
+                TransactionResponse response = TransactionResponse.builder()
+                    .message(ResponseMessageConstant.MSG_LIST_SUCCESS)
+                    .size(countries.size())
+                    .response(Collections.singletonList(simplifiedList))
+                    .build();
+
+                return Mono.just(response);
+            }
+        }
+        ```
+    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.config y crear la clase RouterProperties.java
+        ```
+        package co.com.microservice.aws.infrastructure.input.rest.api.config;
+
+        import lombok.Data;
+        import org.springframework.boot.context.properties.ConfigurationProperties;
+        import org.springframework.stereotype.Component;
+
+        @Data
+        @Component
+        @ConfigurationProperties(prefix = "entries.web")
+        public class RouterProperties {
+            private String pathBase;
+            private String pathCountries;
+            private String listAll;
+            private String findByShortCode;
+            private String save;
+            private String update;
+            private String delete;
+        }
+        ```
+    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.handler y crear la clase CountryHandler.java
+        ```
+        package co.com.microservice.aws.infrastructure.input.rest.api.handler;
+
+        import co.com.microservice.aws.application.helpers.commons.ContextUtil;
+        import co.com.microservice.aws.application.helpers.logs.LoggerBuilder;
+        import co.com.microservice.aws.application.helpers.logs.TransactionLog;
+        import co.com.microservice.aws.domain.model.Country;
+        import co.com.microservice.aws.domain.model.rq.Context;
+        import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+        import co.com.microservice.aws.domain.model.rs.TransactionResponse;
+        import co.com.microservice.aws.domain.usecase.in.ListAllUseCase;
+        import co.com.microservice.aws.domain.usecase.in.SaveUseCase;
+        import lombok.RequiredArgsConstructor;
+        import org.springframework.stereotype.Component;
+        import org.springframework.web.reactive.function.server.ServerRequest;
+        import org.springframework.web.reactive.function.server.ServerResponse;
+        import reactor.core.publisher.Mono;
+
+        import static co.com.microservice.aws.domain.model.commons.util.LogMessage.*;
+
+        @Component
+        @RequiredArgsConstructor
+        public class CountryHandler {
+            private static final String NAME_CLASS = CountryHandler.class.getName();
+            private static final String EMPTY_VALUE = "";
+
+            private final LoggerBuilder logger;
+            private final ListAllUseCase useCaseLister;
+            private final SaveUseCase useCaseSaver;
+
+            public Mono<ServerResponse> listAll(ServerRequest serverRequest) {
+                var request = this.buildRequestWithParams(serverRequest, METHOD_LISTCOUNTRIES);
+                return ServerResponse.ok().body(useCaseLister.listAll(request)
+                        .onErrorResume(this::printFailed), TransactionResponse.class
+                );
+            }
+
+            public Mono<ServerResponse> save(ServerRequest serverRequest) {
+                var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+                var context = ContextUtil.buildContext(headers);
+                printOnProcess(context, METHOD_SAVE);
+
+                return this.getRequest(serverRequest)
+                        .flatMap(useCaseSaver::save)
+                        .flatMap(msg -> ServerResponse.ok().bodyValue(msg));
+            }
+
+            private Mono<TransactionRequest> getRequest(ServerRequest serverRequest) {
+                var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+                var context = ContextUtil.buildContext(headers);
+                return serverRequest.bodyToMono(Country.class)
+                        .flatMap(country -> Mono.just(TransactionRequest.builder()
+                                .context(context).item(country).build()));
+            }
+
+            private TransactionRequest buildRequestWithParams(ServerRequest serverRequest, String method){
+                var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+                var context = ContextUtil.buildContext(headers);
+                printOnProcess(context, method);
+
+                return TransactionRequest.builder()
+                        .context(context)
+                        .build();
+            }
+
+            private Mono<TransactionResponse> printFailed(Throwable throwable) {
+                logger.error(throwable);
+                return Mono.empty();
+            }
+
+            private void printOnProcess(Context context, String messageInfo){
+                logger.info(TransactionLog.Request.builder().body(context).build(),
+                        messageInfo, context.getId(), MESSAGE_SERVICE, NAME_CLASS);
+            }
+
+        }
+        ```
+    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.router y crear la clase CountryRouterRest.java
+        ```
+        package co.com.microservice.aws.infrastructure.input.rest.api.router;
+
+        import co.com.microservice.aws.infrastructure.input.rest.api.config.RouterProperties;
+        import co.com.microservice.aws.infrastructure.input.rest.api.handler.CountryHandler;
+        import lombok.RequiredArgsConstructor;
+        import org.springframework.context.annotation.Bean;
+        import org.springframework.context.annotation.Configuration;
+        import org.springframework.web.reactive.function.server.RouterFunction;
+        import org.springframework.web.reactive.function.server.RouterFunctions;
+        import org.springframework.web.reactive.function.server.ServerResponse;
+
+        @Configuration
+        @RequiredArgsConstructor
+        public class CountryRouterRest {
+            private final RouterProperties properties;
+
+            @Bean
+            public RouterFunction<ServerResponse> routerCountryFunction(CountryHandler countryHandler) {
+                return RouterFunctions.route()
+                        .GET(createRoute(properties.getListAll()), countryHandler::listAll)
+                        .POST(createRoute(properties.getSave()), countryHandler::save)
+                        .build();
+            }
+
+            private String createRoute(String route){
+                return properties.getPathBase().concat(properties.getPathCountries()).concat(route);
+            }
+        }
+        ```
+    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.postgresql.entity y crear la clase CountryEntity.java
+        ```
+        package co.com.microservice.aws.infrastructure.output.postgresql.entity;
+
+        import lombok.AllArgsConstructor;
+        import lombok.Data;
+        import lombok.NoArgsConstructor;
+        import org.springframework.data.annotation.Id;
+        import org.springframework.data.relational.core.mapping.Table;
+
+        import java.time.LocalDateTime;
+
+        @Table(name = "community_contry")
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        public class CountryEntity {
+            @Id
+            private Long id;
+            private String shortCode;
+            private String name;
+            private String description;
+            private boolean status;
+            private LocalDateTime dateCreation;
+        }
+        ```
+    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.postgresql.mapper y crear la clase CountryEntityMapper.java
+        ```
+        package co.com.microservice.aws.infrastructure.output.postgresql.mapper;
+
+        import co.com.microservice.aws.domain.model.Country;
+        import co.com.microservice.aws.infrastructure.output.postgresql.entity.CountryEntity;
+        import org.mapstruct.Mapper;
+        import org.mapstruct.ReportingPolicy;
+
+        @Mapper(componentModel = "spring",
+                unmappedTargetPolicy = ReportingPolicy.IGNORE,
+                unmappedSourcePolicy = ReportingPolicy.IGNORE
+        )
+        public interface CountryEntityMapper {
+            CountryEntity toEntityFromModel(Country objectModel);
+            Country toModelFromEntity(CountryEntity objectEntity);
+        }
+        ```
+    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.postgresql.repository y crear la clase CountryRepository.java
+        ```
+        package co.com.microservice.aws.infrastructure.output.postgresql.repository;
+
+        import co.com.microservice.aws.infrastructure.output.postgresql.entity.CountryEntity;
+        import org.springframework.data.r2dbc.repository.R2dbcRepository;
+
+        public interface CountryRepository extends R2dbcRepository<CountryEntity, Long> {
+        }
+        ```
+    - Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.postgresql y crear la clase CountryAdapter.java
+        ```
+        package co.com.microservice.aws.infrastructure.output.postgresql;
+
+        import co.com.microservice.aws.domain.model.Country;
+        import co.com.microservice.aws.domain.model.rq.Context;
+        import co.com.microservice.aws.domain.usecase.out.ListAllPort;
+        import co.com.microservice.aws.domain.usecase.out.SavePort;
+        import co.com.microservice.aws.infrastructure.output.postgresql.mapper.CountryEntityMapper;
+        import co.com.microservice.aws.infrastructure.output.postgresql.repository.CountryRepository;
+        import lombok.RequiredArgsConstructor;
+        import org.springframework.stereotype.Component;
+        import reactor.core.publisher.Flux;
+        import reactor.core.publisher.Mono;
+
+        @Component
+        @RequiredArgsConstructor
+        public class CountryAdapter implements SavePort<Country>, ListAllPort<Country> {
+            private final CountryEntityMapper mapper;
+            private final CountryRepository countryRepository;
+
+            @Override
+            public Mono<Country> save(Country country, Context context) {
+                return Mono.just(country)
+                        .map(mapper::toEntityFromModel)
+                        .flatMap(countryRepository::save)
+                        .map(mapper::toModelFromEntity);
+            }
+
+            @Override
+            public Flux<Country> listAll(Context context) {
+                return countryRepository.findAll()
+                        .map(mapper::toModelFromEntity);
+            }
+        }
+        ```
+    - Preparar la base de datos:
         ```
 
         ```

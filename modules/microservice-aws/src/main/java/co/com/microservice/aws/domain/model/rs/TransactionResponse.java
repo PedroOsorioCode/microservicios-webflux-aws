@@ -16,6 +16,6 @@ public class TransactionResponse implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private String message;
-    private String size;
+    private int size;
     private List<Object> response;
 }

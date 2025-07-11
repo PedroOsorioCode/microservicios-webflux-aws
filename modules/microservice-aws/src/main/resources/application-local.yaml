@@ -34,10 +34,11 @@ logging:
     root: ${LOG4J_LEVEL:INFO}
 
 entries:
-  countries-web:
-    path-base: "${PATH_BASE:/api/v2/microservice-aws}"
+  web:
+    path-base: "${PATH_BASE:/api/v1/microservice-aws}"
+    path-countries: "${PATH_COUNTRY:/country}"
     listAll: "/list-all"
-    findOne: "/find-one/{name}"
+    findByShortCode: "/findByShortCode/{name}"
     save: "/save"
     update: "/update"
     delete: "/delete/{id}"
