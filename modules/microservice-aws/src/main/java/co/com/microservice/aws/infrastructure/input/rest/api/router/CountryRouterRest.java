@@ -19,6 +19,9 @@ public class CountryRouterRest {
         return RouterFunctions.route()
                 .GET(createRoute(properties.getListAll()), countryHandler::listAll)
                 .POST(createRoute(properties.getSave()), countryHandler::save)
+                .DELETE(createRoute(properties.getDelete()), countryHandler::delete)
+                .PUT(createRoute(properties.getUpdate()), countryHandler::update)
+                .GET(createRoute(properties.getFindByShortCode()), countryHandler::findOne)
                 .build();
     }
 

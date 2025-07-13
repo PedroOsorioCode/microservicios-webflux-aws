@@ -526,3 +526,6 @@ adapters:
 
         ```
 
+---
+
+⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](LICENSE.md)

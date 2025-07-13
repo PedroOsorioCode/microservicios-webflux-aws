@@ -171,27 +171,12 @@ Se indica paso a paso como configurar el proyecto para obtener variables locales
 [>> Crear proyecto load variables locales y consumo de servicios externos](2-4-crear-load-variables-rest-consumer.md)
 
 # <div id='id2-5'/>
-## 2.4 Almacenar parámetros en redis cache, uso de secretos
+## 2.5 Almacenar parámetros en redis cache, uso de secretos
 
 Se indica paso a paso como configurar el proyecto para guardar un parámetro en redis cache y configuración de la conexión con secrets-manager
 
 [>> Crear proyecto secrets-manager y redis cache](2-5-crear-secrest-manager-redis-cache.md)
 
-
-# <div id='id2-6'/>
-## 2.5 Microservio exponer parámetros
-
-[>> Crear proyecto microservio exponer parámetros](2-5-crear-ms-exponer-parametros.md)
-
-# <div id='id2-7'/>
-## 2.6 Enviar eventos RabbitMQ
-
-[>> Crear proyecto enviar eventos RabbitMQ](2-6-crear-enviar-eventos-rabbit,q.md)
-
-# <div id='id2-8'/>
-## 2.7 Leer eventos RabbitMQ
-
-[>> Crear proyecto microservicio leer eventos RabbitMQ](2-7-crear-ms-leer-eventos-rabbit,q.md)
 
 # <div id='id3'/>
 # 3. Proyecto Java Webflux (Caso práctico con spring initializr)
@@ -207,6 +192,15 @@ Se indica paso a paso como crear un api rest para crear, actualizar, borrar y co
 
 ---
 
-**Author**: Pedro Luis Osorio Pavas [Linkedin](https://www.linkedin.com/in/pedro-luis-osorio-pavas-68b3a7106)  
-**Start Date**: 01-06-2025  
-**Update Date**: 01-06-2025.
+⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](LICENSE.md)
+
+## ¿Te ha sido útil este contenido?
+
+Puedes apoyar este proyecto con una donación:
+
+[☕ Invítame un café](https://www.buymeacoffee.com/tuusuario)  
+[💸 Haz una donación vía PayPal](https://paypal.me/tuusuario)
+
+> Gracias por respetar la licencia y reconocer el trabajo compartido.
+
+> Gracias por apoyar el software libre 🙌

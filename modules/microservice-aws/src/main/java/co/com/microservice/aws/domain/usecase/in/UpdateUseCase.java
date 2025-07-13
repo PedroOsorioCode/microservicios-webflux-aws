@@ -1,7 +1,8 @@
 package co.com.microservice.aws.domain.usecase.in;
 
+import co.com.microservice.aws.domain.model.rq.TransactionRequest;
 import reactor.core.publisher.Mono;
 
-public interface UpdateUseCase<T> {
-    Mono<T> update(T t);
+public interface UpdateUseCase {
+    Mono<String> update(TransactionRequest request);
 }

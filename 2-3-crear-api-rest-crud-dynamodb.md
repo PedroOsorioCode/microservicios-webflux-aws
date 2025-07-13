@@ -1296,6 +1296,4 @@ entries:
 
 ---
 
-**Author**: Pedro Luis Osorio Pavas [Linkedin](https://www.linkedin.com/in/pedro-luis-osorio-pavas-68b3a7106)  
-**Start Date**: 01-06-2025  
-**Update Date**: 01-06-2025.
+⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](LICENSE.md)

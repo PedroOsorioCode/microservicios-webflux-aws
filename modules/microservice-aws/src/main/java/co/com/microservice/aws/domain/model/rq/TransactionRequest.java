@@ -5,6 +5,7 @@ import lombok.*;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.List;
+import java.util.Map;
 
 @Getter
 @Setter
@@ -18,4 +19,5 @@ public class TransactionRequest implements Serializable {
     private transient Context context;
     private transient Object item;
     private transient List<Object> items;
+    private transient Map<String, String> params;
 }

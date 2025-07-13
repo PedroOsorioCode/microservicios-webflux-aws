@@ -10,6 +10,7 @@ import lombok.ToString;
 public enum BusinessExceptionMessage {
     BUSINESS_ERROR("WRB01", "Error in a service", "Server error"),
     BUSINESS_USERNAME_REQUIRED("WRB02", "The attribute 'user-name' is required", "There is an error in the request body"),
+    BUSINESS_RECORD_NOT_FOUND("WRB03", "The record not found", "Bussiness error"),
     BUSINESS_OTRO_MENSAJE("WRB03", "Others message business", "Other");
 
     private final String code;
