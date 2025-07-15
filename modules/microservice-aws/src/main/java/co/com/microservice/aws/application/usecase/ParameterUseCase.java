@@ -1,0 +1,38 @@
+package co.com.microservice.aws.application.usecase;
+
+import co.com.microservice.aws.application.helpers.commons.UseCase;
+import co.com.microservice.aws.domain.model.Parameter;
+import co.com.microservice.aws.domain.model.commons.util.ResponseMessageConstant;
+import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+import co.com.microservice.aws.domain.model.rs.TransactionResponse;
+import co.com.microservice.aws.domain.usecase.in.FindByNameUseCase;
+import co.com.microservice.aws.domain.usecase.out.FindByNamePort;
+import lombok.RequiredArgsConstructor;
+import reactor.core.publisher.Mono;
+
+import java.util.Collections;
+import java.util.List;
+
+@UseCase
+@RequiredArgsConstructor
+public class ParameterUseCase implements FindByNameUseCase {
+    private final FindByNamePort<Parameter> parameterFinder;
+
+    @Override
+    public Mono<TransactionResponse> findByName(TransactionRequest request) {
+        return Mono.just(request)
+                .map(rq -> Parameter.builder().name(rq.getParams().get("param1")).build())
+                .flatMap(parameterFinder::findByName)
+                .flatMap(c -> this.buildResponse(List.of(c)));
+    }
+
+    private Mono<TransactionResponse> buildResponse(List<Parameter> parameters){
+        TransactionResponse response = TransactionResponse.builder()
+                .message(ResponseMessageConstant.MSG_LIST_SUCCESS)
+                .size(parameters.size())
+                .response(Collections.singletonList(parameters))
+                .build();
+
+        return Mono.just(response);
+    }
+}
