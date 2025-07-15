@@ -23,6 +23,10 @@ repositories {
 	mavenCentral()
 }
 
+ext {
+	awsSdkVersion = '2.25.17' // O la más reciente disponible
+}
+
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
@@ -34,6 +38,13 @@ dependencies {
 	implementation 'org.mapstruct:mapstruct:1.5.2.Final'
 	// Driver R2DBC para MySQL usando jasync
 	implementation 'com.github.jasync-sql:jasync-r2dbc-mysql:2.1.16'
+
+	implementation platform('software.amazon.awssdk:bom:2.25.2') // o la versión más reciente
+	implementation 'software.amazon.awssdk:auth'
+
+	implementation "software.amazon.awssdk:secretsmanager:$awsSdkVersion"
+	implementation "software.amazon.awssdk:regions:$awsSdkVersion"
+	implementation "software.amazon.awssdk:core:$awsSdkVersion"
 
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	compileOnly 'org.projectlombok:lombok'

@@ -47,11 +47,8 @@ entries:
     codeShort: "${REGEX_COUNTRY_CODE_SHORT:^[a-zA-Z]{3,4}$}"
 
 adapters:
-  postgresql:
-    url: r2dbc:postgresql://localhost:5432/my_postgres_db
-    usr: postgres
-    psw: 123456
-  mysql:
-    url: r2dbc:mysql://localhost:3306/my_mysql_db
-    usr: myroot
-    psw: myroot123
+  secrets-manager:
+    region: "${AWS_REGION:us-east-1}"
+    endpoint: ${PARAM_URL:http://localhost:4566}
+    namePostgresql: "${SECRET_NAME_POSTGRE:local-postgresql}"
+    nameMysql: "${SECRET_NAME_MYSQL:local-mysql}"

@@ -24,6 +24,7 @@ Introducción a arquitectura limpia [>> Ver](https://medium.com/@diego.coder/int
 * [7. Realizar pruebas (update - delete - findby)](#id7)
 * [8. Crear la conexión con mysql](#id8)
 * [9. Crear la instancia de base de datos en Podman](#id9)
+* [10. Crear conexión secrets-manager](#id10)
 
 # <div id='id1'/>
 # 1. Crear y configurar el proyecto:
@@ -2419,5 +2420,236 @@ adapters:
         "threadPriority": 5
     }
     ```
+# <div id='id10'/>
+# 10. Crear conexión secrets-manager
+
+Si bien la configuración de las conexiones a la base de datos se pueden realizar desde un pipeline release, esta información se considera sensible en ambientes productivos, por lo tanto, lo mejor es usar el servicio de secrets-manager de AWS
+
+- Ubicarse en el archivo application.yaml y cambiar driven adapters por lo siguiente: eliminamos las conexiones a bd ya que se guardarán en un secreto.
+```
+adapters:
+  secrets-manager:
+    region: "${AWS_REGION:us-east-1}"
+    endpoint: ${PARAM_URL:http://localhost:4566}
+    namePostgresql: "${SECRET_NAME_POSTGRE:local-postgresql}"
+    nameMysql: "${SECRET_NAME_MYSQL:local-mysql}"
+```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.helpers.secretsmanager y crear la clase SecretsConnectionProperties.java
+    ```
+    package co.com.microservice.aws.application.helpers.secretsmanager;
+
+    import org.springframework.boot.context.properties.ConfigurationProperties;
+    import org.springframework.context.annotation.Configuration;
+
+    import lombok.Getter;
+    import lombok.Setter;
+
+    @Setter
+    @Getter
+    @Configuration
+    @ConfigurationProperties(prefix = "adapters.secrets-manager")
+    public class SecretsConnectionProperties {
+        private String region;
+        private String endpoint;
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.helpers.secretsmanager y crear la clase SecretsManagerAsyncConfig.java
+    ```
+    package co.com.microservice.aws.application.helpers.secretsmanager;
+
+    import org.springframework.context.annotation.Bean;
+    import org.springframework.context.annotation.Configuration;
+    import org.springframework.context.annotation.Profile;
+
+    import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+    import software.amazon.awssdk.regions.Region;
+    import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
+
+    import java.net.URI;
+
+    @Configuration
+    public class SecretsManagerAsyncConfig {
+        public static final String AWS_SECRET_MANAGER_ASYNC = "awsSecretManagerSyncConnector";
+
+        @Profile("!local")
+        @Bean(name = AWS_SECRET_MANAGER_ASYNC)
+        public SecretsManagerClient secretsManagerClient(final SecretsConnectionProperties properties) {
+            return SecretsManagerClient.builder()
+                    .region(Region.of(properties.getRegion()))
+                    .credentialsProvider(DefaultCredentialsProvider.create())
+                    .build();
+        }
+
+        @Profile("local")
+        @Bean(name = AWS_SECRET_MANAGER_ASYNC)
+        public SecretsManagerClient localManagerAsync(final SecretsConnectionProperties properties) {
+            return SecretsManagerClient.builder()
+                    .endpointOverride(URI.create(properties.getEndpoint()))
+                    .region(Region.of(properties.getRegion()))
+                    .credentialsProvider(DefaultCredentialsProvider.create())
+                    .build();
+        }
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.helpers.utils y crear la clase SecretUtil.java
+    ```
+    package co.com.microservice.aws.application.helpers.utils;
+
+    import com.fasterxml.jackson.core.type.TypeReference;
+    import com.fasterxml.jackson.databind.ObjectMapper;
+    import lombok.experimental.UtilityClass;
+
+    import java.io.IOException;
+    import java.util.Collections;
+    import java.util.Map;
+
+    @UtilityClass
+    public class SecretUtil {
+
+        public static Map<String, String> parseSecret(String json) {
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                return mapper.readValue(json, new TypeReference<>() {});
+            } catch (IOException e) {
+                return Collections.emptyMap();
+            }
+        }
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.postgresql.config y modificar la clase PostgresConfig.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.postgresql.config;
+
+    import co.com.microservice.aws.application.helpers.utils.SecretUtil;
+    import io.r2dbc.spi.ConnectionFactories;
+    import io.r2dbc.spi.ConnectionFactory;
+    import io.r2dbc.spi.ConnectionFactoryOptions;
+    import org.springframework.beans.factory.annotation.Qualifier;
+    import org.springframework.beans.factory.annotation.Value;
+    import org.springframework.context.annotation.Bean;
+    import org.springframework.context.annotation.Configuration;
+    import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
+    import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
+    import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueRequest;
+    import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueResponse;
+
+    import java.util.Map;
+
+    import static io.r2dbc.spi.ConnectionFactoryOptions.PASSWORD;
+    import static io.r2dbc.spi.ConnectionFactoryOptions.USER;
+
+    @Configuration
+    public class PostgresConfig {
+        private final SecretsManagerClient secretsClient;
+        private final String secretNameBd;
+
+        public PostgresConfig(@Qualifier("awsSecretManagerSyncConnector") SecretsManagerClient secretsClient,
+                            @Value("${adapters.secrets-manager.namePostgresql}") String secretNameBd){
+            this.secretsClient = secretsClient;
+            this.secretNameBd = secretNameBd;
+        }
+
+        @Bean(name = "postgresConnectionFactory")
+        public ConnectionFactory postgresConnectionFactory() {
+            GetSecretValueRequest request = GetSecretValueRequest.builder()
+                    .secretId(secretNameBd)
+                    .build();
+
+            GetSecretValueResponse response = secretsClient.getSecretValue(request);
+            String secretJson = response.secretString();
+
+            Map<String, String> secrets = SecretUtil.parseSecret(secretJson);
+
+            ConnectionFactoryOptions options = ConnectionFactoryOptions.parse(secrets.get("url"))
+                    .mutate()
+                    .option(USER, secrets.get("usr"))
+                    .option(PASSWORD, secrets.get("psw"))
+                    .build();
+
+            return ConnectionFactories.get(options);
+        }
+
+        @Bean(name = "postgresEntityTemplate")
+        public R2dbcEntityTemplate postgresEntityTemplate(
+                @Qualifier("postgresConnectionFactory") ConnectionFactory connectionFactory) {
+            return new R2dbcEntityTemplate(connectionFactory);
+        }
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.mysql.config y modificar la clase MysqlConfig.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.mysql.config;
+
+    import co.com.microservice.aws.application.helpers.utils.SecretUtil;
+    import io.r2dbc.spi.ConnectionFactories;
+    import io.r2dbc.spi.ConnectionFactory;
+    import io.r2dbc.spi.ConnectionFactoryOptions;
+    import org.springframework.beans.factory.annotation.Qualifier;
+    import org.springframework.beans.factory.annotation.Value;
+    import org.springframework.context.annotation.Bean;
+    import org.springframework.context.annotation.Configuration;
+    import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
+    import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
+    import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueRequest;
+    import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueResponse;
+
+    import java.util.Map;
+
+    import static io.r2dbc.spi.ConnectionFactoryOptions.PASSWORD;
+    import static io.r2dbc.spi.ConnectionFactoryOptions.USER;
+
+    @Configuration
+    public class MysqlConfig {
+        private final SecretsManagerClient secretsClient;
+        private final String secretNameBd;
+
+        public MysqlConfig(@Qualifier("awsSecretManagerSyncConnector") SecretsManagerClient secretsClient,
+                            @Value("${adapters.secrets-manager.nameMysql}") String secretNameBd){
+            this.secretsClient = secretsClient;
+            this.secretNameBd = secretNameBd;
+        }
+
+        @Bean(name = "mysqlConnectionFactory")
+        public ConnectionFactory mysqlConfig() {
+            GetSecretValueRequest request = GetSecretValueRequest.builder()
+                    .secretId(secretNameBd)
+                    .build();
+
+            GetSecretValueResponse response = secretsClient.getSecretValue(request);
+            String secretJson = response.secretString();
+
+            Map<String, String> secrets = SecretUtil.parseSecret(secretJson);
+
+            ConnectionFactoryOptions options = ConnectionFactoryOptions.parse(secrets.get("url"))
+                    .mutate()
+                    .option(USER, secrets.get("usr"))
+                    .option(PASSWORD, secrets.get("psw"))
+                    .build();
+
+            return ConnectionFactories.get(options);
+        }
+
+        @Bean(name = "mysqlEntityTemplate")
+        public R2dbcEntityTemplate mysqlEntityTemplate(@Qualifier("mysqlConnectionFactory") ConnectionFactory connectionFactory) {
+            return new R2dbcEntityTemplate(connectionFactory);
+        }
+    }
+    ```
+
+- Preparar el ambiente local creando los secretos, en la consola de comandos (windows en este caso) ejecutar los siguientes:
+    ```
+    podman start localstack
+
+    aws secretsmanager create-secret --name local-postgresql --description "Connection to local PostgreSQL" --secret-string "{\"url\":\"r2dbc:postgresql://localhost:5432/my_postgres_db\",\"usr\":\"postgres\",\"psw\":\"123456\"}" --endpoint-url=http://localhost:4566
+
+    aws secretsmanager create-secret --name local-mysql --description "Conexión local a MySQL para microservicio" --secret-string "{\"url\":\"r2dbc:mysql://localhost:3306/my_mysql_db\",\"usr\":\"myroot\",\"psw\":\"myroot123\"}" --endpoint-url http://localhost:4566
+    ```
+
+- Ejecutar la aplicación y todo debe continuar funcionando, los servicios de postman y el log de imprimir la información del parámetro
 
 ⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](LICENSE.md)
