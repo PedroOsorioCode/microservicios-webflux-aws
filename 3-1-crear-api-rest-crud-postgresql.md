@@ -11,9 +11,22 @@
 
 ### Clean Architecture: 
 
-[Plugin documentación](https://bancolombia.github.io/scaffold-clean-architecture/docs/intro)
+Introducción a arquitectura limpia [>> Ver](https://medium.com/@diego.coder/introducci%C3%B3n-a-las-clean-architectures-723fe9fe17fa)
 
-### Crear proyecto:
+### Indice
+
+* [1. Crear proyecto](#id1)
+* [2. Crear la aplicación](#id2)
+* [3. Crear la conexión con postgresql](#id3)
+* [4. Crear la instancia de base de datos en Podman](#id4)
+* [5. Realizar pruebas (listall - save)](#id5)
+* [6. Completar la aplicación con otros metodos](#id6)
+* [7. Realizar pruebas (update - delete - findby)](#id7)
+* [8. Crear la conexión con mysql](#id8)
+* [9. Crear la instancia de base de datos en Podman](#id9)
+
+# <div id='id1'/>
+# 1. Crear y configurar el proyecto:
 
 1. Datos del proyecto
     - Visitar el sitio [Spring initializr](https://start.spring.io/)
@@ -88,13 +101,18 @@
             implementation 'com.fasterxml.jackson.core:jackson-databind'
             implementation 'io.r2dbc:r2dbc-h2'
             implementation 'org.mapstruct:mapstruct:1.5.2.Final'
-            annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.2.Final'
+            // Driver R2DBC para MySQL usando jasync
+            implementation 'com.github.jasync-sql:jasync-r2dbc-mysql:2.1.16'
 
-            compileOnly 'org.projectlombok:lombok'
             developmentOnly 'org.springframework.boot:spring-boot-devtools'
+            compileOnly 'org.projectlombok:lombok'
             runtimeOnly 'org.postgresql:postgresql'
             runtimeOnly 'org.postgresql:r2dbc-postgresql'
+            runtimeOnly 'com.mysql:mysql-connector-j'
+
             annotationProcessor 'org.projectlombok:lombok'
+            annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.2.Final'
+
             testImplementation 'org.springframework.boot:spring-boot-starter-test'
             testImplementation 'io.projectreactor:reactor-test'
             testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -110,6 +128,12 @@
 
         tasks.named('test') {
             useJUnitPlatform()
+        }
+
+        //options.incremental = false recompila siempre todos los archivos del proyecto
+        tasks.withType(JavaCompile).configureEach {
+            options.compilerArgs += ["-parameters"]
+            options.incremental = false
         }
         ```
         Actualizar dependencias
@@ -171,11 +195,9 @@ adapters:
     psw: 123456
   mysql:
     url: r2dbc:mysql://localhost:3306/my_mysql_db
-    usr: root
-    psw: root123
+    usr: myroot
+    psw: myroot123
 ```
-
-## Crear la aplicación
 
 - Abrir el archivo MicroserviceAwsApplication.java y click derecho y ejecutar la aplicación
     
@@ -187,6 +209,9 @@ adapters:
     ```
 
     ![](./img/proyecto-base-config-perfil-local.png)
+
+# <div id='id2'/>
+# 2. Crear la aplicación
 
 - Ubicarse en src > main > resources y crear el archivo log4j2.properties
     ```
@@ -318,6 +343,10 @@ adapters:
 
         public void error(Throwable throwable) {
             log.error("Unexpected error occurred:", throwable);
+        }
+
+        public void info(String message) {
+            log.info(message);
         }
 
         private TransactionLog.Application buildDataLog(String message, String messageId, String service, String method){
@@ -918,9 +947,9 @@ adapters:
         public static final String METHOD_DELETE = "Delete one world region";
     }
     ```
-- Ubicarse en el paquete co.com.microservice.aws.application.common y crear la clase UseCase.java
+- Ubicarse en el paquete co.com.microservice.aws.application.helpers.commons y crear la clase UseCase.java
     ```
-    package co.com.microservice.aws.application.common;
+    package co.com.microservice.aws.application.helpers.commons;
 
     import org.springframework.core.annotation.AliasFor;
     import org.springframework.stereotype.Component;
@@ -940,6 +969,7 @@ adapters:
     ```
     package co.com.microservice.aws.application.usecase;
 
+    import co.com.microservice.aws.application.helpers.commons.UseCase;
     import co.com.microservice.aws.domain.model.Country;
     import co.com.microservice.aws.domain.model.commons.exception.TechnicalException;
     import co.com.microservice.aws.domain.model.commons.util.ResponseMessageConstant;
@@ -959,6 +989,7 @@ adapters:
 
     import static co.com.microservice.aws.domain.model.commons.enums.TechnicalExceptionMessage.TECHNICAL_REQUEST_ERROR;
 
+    @UseCase("countryUseCase")
     @RequiredArgsConstructor
     public class CountryUseCase implements SaveUseCase, ListAllUseCase {
         private static final String KEY_USER_NAME = "user-name";
@@ -1053,29 +1084,46 @@ adapters:
     import co.com.microservice.aws.domain.model.Country;
     import co.com.microservice.aws.domain.model.rq.Context;
     import co.com.microservice.aws.domain.model.rq.TransactionRequest;
-    import co.com.microservice.aws.domain.model.rs.TransactionResponse;
-    import co.com.microservice.aws.domain.usecase.in.ListAllUseCase;
-    import co.com.microservice.aws.domain.usecase.in.SaveUseCase;
-    import lombok.RequiredArgsConstructor;
+    import co.com.microservice.aws.domain.usecase.in.*;
+    import org.springframework.beans.factory.annotation.Qualifier;
     import org.springframework.stereotype.Component;
     import org.springframework.web.reactive.function.server.ServerRequest;
     import org.springframework.web.reactive.function.server.ServerResponse;
     import reactor.core.publisher.Mono;
 
+    import java.util.Map;
+
     import static co.com.microservice.aws.domain.model.commons.util.LogMessage.*;
 
     @Component
-    @RequiredArgsConstructor
     public class CountryHandler {
         private static final String NAME_CLASS = CountryHandler.class.getName();
-        private static final String EMPTY_VALUE = "";
 
         private final LoggerBuilder logger;
         private final ListAllUseCase useCaseLister;
         private final SaveUseCase useCaseSaver;
+        private final UpdateUseCase useCaseUpdater;
+        private final DeleteUseCase useCaseDeleter;
+        private final FindByShortCodeUseCase useCaseFinder;
+
+        public CountryHandler(
+                LoggerBuilder logger,
+                @Qualifier("countryUseCase") ListAllUseCase useCaseLister,
+                @Qualifier("countryUseCase") SaveUseCase useCaseSaver,
+                @Qualifier("countryUseCase") UpdateUseCase useCaseUpdater,
+                @Qualifier("countryUseCase") DeleteUseCase useCaseDeleter,
+                @Qualifier("countryUseCase") FindByShortCodeUseCase useCaseFinder
+        ) {
+            this.logger = logger;
+            this.useCaseLister = useCaseLister;
+            this.useCaseSaver = useCaseSaver;
+            this.useCaseUpdater = useCaseUpdater;
+            this.useCaseDeleter = useCaseDeleter;
+            this.useCaseFinder = useCaseFinder;
+        }
 
         public Mono<ServerResponse> listAll(ServerRequest serverRequest) {
-            var request = this.buildRequestWithParams(serverRequest, METHOD_LISTCOUNTRIES);
+            var request = this.buildRequestWithParams(serverRequest, METHOD_LISTCOUNTRIES, Map.of("none", "none"));
             return useCaseLister.listAll(request)
                     .doOnError(this::printFailed)
                     .flatMap(response -> ServerResponse.ok().bodyValue(response));
@@ -1091,6 +1139,30 @@ adapters:
                     .flatMap(msg -> ServerResponse.ok().bodyValue(msg));
         }
 
+        public Mono<ServerResponse> findOne(ServerRequest serverRequest) {
+            var request = this.buildRequestWithParamsFind(serverRequest, METHOD_FINDONE);
+            return useCaseFinder.findByShortCode(request)
+                    .doOnError(this::printFailed)
+                    .flatMap(response -> ServerResponse.ok().bodyValue(response));
+        }
+
+        public Mono<ServerResponse> update(ServerRequest serverRequest) {
+            var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
+            var context = ContextUtil.buildContext(headers);
+            printOnProcess(context, METHOD_UPDATE);
+
+            return this.getRequest(serverRequest)
+                    .flatMap(useCaseUpdater::update)
+                    .flatMap(msg -> ServerResponse.ok().bodyValue(msg));
+        }
+
+        public Mono<ServerResponse> delete(ServerRequest serverRequest) {
+            var request = this.buildRequestWithParamsDelete(serverRequest, METHOD_DELETE);
+            return useCaseDeleter.delete(request)
+                    .doOnError(this::printFailed)
+                    .flatMap(response -> ServerResponse.ok().bodyValue(response));
+        }
+
         private Mono<TransactionRequest> getRequest(ServerRequest serverRequest) {
             var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
             var context = ContextUtil.buildContext(headers);
@@ -1099,13 +1171,25 @@ adapters:
                             .context(context).item(country).build()));
         }
 
-        private TransactionRequest buildRequestWithParams(ServerRequest serverRequest, String method){
+        private TransactionRequest buildRequestWithParamsFind(ServerRequest serverRequest, String method){
+            var shortCode = serverRequest.pathVariable("shortCode");
+            return this.buildRequestWithParams(serverRequest, method, Map.of("shortCode", shortCode));
+        }
+
+        private TransactionRequest buildRequestWithParamsDelete(ServerRequest serverRequest, String method){
+            var shortCode = serverRequest.pathVariable("id");
+            return this.buildRequestWithParams(serverRequest, method, Map.of("id", shortCode));
+        }
+
+        private TransactionRequest buildRequestWithParams(ServerRequest serverRequest,
+                                                        String method, Map<String, String> param){
             var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
             var context = ContextUtil.buildContext(headers);
             printOnProcess(context, method);
 
             return TransactionRequest.builder()
                     .context(context)
+                    .params(param)
                     .build();
         }
 
@@ -1117,7 +1201,6 @@ adapters:
             logger.info(TransactionLog.Request.builder().body(context).build(),
                     messageInfo, context.getId(), MESSAGE_SERVICE, NAME_CLASS);
         }
-
     }
     ```
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.router y crear la clase CountryRouterRest.java
@@ -1151,6 +1234,10 @@ adapters:
         }
     }
     ```
+
+# <div id='id3'/>
+# 3. Crear la conexión a Postgresql
+
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.postgresql.entity y crear la clase CountryEntity.java
     ```
     package co.com.microservice.aws.infrastructure.output.postgresql.entity;
@@ -1272,10 +1359,12 @@ adapters:
     }
     ```
 
-## Crear la instancia de base de datos en Podman
+# <div id='id4'/>
+# 4. Crear la instancia de base de datos en Podman
 
 - Abrir la consola de comandos para descargar la imagen de Postgresql y subir el contenedor en Podman o Docker
     ```
+    podman machine start
     podman pull docker.io/library/postgres:16
     ```
 - Ejecutar el contenedor
@@ -1329,9 +1418,11 @@ adapters:
     ```
 
 - Ejecutar la creación de la tabla
-    ![](./img/modules/3_connection_dbeaver_postgresql_create_table.png.png)
 
-## Realizar pruebas
+    ![](./img/modules/3_connection_dbeaver_postgresql_create_table.png)
+
+# <div id='id5'/>
+# 5. Realizar pruebas (listall - save)
 
 - Ejecutar la aplicación
 - Probamos "list-all" por postman: curls caso error
@@ -1391,7 +1482,8 @@ adapters:
     }
     ```
 
-## Creación demas metodos
+# <div id='id6'/>
+# 6. Completar la aplicación con otros metodos, refactorizando
 
 - Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in y crear la clase UpdateUseCase.java
     ```
@@ -1426,6 +1518,15 @@ adapters:
 
     public interface FindByShortCodeUseCase {
         Mono<TransactionResponse> findByShortCode(TransactionRequest request);
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in y crear la clase CountryUseCase.java
+    ```
+    package co.com.microservice.aws.domain.usecase.in;
+
+    public interface CountryUseCase extends SaveUseCase, UpdateUseCase, DeleteUseCase,
+            ListAllUseCase, FindByShortCodeUseCase{
     }
     ```
 
@@ -1466,7 +1567,7 @@ adapters:
     import co.com.microservice.aws.domain.model.Country;
     import co.com.microservice.aws.domain.model.rq.Context;
     import co.com.microservice.aws.domain.model.rq.TransactionRequest;
-    import co.com.microservice.aws.domain.usecase.in.*;
+    import co.com.microservice.aws.domain.usecase.in.CountryUseCase;
     import lombok.RequiredArgsConstructor;
     import org.springframework.stereotype.Component;
     import org.springframework.web.reactive.function.server.ServerRequest;
@@ -1481,18 +1582,13 @@ adapters:
     @RequiredArgsConstructor
     public class CountryHandler {
         private static final String NAME_CLASS = CountryHandler.class.getName();
-        private static final String EMPTY_VALUE = "";
 
         private final LoggerBuilder logger;
-        private final ListAllUseCase useCaseLister;
-        private final SaveUseCase useCaseSaver;
-        private final UpdateUseCase useCaseUpdater;
-        private final DeleteUseCase useCaseDeleter;
-        private final FindByShortCodeUseCase useCaseFinder;
+        private final CountryUseCase countryUseCase;
 
         public Mono<ServerResponse> listAll(ServerRequest serverRequest) {
             var request = this.buildRequestWithParams(serverRequest, METHOD_LISTCOUNTRIES, Map.of("none", "none"));
-            return useCaseLister.listAll(request)
+            return countryUseCase.listAll(request)
                     .doOnError(this::printFailed)
                     .flatMap(response -> ServerResponse.ok().bodyValue(response));
         }
@@ -1503,13 +1599,13 @@ adapters:
             printOnProcess(context, METHOD_SAVE);
 
             return this.getRequest(serverRequest)
-                    .flatMap(useCaseSaver::save)
+                    .flatMap(countryUseCase::save)
                     .flatMap(msg -> ServerResponse.ok().bodyValue(msg));
         }
 
         public Mono<ServerResponse> findOne(ServerRequest serverRequest) {
             var request = this.buildRequestWithParamsFind(serverRequest, METHOD_FINDONE);
-            return useCaseFinder.findByShortCode(request)
+            return countryUseCase.findByShortCode(request)
                     .doOnError(this::printFailed)
                     .flatMap(response -> ServerResponse.ok().bodyValue(response));
         }
@@ -1520,13 +1616,13 @@ adapters:
             printOnProcess(context, METHOD_UPDATE);
 
             return this.getRequest(serverRequest)
-                    .flatMap(useCaseUpdater::update)
+                    .flatMap(countryUseCase::update)
                     .flatMap(msg -> ServerResponse.ok().bodyValue(msg));
         }
 
         public Mono<ServerResponse> delete(ServerRequest serverRequest) {
             var request = this.buildRequestWithParamsDelete(serverRequest, METHOD_DELETE);
-            return useCaseDeleter.delete(request)
+            return countryUseCase.delete(request)
                     .doOnError(this::printFailed)
                     .flatMap(response -> ServerResponse.ok().bodyValue(response));
         }
@@ -1627,11 +1723,11 @@ adapters:
         }
     }
     ```
-- Ubicarse en el paquete co.com.microservice.aws.application.usecase y modificar la clase CountryUseCase.java
+- Ubicarse en el paquete co.com.microservice.aws.application.usecase y modificar la clase CountryUseCaseImpl.java
     ```
     package co.com.microservice.aws.application.usecase;
 
-    import co.com.microservice.aws.application.common.UseCase;
+    import co.com.microservice.aws.application.helpers.commons.UseCase;
     import co.com.microservice.aws.domain.model.Country;
     import co.com.microservice.aws.domain.model.commons.exception.BusinessException;
     import co.com.microservice.aws.domain.model.commons.exception.TechnicalException;
@@ -1643,8 +1739,6 @@ adapters:
     import co.com.microservice.aws.domain.usecase.out.*;
     import lombok.RequiredArgsConstructor;
     import reactor.core.publisher.Mono;
-    import reactor.util.function.Tuple2;
-    import reactor.util.function.Tuples;
 
     import java.util.Collections;
     import java.util.List;
@@ -1656,7 +1750,7 @@ adapters:
 
     @UseCase
     @RequiredArgsConstructor
-    public class CountryUseCase implements SaveUseCase, ListAllUseCase, FindByShortCodeUseCase, UpdateUseCase, DeleteUseCase {
+    public class CountryUseCaseImpl implements CountryUseCase {
         private static final String KEY_USER_NAME = "user-name";
         private static final String ATTRIBUTE_IS_REQUIRED = "The attribute '%s' is required";
 
@@ -1861,8 +1955,8 @@ adapters:
         }
     }
     ```
-
-# Realizando la prueba
+# <div id='id7'/>
+# 7. Realizar pruebas (update - delete - findby)
 
 - Curls "findByShortCode"
     ```
@@ -1916,9 +2010,414 @@ adapters:
     }'
     ```
 
-- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.postgresql.config y crear la clase PostgresConfig.java
+---
+
+# <div id='id8'/>
+# 8. Crear la conexión a Mysql
+
+- Se debe reconfigurar la conexión de postgresql para mantener dos conexiones activas en el mismo proyecto
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.postgresql.config y modificar la clase PostgresConfig.java
     ```
+    package co.com.microservice.aws.infrastructure.output.postgresql.config;
+
+    import io.r2dbc.spi.ConnectionFactories;
+    import io.r2dbc.spi.ConnectionFactory;
+    import io.r2dbc.spi.ConnectionFactoryOptions;
+    import lombok.RequiredArgsConstructor;
+    import org.springframework.beans.factory.annotation.Qualifier;
+    import org.springframework.beans.factory.annotation.Value;
+    import org.springframework.context.annotation.Bean;
+    import org.springframework.context.annotation.Configuration;
+    import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
+
+    import static io.r2dbc.spi.ConnectionFactoryOptions.PASSWORD;
+    import static io.r2dbc.spi.ConnectionFactoryOptions.USER;
+
+    @Configuration
+    @RequiredArgsConstructor
+    public class PostgresConfig {
+
+        @Bean(name = "postgresConnectionFactory")
+        public ConnectionFactory postgresConnectionFactory(@Value("${adapters.postgresql.url}") String url,
+                                                        @Value("${adapters.postgresql.usr}") String usr,
+                                                        @Value("${adapters.postgresql.psw}") String psw) {
+            ConnectionFactoryOptions options = ConnectionFactoryOptions.parse(url)
+                    .mutate()
+                    .option(USER, usr)
+                    .option(PASSWORD, psw)
+                    .build();
+
+            return ConnectionFactories.get(options);
+        }
+
+        @Bean(name = "postgresEntityTemplate")
+        public R2dbcEntityTemplate postgresEntityTemplate(@Qualifier("postgresConnectionFactory") ConnectionFactory connectionFactory) {
+            return new R2dbcEntityTemplate(connectionFactory);
+        }
+    }
     ```
-- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.postgresql.config y crear la clase PostgresConfig.java
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.postgresql.config y crear la clase PostgresRepositoryConfig.java
     ```
+    package co.com.microservice.aws.infrastructure.output.postgresql.config;
+
+    import org.springframework.context.annotation.Configuration;
+    import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
+
+    @Configuration
+    @EnableR2dbcRepositories(
+            basePackages = "co.com.microservice.aws.infrastructure.output.postgresql.repository",
+            entityOperationsRef = "postgresEntityTemplate"
+    )
+    public class PostgresRepositoryConfig {
+    }
     ```
+    
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.mysql.entity y crear la clase ParameterEntity.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.mysql.entity;
+    import lombok.*;
+    import org.springframework.data.annotation.Id;
+    import org.springframework.data.relational.core.mapping.Table;
+
+    import java.time.LocalDateTime;
+
+    @Table(name = "parameters")
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public class ParameterEntity {
+        @Id
+        private Long id;
+        private String name;
+        private Boolean value;
+        private LocalDateTime dateCreation;
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.domain.model y crear la clase Parameter.java
+    ```
+    package co.com.microservice.aws.domain.model;
+
+    import lombok.AllArgsConstructor;
+    import lombok.Builder;
+    import lombok.Data;
+    import lombok.NoArgsConstructor;
+
+    import java.io.Serial;
+    import java.io.Serializable;
+    import java.time.LocalDateTime;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    public class Parameter implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+        
+        private Long id;
+        private String name;
+        private Boolean value;
+        private LocalDateTime dateCreation;
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.mysql.mapper y crear la clase ParameterEntityMapper.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.mysql.mapper;
+
+    import co.com.microservice.aws.domain.model.Parameter;
+    import co.com.microservice.aws.infrastructure.output.mysql.entity.ParameterEntity;
+    import org.mapstruct.Mapper;
+
+    @Mapper(componentModel = "spring")
+    public interface ParameterEntityMapper {
+        ParameterEntity toEntityFromModel(Parameter objectModel);
+        Parameter toModelFromEntity(ParameterEntity objectEntity);
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.out y crear la clase ParemeterRepository.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.mysql.repository;
+
+    import co.com.microservice.aws.infrastructure.output.mysql.entity.ParameterEntity;
+    import org.springframework.data.r2dbc.repository.R2dbcRepository;
+    import reactor.core.publisher.Mono;
+
+    public interface ParemeterRepository extends R2dbcRepository<ParameterEntity, Long> {
+        Mono<ParameterEntity> findByName(String name);
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.out y crear la clase FindByNamePort.java
+    ```
+    package co.com.microservice.aws.domain.usecase.out;
+
+    import reactor.core.publisher.Mono;
+
+    public interface FindByNamePort<T> {
+        Mono<T> findByName(T t);
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.mysql y crear la clase ParameterAdapter.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.mysql;
+
+    import co.com.microservice.aws.domain.model.Parameter;
+    import co.com.microservice.aws.domain.usecase.out.FindByNamePort;
+    import co.com.microservice.aws.infrastructure.output.mysql.mapper.ParameterEntityMapper;
+    import co.com.microservice.aws.infrastructure.output.mysql.repository.ParameterRepository;
+    import lombok.RequiredArgsConstructor;
+    import org.springframework.stereotype.Component;
+    import reactor.core.publisher.Mono;
+
+    @Component
+    @RequiredArgsConstructor
+    public class ParameterAdapter implements FindByNamePort<Parameter> {
+        private final ParameterEntityMapper mapper;
+        private final ParameterRepository parameterRepository;
+
+        @Override
+        public Mono<Parameter> findByName(Parameter parameter) {
+            return Mono.just(parameter)
+                    .map(Parameter::getName)
+                    .flatMap(parameterRepository::findByName)
+                    .map(mapper::toModelFromEntity);
+        }
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.mysql.config y crear la clase MysqlConfig.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.mysql.config;
+
+    import io.r2dbc.spi.ConnectionFactories;
+    import io.r2dbc.spi.ConnectionFactory;
+    import io.r2dbc.spi.ConnectionFactoryOptions;
+    import lombok.RequiredArgsConstructor;
+    import org.springframework.beans.factory.annotation.Qualifier;
+    import org.springframework.beans.factory.annotation.Value;
+    import org.springframework.context.annotation.Bean;
+    import org.springframework.context.annotation.Configuration;
+    import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
+
+    import static io.r2dbc.spi.ConnectionFactoryOptions.PASSWORD;
+    import static io.r2dbc.spi.ConnectionFactoryOptions.USER;
+
+    @Configuration
+    @RequiredArgsConstructor
+    public class MysqlConfig {
+
+        @Bean(name = "mysqlConnectionFactory")
+        public ConnectionFactory MysqlConfig(@Value("${adapters.mysql.url}") String url,
+                                            @Value("${adapters.mysql.usr}") String usr,
+                                            @Value("${adapters.mysql.psw}") String psw) {
+            ConnectionFactoryOptions options = ConnectionFactoryOptions.parse(url)
+                    .mutate()
+                    .option(USER, usr)
+                    .option(PASSWORD, psw)
+                    .build();
+
+            return ConnectionFactories.get(options);
+        }
+
+        @Bean(name = "mysqlEntityTemplate")
+        public R2dbcEntityTemplate mysqlEntityTemplate(@Qualifier("mysqlConnectionFactory") ConnectionFactory connectionFactory) {
+            return new R2dbcEntityTemplate(connectionFactory);
+        }
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.mysql.config y crear la clase MysqlRepositoryConfig.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.mysql.config;
+
+    import org.springframework.context.annotation.Configuration;
+    import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
+
+    @Configuration
+    @EnableR2dbcRepositories(
+            basePackages = "co.com.microservice.aws.infrastructure.output.mysql.repository",
+            entityOperationsRef = "mysqlEntityTemplate"
+    )
+    public class MysqlRepositoryConfig {
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in y crear la clase FindByNameUseCase.java
+    ```
+    package co.com.microservice.aws.domain.usecase.in;
+
+    import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+    import co.com.microservice.aws.domain.model.rs.TransactionResponse;
+    import reactor.core.publisher.Mono;
+
+    public interface FindByNameUseCase {
+        Mono<TransactionResponse> findByName(TransactionRequest request);
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in y crear la clase FindByNameUseCase.java
+    ```
+    package co.com.microservice.aws.domain.usecase.in;
+
+    import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+    import co.com.microservice.aws.domain.model.rs.TransactionResponse;
+    import reactor.core.publisher.Mono;
+
+    public interface FindByNameUseCase {
+        Mono<TransactionResponse> findByName(TransactionRequest request);
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.usecase y crear la clase ParameterUseCase.java
+    ```
+    package co.com.microservice.aws.application.usecase;
+
+    import co.com.microservice.aws.application.helpers.commons.UseCase;
+    import co.com.microservice.aws.domain.model.Parameter;
+    import co.com.microservice.aws.domain.model.commons.exception.BusinessException;
+    import co.com.microservice.aws.domain.model.commons.util.ResponseMessageConstant;
+    import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+    import co.com.microservice.aws.domain.model.rs.TransactionResponse;
+    import co.com.microservice.aws.domain.usecase.in.FindByNameUseCase;
+    import co.com.microservice.aws.domain.usecase.out.FindByNamePort;
+    import lombok.RequiredArgsConstructor;
+    import reactor.core.publisher.Mono;
+
+    import java.util.Collections;
+    import java.util.List;
+
+    import static co.com.microservice.aws.domain.model.commons.enums.BusinessExceptionMessage.BUSINESS_RECORD_NOT_FOUND;
+
+    @UseCase
+    @RequiredArgsConstructor
+    public class ParameterUseCase implements FindByNameUseCase {
+        private final FindByNamePort<Parameter> parameterFinder;
+
+        @Override
+        public Mono<TransactionResponse> findByName(TransactionRequest request) {
+            return Mono.just(request)
+                    .map(rq -> Parameter.builder().name(rq.getParams().get("param1")).build())
+                    .flatMap(parameterFinder::findByName)
+                    .switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_RECORD_NOT_FOUND))))
+                    .flatMap(c -> this.buildResponse(List.of(c)));
+        }
+
+        private Mono<TransactionResponse> buildResponse(List<Parameter> parameters){
+            TransactionResponse response = TransactionResponse.builder()
+                    .message(ResponseMessageConstant.MSG_LIST_SUCCESS)
+                    .size(parameters.size())
+                    .response(Collections.singletonList(parameters))
+                    .build();
+
+            return Mono.just(response);
+        }
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.config y crear la clase ParameterLoaderConfig.java para cargar los parámetros desde el inicio de la aplicación, posteriormente estos se podrían cargar en una cache para acceder a su valor, para efectos del ejercicio se imprime en los logs
+    ```
+    package co.com.microservice.aws.application.config;
+
+    import co.com.microservice.aws.application.helpers.logs.LoggerBuilder;
+    import co.com.microservice.aws.application.helpers.logs.TransactionLog;
+    import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+    import co.com.microservice.aws.domain.usecase.in.FindByNameUseCase;
+    import lombok.RequiredArgsConstructor;
+    import org.springframework.boot.context.event.ApplicationReadyEvent;
+    import org.springframework.context.event.EventListener;
+    import org.springframework.stereotype.Component;
+
+    import java.util.Map;
+    import java.util.UUID;
+
+    @Component
+    @RequiredArgsConstructor
+    public class ParameterLoaderConfig {
+        private final FindByNameUseCase useCasefinder;
+        private final LoggerBuilder logger;
+
+        @EventListener(ApplicationReadyEvent.class)
+        public void initialParamterStatus() {
+            var parameters = Map.of("param1", "Aply_audit", "param2", "Message_in_spanish");
+            TransactionRequest req = TransactionRequest.builder().params(parameters).build();
+
+            useCasefinder.findByName(req)
+                    .doOnNext(param -> logger.info(
+                            TransactionLog.Response.builder().body(param).build(),
+                            "List parameters", UUID.randomUUID().toString(),
+                            "ParameterLoaderConfig", "initialParamterStatus"))
+                    .doOnError(error -> logger.info("Error al cargar parámetros: " + error.getMessage(), "", "", ""))
+                    .subscribe();
+        }
+    }
+    ```
+
+# <div id='id9'/>
+# 9. Crear la instancia de base de datos en Podman
+
+- Abrir la consola de comandos para descargar la imagen de Postgresql y subir el contenedor en Podman o Docker
+    ```
+    podman machine start
+    podman pull docker.io/library/mysql:8.4
+    ```
+- Ejecutar el contenedor
+    ```
+    podman run -d --name mysql-container -e MYSQL_ROOT_PASSWORD=root123 -e MYSQL_DATABASE=my_mysql_db -e MYSQL_USER=myroot -e MYSQL_PASSWORD=myroot123 -p 3306:3306 mysql:8.4
+    ```
+- Conectar a la bd con DBeaver
+
+    ![](./img/modules/3_connection_dbeaver_mysql.png)
+
+- Creamos la tabla
+    ```
+    CREATE TABLE IF NOT EXISTS parameters (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        value BOOLEAN NOT NULL DEFAULT TRUE,
+        date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    ```
+
+- Realizamos el insert de la información
+    ```
+    INSERT INTO parameters (name) VALUES
+    ('Aply_audit'),
+    ('Message_in_spanish');
+    ```
+
+- Logs de cargar el parámetro: inicia la aplicación y posteriormente muestra la información del parámetro
+    ```
+    {
+        "instant": {
+            "epochSecond": 1752607560,
+            "nanoOfSecond": 762734500
+        },
+        "thread": "restartedMain",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.MicroserviceAwsApplication",
+        "message": "Started MicroserviceAwsApplication in 2.812 seconds (process running for 3.716)",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.commons.logging.LogAdapter$Log4jLog",
+        "threadId": 42,
+        "threadPriority": 5
+    }
+    {
+        "instant": {
+            "epochSecond": 1752607560,
+            "nanoOfSecond": 996090700
+        },
+        "thread": "ForkJoinPool.commonPool-worker-1",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"List parameters\",\"messageId\":\"df13976d-3e95-467d-bed1-12d797814435\",\"service\":\"ParameterLoaderConfig\",\"method\":\"initialParamterStatus\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":{\"headers\":null,\"body\":{\"message\":\"Listed successfull!\",\"size\":1,\"response\":[[{\"id\":1,\"name\":\"Aply_audit\",\"value\":true,\"dateCreation\":\"2025-07-15T16:50:56\"}]]}}}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 59,
+        "threadPriority": 5
+    }
+    ```
+
+⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](LICENSE.md)

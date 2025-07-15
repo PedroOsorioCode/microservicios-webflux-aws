@@ -31,7 +31,7 @@ Fecha Ultima Actualización: "2025-07-13"
 
 Puedes apoyar este proyecto con una donación:
 
-[☕ Invítame un café](https://www.buymeacoffee.com/tuusuario)  
+[☕ Invítame un café](https://ko-fi.com/microservicesbypedro)  
 [💸 Haz una donación vía PayPal](https://paypal.me/tuusuario)
 
 > Gracias por respetar la licencia y reconocer el trabajo compartido.

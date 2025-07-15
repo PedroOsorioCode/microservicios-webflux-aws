@@ -6,7 +6,7 @@ import co.com.microservice.aws.application.helpers.logs.TransactionLog;
 import co.com.microservice.aws.domain.model.Country;
 import co.com.microservice.aws.domain.model.rq.Context;
 import co.com.microservice.aws.domain.model.rq.TransactionRequest;
-import co.com.microservice.aws.domain.usecase.in.*;
+import co.com.microservice.aws.domain.usecase.in.CountryUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
@@ -21,18 +21,13 @@ import static co.com.microservice.aws.domain.model.commons.util.LogMessage.*;
 @RequiredArgsConstructor
 public class CountryHandler {
     private static final String NAME_CLASS = CountryHandler.class.getName();
-    private static final String EMPTY_VALUE = "";
 
     private final LoggerBuilder logger;
-    private final ListAllUseCase useCaseLister;
-    private final SaveUseCase useCaseSaver;
-    private final UpdateUseCase useCaseUpdater;
-    private final DeleteUseCase useCaseDeleter;
-    private final FindByShortCodeUseCase useCaseFinder;
+    private final CountryUseCase countryUseCase;
 
     public Mono<ServerResponse> listAll(ServerRequest serverRequest) {
         var request = this.buildRequestWithParams(serverRequest, METHOD_LISTCOUNTRIES, Map.of("none", "none"));
-        return useCaseLister.listAll(request)
+        return countryUseCase.listAll(request)
                 .doOnError(this::printFailed)
                 .flatMap(response -> ServerResponse.ok().bodyValue(response));
     }
@@ -43,13 +38,13 @@ public class CountryHandler {
         printOnProcess(context, METHOD_SAVE);
 
         return this.getRequest(serverRequest)
-                .flatMap(useCaseSaver::save)
+                .flatMap(countryUseCase::save)
                 .flatMap(msg -> ServerResponse.ok().bodyValue(msg));
     }
 
     public Mono<ServerResponse> findOne(ServerRequest serverRequest) {
         var request = this.buildRequestWithParamsFind(serverRequest, METHOD_FINDONE);
-        return useCaseFinder.findByShortCode(request)
+        return countryUseCase.findByShortCode(request)
                 .doOnError(this::printFailed)
                 .flatMap(response -> ServerResponse.ok().bodyValue(response));
     }
@@ -60,13 +55,13 @@ public class CountryHandler {
         printOnProcess(context, METHOD_UPDATE);
 
         return this.getRequest(serverRequest)
-                .flatMap(useCaseUpdater::update)
+                .flatMap(countryUseCase::update)
                 .flatMap(msg -> ServerResponse.ok().bodyValue(msg));
     }
 
     public Mono<ServerResponse> delete(ServerRequest serverRequest) {
         var request = this.buildRequestWithParamsDelete(serverRequest, METHOD_DELETE);
-        return useCaseDeleter.delete(request)
+        return countryUseCase.delete(request)
                 .doOnError(this::printFailed)
                 .flatMap(response -> ServerResponse.ok().bodyValue(response));
     }

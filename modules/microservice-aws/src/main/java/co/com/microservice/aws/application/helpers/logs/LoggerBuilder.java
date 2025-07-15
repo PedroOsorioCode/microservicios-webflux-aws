@@ -36,6 +36,10 @@ public class LoggerBuilder {
         log.error("Unexpected error occurred:", throwable);
     }
 
+    public void info(String message) {
+        log.info(message);
+    }
+
     private TransactionLog.Application buildDataLog(String message, String messageId, String service, String method){
         return new TransactionLog.Application(message, messageId, service, method, appName);
     }

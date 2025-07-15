@@ -1,6 +1,6 @@
 package co.com.microservice.aws.application.usecase;
 
-import co.com.microservice.aws.application.common.UseCase;
+import co.com.microservice.aws.application.helpers.commons.UseCase;
 import co.com.microservice.aws.domain.model.Country;
 import co.com.microservice.aws.domain.model.commons.exception.BusinessException;
 import co.com.microservice.aws.domain.model.commons.exception.TechnicalException;
@@ -12,8 +12,6 @@ import co.com.microservice.aws.domain.usecase.in.*;
 import co.com.microservice.aws.domain.usecase.out.*;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
-import reactor.util.function.Tuple2;
-import reactor.util.function.Tuples;
 
 import java.util.Collections;
 import java.util.List;
@@ -25,7 +23,7 @@ import static co.com.microservice.aws.domain.model.commons.enums.TechnicalExcept
 
 @UseCase
 @RequiredArgsConstructor
-public class CountryUseCase implements SaveUseCase, ListAllUseCase, FindByShortCodeUseCase, UpdateUseCase, DeleteUseCase {
+public class CountryUseCaseImpl implements CountryUseCase {
     private static final String KEY_USER_NAME = "user-name";
     private static final String ATTRIBUTE_IS_REQUIRED = "The attribute '%s' is required";
 

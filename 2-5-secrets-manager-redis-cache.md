@@ -30,7 +30,7 @@
 
 > Vamos a suponer que necesitamos auditar que usuario realiza alguna de las acciones en las api que tenemos (listar, crear, obtener uno, actualizar y borrar), para lograr esto vamos a usar un parámetro de tal forma de que si está activo se guarda auditoría, sino, entonces no se guarda; para ver alternativas de parametrización vamos a hacerlo de forma diferente para cada metodo (Listar, Crear, Borrar).
 
-## Recuros base:
+## Recursos base:
 
 1. Agregar nuevas variables en el application-local.yaml
 

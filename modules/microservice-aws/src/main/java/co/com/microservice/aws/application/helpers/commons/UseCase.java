@@ -1,4 +1,4 @@
-package co.com.microservice.aws.application.common;
+package co.com.microservice.aws.application.helpers.commons;
 
 import org.springframework.core.annotation.AliasFor;
 import org.springframework.stereotype.Component;

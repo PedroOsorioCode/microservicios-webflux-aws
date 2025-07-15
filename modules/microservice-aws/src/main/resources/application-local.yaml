@@ -53,5 +53,5 @@ adapters:
     psw: 123456
   mysql:
     url: r2dbc:mysql://localhost:3306/my_mysql_db
-    usr: root
-    psw: root123
+    usr: myroot
+    psw: myroot123
