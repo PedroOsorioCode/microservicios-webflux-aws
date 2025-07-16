@@ -39,12 +39,15 @@ dependencies {
 	// Driver R2DBC para MySQL usando jasync
 	implementation 'com.github.jasync-sql:jasync-r2dbc-mysql:2.1.16'
 
-	implementation platform('software.amazon.awssdk:bom:2.25.2') // o la versión más reciente
+	implementation platform('software.amazon.awssdk:bom:2.25.2')
 	implementation 'software.amazon.awssdk:auth'
 
 	implementation "software.amazon.awssdk:secretsmanager:$awsSdkVersion"
 	implementation "software.amazon.awssdk:regions:$awsSdkVersion"
 	implementation "software.amazon.awssdk:core:$awsSdkVersion"
+
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
+	implementation 'io.lettuce:lettuce-core'
 
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	compileOnly 'org.projectlombok:lombok'

@@ -2,6 +2,7 @@ package co.com.microservice.aws.application.usecase;
 
 import co.com.microservice.aws.application.helpers.commons.UseCase;
 import co.com.microservice.aws.domain.model.Country;
+import co.com.microservice.aws.domain.model.commons.enums.CacheKey;
 import co.com.microservice.aws.domain.model.commons.exception.BusinessException;
 import co.com.microservice.aws.domain.model.commons.exception.TechnicalException;
 import co.com.microservice.aws.domain.model.commons.util.ResponseMessageConstant;
@@ -32,11 +33,13 @@ public class CountryUseCaseImpl implements CountryUseCase {
     private final UpdatePort<Country> countryUpdater;
     private final DeletePort<Country> countryDeleter;
     private final FindByShortCodePort<Country> countryFinder;
+    private final RedisPort redisPort;
 
     @Override
     public Mono<TransactionResponse> listAll(TransactionRequest request) {
         return Mono.just(request)
             .filter(this::userIsRequired)
+            .flatMap(req -> redisPort.find(CacheKey.APPLY_AUDIT.getKey()).thenReturn(req))
             .flatMap(req -> countryLister.listAll(req.getContext()).collectList().flatMap(this::buildResponse)
             ).switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_USERNAME_REQUIRED))));
     }

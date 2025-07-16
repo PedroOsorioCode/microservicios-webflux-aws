@@ -25,6 +25,7 @@ Introducción a arquitectura limpia [>> Ver](https://medium.com/@diego.coder/int
 * [8. Crear la conexión con mysql](#id8)
 * [9. Crear la instancia de base de datos en Podman](#id9)
 * [10. Crear conexión secrets-manager](#id10)
+* [11. Crear conexión redis-cache](#id11)
 
 # <div id='id1'/>
 # 1. Crear y configurar el proyecto:
@@ -1204,6 +1205,7 @@ adapters:
         }
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.router y crear la clase CountryRouterRest.java
     ```
     package co.com.microservice.aws.infrastructure.input.rest.api.router;
@@ -2433,6 +2435,9 @@ adapters:
     endpoint: ${PARAM_URL:http://localhost:4566}
     namePostgresql: "${SECRET_NAME_POSTGRE:local-postgresql}"
     nameMysql: "${SECRET_NAME_MYSQL:local-mysql}"
+    nameRedis: "${SECRET_NAME_REDIS:local-redis}"
+  redis:
+    expireTime: ${CACHE_EXPIRE_SECONDS:10}
 ```
 
 - Ubicarse en el paquete co.com.microservice.aws.application.helpers.secretsmanager y crear la clase SecretsConnectionProperties.java
@@ -2651,5 +2656,288 @@ adapters:
     ```
 
 - Ejecutar la aplicación y todo debe continuar funcionando, los servicios de postman y el log de imprimir la información del parámetro
+
+# <div id='id11'/>
+# 11. Crear conexión redis-cache
+
+- Agregar en el archivo build.gradle
+    ```
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
+        implementation 'io.lettuce:lettuce-core'
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws y modificar la clase MicroserviceAwsApplication.java
+    ```
+    package co.com.microservice.aws;
+
+    import org.springframework.boot.SpringApplication;
+    import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+    @SpringBootApplication(exclude = {
+            org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration.class,
+            org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration.class
+    })
+    public class MicroserviceAwsApplication {
+        public static void main(String[] args) {
+            SpringApplication.run(MicroserviceAwsApplication.class, args);
+        }
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.redis.config y crear la clase RedisConfig.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.redis.config;
+
+    import co.com.microservice.aws.application.helpers.utils.SecretUtil;
+    import org.springframework.beans.factory.annotation.Qualifier;
+    import org.springframework.beans.factory.annotation.Value;
+    import org.springframework.context.annotation.Bean;
+    import org.springframework.context.annotation.Configuration;
+    import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
+    import org.springframework.data.redis.connection.RedisPassword;
+    import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+    import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+    import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
+    import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
+    import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueRequest;
+    import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueResponse;
+
+    import java.util.Map;
+
+    @Configuration
+    public class RedisConfig {
+        private final SecretsManagerClient secretsClient;
+        private final String secretNameBd;
+
+        public RedisConfig(@Qualifier("awsSecretManagerSyncConnector") SecretsManagerClient secretsClient,
+                            @Value("${adapters.secrets-manager.nameRedis}") String secretNameBd){
+            this.secretsClient = secretsClient;
+            this.secretNameBd = secretNameBd;
+        }
+
+        @Bean(name = "customRedisConnectionFactory")
+        public ReactiveRedisConnectionFactory redisConnectionFactory() {
+            GetSecretValueRequest request = GetSecretValueRequest.builder()
+                    .secretId(secretNameBd)
+                    .build();
+
+            GetSecretValueResponse response = secretsClient.getSecretValue(request);
+            String secretJson = response.secretString();
+
+            Map<String, String> secrets = SecretUtil.parseSecret(secretJson);
+
+            RedisStandaloneConfiguration config = new RedisStandaloneConfiguration();
+            config.setHostName(secrets.get("host"));
+            config.setPort(Integer.parseInt(secrets.get("port")));
+            config.setPassword(RedisPassword.of(secrets.get("password")));
+
+            return new LettuceConnectionFactory(config);
+        }
+
+        @Bean
+        public ReactiveStringRedisTemplate reactiveRedisTemplate(
+                @Qualifier("customRedisConnectionFactory") ReactiveRedisConnectionFactory factory) {
+            return new ReactiveStringRedisTemplate(factory);
+        }
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.redis.repository y crear la clase RedisCacheRepository.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.redis.repository;
+
+    import lombok.RequiredArgsConstructor;
+    import org.springframework.beans.factory.annotation.Value;
+    import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
+    import org.springframework.stereotype.Repository;
+    import reactor.core.publisher.Mono;
+
+    import java.time.Duration;
+
+    @Repository
+    @RequiredArgsConstructor
+    public class RedisCacheRepository {
+        private final ReactiveStringRedisTemplate redisTemplate;
+
+        @Value("${adapters.redis.expireTime}")
+        private int durationDefault;
+
+        public Mono<Boolean> save(String key, String value) {
+            return redisTemplate.opsForValue().set(key, value, Duration.ofMinutes(durationDefault));
+        }
+
+        public Mono<String> find(String key) {
+            return redisTemplate.opsForValue().get(key);
+        }
+
+        public Mono<Boolean> delete(String key) {
+            return redisTemplate.opsForValue().delete(key);
+        }
+
+        public Mono<Boolean> exists(String key) {
+            return redisTemplate.hasKey(key);
+        }
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.out y crear la clase RedisPort.java
+    ```
+    package co.com.microservice.aws.domain.usecase.out;
+
+    import reactor.core.publisher.Mono;
+
+    public interface RedisPort {
+        Mono<String> find(String key);
+        Mono<Boolean> save(String key, String value);
+        Mono<Boolean> delete(String key);
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.domain.model.commons.enums y crear la clase CacheKey.java
+    ```
+    package co.com.microservice.aws.domain.model.commons.enums;
+
+    import lombok.Getter;
+    import lombok.RequiredArgsConstructor;
+
+    @Getter
+    @RequiredArgsConstructor
+    public enum CacheKey {
+        APPLY_AUDIT("APPLY_AUDIT");
+
+        private final String key;
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.redis y crear la clase RedisAdapter.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.redis;
+
+    import co.com.microservice.aws.application.helpers.logs.LoggerBuilder;
+    import co.com.microservice.aws.domain.usecase.out.RedisPort;
+    import co.com.microservice.aws.infrastructure.output.redis.repository.RedisCacheRepository;
+    import lombok.RequiredArgsConstructor;
+    import org.springframework.stereotype.Component;
+    import reactor.core.publisher.Mono;
+
+    @Component
+    @RequiredArgsConstructor
+    public class RedisAdapter implements RedisPort {
+        private final RedisCacheRepository redisRepository;
+        private final LoggerBuilder logger;
+
+        @Override
+        public Mono<String> find(String key) {
+            return redisRepository.find(key).doOnNext(logger::info);
+        }
+
+        @Override
+        public Mono<Boolean> save(String key, String value) {
+            return redisRepository.save(key, value);
+        }
+
+        @Override
+        public Mono<Boolean> delete(String key) {
+            return redisRepository.delete(key);
+        }
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.usecase y modificar la clase ParameterUseCase.java, al momento de obtener el parámetro este será guardado en la cache redis configurada
+    ```
+    package co.com.microservice.aws.application.usecase;
+
+    import co.com.microservice.aws.application.helpers.commons.UseCase;
+    import co.com.microservice.aws.domain.model.Parameter;
+    import co.com.microservice.aws.domain.model.commons.enums.CacheKey;
+    import co.com.microservice.aws.domain.model.commons.util.ResponseMessageConstant;
+    import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+    import co.com.microservice.aws.domain.model.rs.TransactionResponse;
+    import co.com.microservice.aws.domain.usecase.in.FindByNameUseCase;
+    import co.com.microservice.aws.domain.usecase.out.FindByNamePort;
+    import co.com.microservice.aws.domain.usecase.out.RedisPort;
+    import lombok.RequiredArgsConstructor;
+    import reactor.core.publisher.Mono;
+
+    import java.util.Collections;
+    import java.util.List;
+
+    @UseCase
+    @RequiredArgsConstructor
+    public class ParameterUseCase implements FindByNameUseCase {
+        private final FindByNamePort<Parameter> parameterFinder;
+        private final RedisPort redisPort;
+
+        @Override
+        public Mono<TransactionResponse> findByName(TransactionRequest request) {
+            return Mono.just(request)
+                    .map(rq -> Parameter.builder().name(rq.getParams().get("param1")).build())
+                    .flatMap(parameterFinder::findByName)
+                    .flatMap(pv -> redisPort.save(CacheKey.APPLY_AUDIT.getKey(), pv.toString()).thenReturn(pv))
+                    .flatMap(c -> this.buildResponse(List.of(c)));
+        }
+
+        private Mono<TransactionResponse> buildResponse(List<Parameter> parameters){
+            TransactionResponse response = TransactionResponse.builder()
+                    .message(ResponseMessageConstant.MSG_LIST_SUCCESS)
+                    .size(parameters.size())
+                    .response(Collections.singletonList(parameters))
+                    .build();
+
+            return Mono.just(response);
+        }
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.usecase y modificar la clase CountryUseCaseImpl.java para consultar el valor de la cache y para efectos de la prueba se imprime en los logs
+    ```
+    Carga la aplicación, busca el parámetro y lo guarda en la cache con el código: APPLY_AUDIT
+    {
+        "instant": {
+            "epochSecond": 1752635718,
+            "nanoOfSecond": 326958800
+        },
+        "thread": "lettuce-nioEventLoop-5-1",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"List parameters\",\"messageId\":\"07316988-e443-4402-96b1-9e99c76d44d1\",\"service\":\"ParameterLoaderConfig\",\"method\":\"initialParamterStatus\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":{\"headers\":null,\"body\":{\"message\":\"Listed successfull!\",\"size\":1,\"response\":[[{\"id\":1,\"name\":\"Aply_audit\",\"value\":true,\"dateCreation\":\"2025-07-15T16:50:56\"}]]}}}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 64,
+        "threadPriority": 5
+    }
+
+    Consumimos el servicio de listar
+    {
+        "instant": {
+            "epochSecond": 1752635746,
+            "nanoOfSecond": 625991200
+        },
+        "thread": "reactor-http-nio-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"List all records\",\"messageId\":\"7a214936-5e93-11ec-bf63-0242ac130002\",\"service\":\"Service Api Rest world regions\",\"method\":\"co.com.microservice.aws.infrastructure.input.rest.api.handler.CountryHandler\",\"appName\":\"MicroserviceAws\"},\"request\":{\"headers\":null,\"body\":{\"id\":\"7a214936-5e93-11ec-bf63-0242ac130002\",\"customer\":{\"ip\":\"172.34.45.12\",\"username\":\"usertest\",\"device\":{\"userAgent\":\"application/json\",\"platformType\":\"postman\"}}}},\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 66,
+        "threadPriority": 5
+    }
+
+    Mostrarmos el acceso al dato almacenado en Redis con la clave: APPLY_AUDIT
+    {
+        "instant": {
+            "epochSecond": 1752635746,
+            "nanoOfSecond": 639269500
+        },
+        "thread": "lettuce-nioEventLoop-5-1",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "Parameter(id=1, name=Aply_audit, value=true, dateCreation=2025-07-15T16:50:56)",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 64,
+        "threadPriority": 5
+    }
+    ```
+
+
 
 ⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](LICENSE.md)

@@ -52,3 +52,6 @@ adapters:
     endpoint: ${PARAM_URL:http://localhost:4566}
     namePostgresql: "${SECRET_NAME_POSTGRE:local-postgresql}"
     nameMysql: "${SECRET_NAME_MYSQL:local-mysql}"
+    nameRedis: "${SECRET_NAME_REDIS:local-redis}"
+  redis:
+    expireTime: ${CACHE_EXPIRE_SECONDS:10}
