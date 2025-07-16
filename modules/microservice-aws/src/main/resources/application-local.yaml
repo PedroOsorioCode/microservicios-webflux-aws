@@ -45,6 +45,9 @@ entries:
   regex-body-wr:
     name: "${REGEX_COUNTRY_NAME:^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]{3,50}$}"
     codeShort: "${REGEX_COUNTRY_CODE_SHORT:^[a-zA-Z]{3,4}$}"
+  properties:
+    expression-timer: "${EXPRESSION_TIMER:10 */5 * * * ?}"
+    process-on-schedule: "${PROCESS_ON_SCHEDULE:Y}"
 
 adapters:
   secrets-manager:

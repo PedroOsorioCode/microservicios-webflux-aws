@@ -1,5 +1,5 @@
-# Instructivo paso a paso CRUD Postgresql database
-> A continuación se realiza la creación base del proyecto basada en microservicios por contexto y arquitectura limpia
+# Instructivo paso a paso Postgresql, Mysql database; Secrets, Redis, Cron
+> A continuación se realiza la creación base del proyecto basada en microservicios y arquitectura limpia
 
 ### Requisitos
 
@@ -26,6 +26,7 @@ Introducción a arquitectura limpia [>> Ver](https://medium.com/@diego.coder/int
 * [9. Crear la instancia de base de datos en Podman](#id9)
 * [10. Crear conexión secrets-manager](#id10)
 * [11. Crear conexión redis-cache](#id11)
+* [12. Configurar uso de CRON](#id12)
 
 # <div id='id1'/>
 # 1. Crear y configurar el proyecto:
@@ -2801,7 +2802,8 @@ adapters:
     @Getter
     @RequiredArgsConstructor
     public enum CacheKey {
-        APPLY_AUDIT("APPLY_AUDIT");
+        APPLY_AUDIT("APPLY_AUDIT"),
+        KEY_DEFAULT("KEY_DEFAULT");
 
         private final String key;
     }
@@ -2887,6 +2889,32 @@ adapters:
     }
     ```
 
+- Ubicarse en el paquete co.com.microservice.aws.application.config y crear la clase RedisDefaultConfig.java, esta funcionalidad permite crear una clave valor por defecto en redis cache
+    ```
+    package co.com.microservice.aws.application.config;
+
+    import co.com.microservice.aws.domain.model.commons.enums.CacheKey;
+    import co.com.microservice.aws.domain.usecase.out.RedisPort;
+    import lombok.RequiredArgsConstructor;
+    import org.springframework.boot.context.event.ApplicationReadyEvent;
+    import org.springframework.context.event.EventListener;
+    import org.springframework.core.annotation.Order;
+    import org.springframework.stereotype.Component;
+
+    @Component
+    @RequiredArgsConstructor
+    public class RedisDefaultConfig {
+        private final RedisPort redisPort;
+
+        @Order(2)
+        @EventListener(ApplicationReadyEvent.class)
+        public void initialDefaultRedis() {
+            redisPort.save(CacheKey.KEY_DEFAULT.getKey(), "Value by started application")
+                    .subscribe();
+        }
+    }
+    ```
+
 - Ubicarse en el paquete co.com.microservice.aws.application.usecase y modificar la clase CountryUseCaseImpl.java para consultar el valor de la cache y para efectos de la prueba se imprime en los logs
     ```
     Carga la aplicación, busca el parámetro y lo guarda en la cache con el código: APPLY_AUDIT
@@ -2938,6 +2966,170 @@ adapters:
     }
     ```
 
+- Comandos podman para acceder a Redis Cache Local y ver la información
+    ```
+    -- Listar los contenedores en ejecución
+    podman ps
+    
+    -- Elegimos el nombre que le hemos dado al contendor, en este caso: redis-container
 
+    -- Ingresar al CLI del contenedor
+    podman exec -it redis-container redis-cli
+
+    -- Obtener el valor de la clave en Redis
+    get APPLY_AUDIT
+
+    -- 10 minutos después cuando se consulte el parámetro ya no existe
+    127.0.0.1:6379> get APPLY_AUDIT
+    (nil)
+
+    -- Obtener el valor de la clave guardada por defecto al iniciar la aplicación, clave: KEY_DEFAULT
+    127.0.0.1:6379> get KEY_DEFAULT
+    "Value by started application"
+    ```
+
+# <div id='id12'/>
+# 12. Configurar uso de CRON
+
+- En el archivo application.yaml agregar la configuración del timer para el cron
+```
+entries:
+  web:
+    path-base: "${PATH_BASE:/api/v1/microservice-aws}"
+    path-countries: "${PATH_COUNTRY:/country}"
+    listAll: "/list-all"
+    findByShortCode: "/findByShortCode/{shortCode}"
+    save: "/save"
+    update: "/update"
+    delete: "/delete/{id}"
+  regex-body-wr:
+    name: "${REGEX_COUNTRY_NAME:^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]{3,50}$}"
+    codeShort: "${REGEX_COUNTRY_CODE_SHORT:^[a-zA-Z]{3,4}$}"
+  properties:
+    expression-timer: "${EXPRESSION_TIMER:10 */5 * * * ?}"
+    process-on-schedule: "${PROCESS_ON_SCHEDULE:Y}"
+```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.backgroudtask y crear la clase BackgroundTasks.java
+    ```
+    package co.com.microservice.aws.infrastructure.input.backgroudtask;
+
+    import co.com.microservice.aws.application.helpers.logs.LoggerBuilder;
+    import co.com.microservice.aws.domain.model.commons.enums.CacheKey;
+    import co.com.microservice.aws.domain.usecase.out.RedisPort;
+    import lombok.RequiredArgsConstructor;
+    import org.springframework.beans.factory.annotation.Value;
+    import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+    import org.springframework.boot.context.event.ApplicationReadyEvent;
+    import org.springframework.context.annotation.Configuration;
+    import org.springframework.context.event.EventListener;
+    import org.springframework.core.annotation.Order;
+    import org.springframework.scheduling.annotation.EnableScheduling;
+    import org.springframework.scheduling.annotation.Scheduled;
+    import reactor.core.publisher.Mono;
+
+    import java.time.Duration;
+    import java.time.Instant;
+
+    @EnableScheduling
+    @Configuration
+    @EnableAutoConfiguration
+    @RequiredArgsConstructor
+    public class BackgroundTasks {
+        private static final String FLAG_PROCESS_YES = "Y";
+
+        private final RedisPort redisPort;
+        private final LoggerBuilder logger;
+
+        @Value("${entries.properties.process-on-schedule}")
+        private String processOnSchedule;
+
+        private final Instant appStart = Instant.now();
+
+        @Order(3)
+        @EventListener(ApplicationReadyEvent.class)
+        @Scheduled(cron = "${entries.properties.expression-timer}")
+        public Mono<Void> updateRedisKeyDefault() {
+            if (Duration.between(appStart, Instant.now()).toMinutes() < 5) {
+                logger.info("waiting five minutes");
+                return Mono.empty();
+            }
+
+            if (processOnSchedule.equals(FLAG_PROCESS_YES)) {
+                logger.info("Executed cron");
+                redisPort.save(CacheKey.KEY_DEFAULT.getKey(), "Value modified by cron after five minutes")
+                        .subscribe();
+            }
+            return Mono.empty();
+        }
+    }
+    ```
+
+- Explicación del uso de CRON
+
+| Posición | Valor | Significado | Descripción |
+| -------- | ----- | ----------- | ------------|
+| 1        | `0`   | **Segundos**                            | Ejecuta cuando el segundo sea 0                                               |
+| 2        | `*/5` | **Minutos**                               | Cada 2 minutos (`0, 5, 10, 15...`)                                              |
+| 3        | `*`   | **Horas**                               | Cualquier hora                                                                |
+| 4        | `*`   | **Día del mes**                         | Cualquier día                                                                 |
+| 5        | `*`   | **Mes**                                 | Cualquier mes                                                                 |
+| 6        | `?`   | **Día de la semana** (`?` o específico) | `?` indica que **no se especifica** (se usa cuando ya se definió día del mes) |
+
+
+- Tabla general de caracteres especiales en expresiones CRON
+
+| Símbolo | Significado | Ejemplo | Explicación |
+| ------- | ----------- | ------- | ----------- |
+| `*`     | Todos los valores posibles         | `* * * * * *`       | Ejecuta cada segundo, minuto, hora, día, mes, día de la semana.                                 |
+| `?`     | Sin especificar                    | `0 0 12 * * ?`      | Ejecuta a las 12:00 pm todos los días (cuando no necesitas día del mes **y** día de la semana). |
+| `*/n`   | Cada `n` unidades                  | `0 */5 * * * ?`     | Cada 5 minutos.                                                                                 |
+| `n1-n2` | Rango de valores                   | `0 0 9-17 * * ?`    | Cada hora entre 9 am y 5 pm.                                                                    |
+| `n1,n2` | Lista de valores específicos       | `0 0 8,14,20 * * ?` | A las 8 am, 2 pm y 8 pm.                                                                        |
+| `L`     | Último día del mes o semana        | `0 0 0 L * ?`       | A medianoche del **último día del mes**.                                                        |
+| `W`     | Día hábil más cercano al día dado  | `0 0 0 15W * ?`     | Día hábil más cercano al día 15 del mes.                                                        |
+| `#`     | N.º de ocurrencia de un día en mes | `0 0 8 ? * 2#1`     | Primer lunes (`2`) del mes a las 8 am.                                                          |
+
+
+- Resultado logs y valor en Redis cache local
+    ```
+    {
+        "instant": {
+            "epochSecond": 1752642393,
+            "nanoOfSecond": 810350500
+        },
+        "thread": "restartedMain",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "Executed key default",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 42,
+        "threadPriority": 5
+    }
+    {
+        "instant": {
+            "epochSecond": 1752642394,
+            "nanoOfSecond": 142320600
+        },
+        "thread": "restartedMain",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "waiting five minutes",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 42,
+        "threadPriority": 5
+    }
+
+    -- Obtener el valor de la clave guardada por defecto al iniciar la aplicación, clave: KEY_DEFAULT
+    127.0.0.1:6379> get KEY_DEFAULT
+    "Value by started application"
+
+    -- five minutes latter...
+
+
+
+    ```
 
 ⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](LICENSE.md)
