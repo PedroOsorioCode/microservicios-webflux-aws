@@ -3006,7 +3006,7 @@ entries:
     name: "${REGEX_COUNTRY_NAME:^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]{3,50}$}"
     codeShort: "${REGEX_COUNTRY_CODE_SHORT:^[a-zA-Z]{3,4}$}"
   properties:
-    expression-timer: "${EXPRESSION_TIMER:10 */5 * * * ?}"
+    expression-timer: "${EXPRESSION_TIMER:0 */5 * * * ?}"
     process-on-schedule: "${PROCESS_ON_SCHEDULE:Y}"
 ```
 
@@ -3020,16 +3020,9 @@ entries:
     import lombok.RequiredArgsConstructor;
     import org.springframework.beans.factory.annotation.Value;
     import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-    import org.springframework.boot.context.event.ApplicationReadyEvent;
     import org.springframework.context.annotation.Configuration;
-    import org.springframework.context.event.EventListener;
-    import org.springframework.core.annotation.Order;
     import org.springframework.scheduling.annotation.EnableScheduling;
     import org.springframework.scheduling.annotation.Scheduled;
-    import reactor.core.publisher.Mono;
-
-    import java.time.Duration;
-    import java.time.Instant;
 
     @EnableScheduling
     @Configuration
@@ -3044,23 +3037,13 @@ entries:
         @Value("${entries.properties.process-on-schedule}")
         private String processOnSchedule;
 
-        private final Instant appStart = Instant.now();
-
-        @Order(3)
-        @EventListener(ApplicationReadyEvent.class)
         @Scheduled(cron = "${entries.properties.expression-timer}")
-        public Mono<Void> updateRedisKeyDefault() {
-            if (Duration.between(appStart, Instant.now()).toMinutes() < 5) {
-                logger.info("waiting five minutes");
-                return Mono.empty();
-            }
-
+        public void updateRedisKeyDefault() {
             if (processOnSchedule.equals(FLAG_PROCESS_YES)) {
                 logger.info("Executed cron");
                 redisPort.save(CacheKey.KEY_DEFAULT.getKey(), "Value modified by cron after five minutes")
                         .subscribe();
             }
-            return Mono.empty();
         }
     }
     ```
@@ -3069,11 +3052,11 @@ entries:
 
 | Posición | Valor | Significado | Descripción |
 | -------- | ----- | ----------- | ------------|
-| 1        | `0`   | **Segundos**                            | Ejecuta cuando el segundo sea 0                                               |
-| 2        | `*/5` | **Minutos**                               | Cada 2 minutos (`0, 5, 10, 15...`)                                              |
-| 3        | `*`   | **Horas**                               | Cualquier hora                                                                |
-| 4        | `*`   | **Día del mes**                         | Cualquier día                                                                 |
-| 5        | `*`   | **Mes**                                 | Cualquier mes                                                                 |
+| 1        | `0`   | **Segundos**    | Ejecuta cuando el segundo sea 0    |
+| 2        | `*/5` | **Minutos**     | Cada 5 minutos (`5, 10, 15...`) |
+| 3        | `*`   | **Horas**       | Cualquier hora                     |
+| 4        | `*`   | **Día del mes** | Cualquier día                      |
+| 5        | `*`   | **Mes**         | Cualquier mes                      |
 | 6        | `?`   | **Día de la semana** (`?` o específico) | `?` indica que **no se especifica** (se usa cuando ya se definió día del mes) |
 
 
@@ -3107,20 +3090,6 @@ entries:
         "threadId": 42,
         "threadPriority": 5
     }
-    {
-        "instant": {
-            "epochSecond": 1752642394,
-            "nanoOfSecond": 142320600
-        },
-        "thread": "restartedMain",
-        "level": "INFO",
-        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
-        "message": "waiting five minutes",
-        "endOfBatch": false,
-        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
-        "threadId": 42,
-        "threadPriority": 5
-    }
 
     -- Obtener el valor de la clave guardada por defecto al iniciar la aplicación, clave: KEY_DEFAULT
     127.0.0.1:6379> get KEY_DEFAULT
@@ -3128,8 +3097,26 @@ entries:
 
     -- five minutes latter...
 
+    127.0.0.1:6379> get KEY_DEFAULT
+    "Value modified by cron after five minutes"
 
+    {
+        "instant": {
+            "epochSecond": 1752719400,
+            "nanoOfSecond": 36943000
+        },
+        "thread": "scheduling-1",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "Executed cron",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 60,
+        "threadPriority": 5
+    }
 
     ```
+
+    **Nota:** El cron se ejecuta cuando el reloj marca el minuto 5, para efectos de la prueba se activó la aplicación a las 6:00pm y a las 6:05pm se ejecutó, si se lanza a las 6:04pm, el cron se ejecutará a las 6:05pm, justo cuando marca el minuto 05, 10, 15... 
 
 ⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](LICENSE.md)
