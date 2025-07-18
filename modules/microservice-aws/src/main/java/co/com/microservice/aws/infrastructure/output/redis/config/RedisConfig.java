@@ -19,18 +19,18 @@ import java.util.Map;
 @Configuration
 public class RedisConfig {
     private final SecretsManagerClient secretsClient;
-    private final String secretNameBd;
+    private final String secretNameRedis;
 
     public RedisConfig(@Qualifier("awsSecretManagerSyncConnector") SecretsManagerClient secretsClient,
-                          @Value("${adapters.secrets-manager.nameRedis}") String secretNameBd){
+                          @Value("${adapters.secrets-manager.nameRedis}") String secretNameRedis){
         this.secretsClient = secretsClient;
-        this.secretNameBd = secretNameBd;
+        this.secretNameRedis = secretNameRedis;
     }
 
     @Bean(name = "customRedisConnectionFactory")
     public ReactiveRedisConnectionFactory redisConnectionFactory() {
         GetSecretValueRequest request = GetSecretValueRequest.builder()
-                .secretId(secretNameBd)
+                .secretId(secretNameRedis)
                 .build();
 
         GetSecretValueResponse response = secretsClient.getSecretValue(request);

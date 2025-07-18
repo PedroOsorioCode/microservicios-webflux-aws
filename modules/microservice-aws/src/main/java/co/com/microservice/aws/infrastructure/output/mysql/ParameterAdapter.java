@@ -1,6 +1,5 @@
 package co.com.microservice.aws.infrastructure.output.mysql;
 
-import co.com.microservice.aws.application.helpers.logs.LoggerBuilder;
 import co.com.microservice.aws.domain.model.Parameter;
 import co.com.microservice.aws.domain.usecase.out.FindByNamePort;
 import co.com.microservice.aws.infrastructure.output.mysql.mapper.ParameterEntityMapper;
@@ -14,7 +13,6 @@ import reactor.core.publisher.Mono;
 public class ParameterAdapter implements FindByNamePort<Parameter> {
     private final ParameterEntityMapper mapper;
     private final ParameterRepository parameterRepository;
-    private final LoggerBuilder logger;
 
     @Override
     public Mono<Parameter> findByName(Parameter parameter) {

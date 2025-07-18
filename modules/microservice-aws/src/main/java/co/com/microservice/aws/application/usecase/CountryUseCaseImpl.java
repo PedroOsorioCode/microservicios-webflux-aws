@@ -21,19 +21,18 @@ import java.util.Optional;
 import static co.com.microservice.aws.domain.model.commons.enums.BusinessExceptionMessage.BUSINESS_RECORD_NOT_FOUND;
 import static co.com.microservice.aws.domain.model.commons.enums.BusinessExceptionMessage.BUSINESS_USERNAME_REQUIRED;
 import static co.com.microservice.aws.domain.model.commons.enums.TechnicalExceptionMessage.TECHNICAL_REQUEST_ERROR;
+import static co.com.microservice.aws.domain.model.events.EventType.EVENT_EMMITED_NOTIFICATION_SAVE;
 
 @UseCase
 @RequiredArgsConstructor
 public class CountryUseCaseImpl implements CountryUseCase {
-    private static final String KEY_USER_NAME = "user-name";
-    private static final String ATTRIBUTE_IS_REQUIRED = "The attribute '%s' is required";
-
     private final SavePort<Country> countrySaver;
     private final ListAllPort<Country> countryLister;
     private final UpdatePort<Country> countryUpdater;
     private final DeletePort<Country> countryDeleter;
     private final FindByShortCodePort<Country> countryFinder;
     private final RedisPort redisPort;
+    private final SentEventUseCase eventUseCase;
 
     @Override
     public Mono<TransactionResponse> listAll(TransactionRequest request) {
@@ -51,6 +50,8 @@ public class CountryUseCaseImpl implements CountryUseCase {
             .map(TransactionRequest::getItem)
             .flatMap(this::buildCountry)
             .flatMap(country -> countrySaver.save(country, request.getContext()))
+            .doOnNext(country -> eventUseCase.sentEvent(request.getContext(),
+                    EVENT_EMMITED_NOTIFICATION_SAVE, Country.builder().name(country.getName()).description(country.getDescription()).build()))
             .thenReturn(ResponseMessageConstant.MSG_SAVED_SUCCESS);
     }
 

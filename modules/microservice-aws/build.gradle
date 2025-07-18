@@ -24,7 +24,8 @@ repositories {
 }
 
 ext {
-	awsSdkVersion = '2.25.17' // O la más reciente disponible
+	awsSdkVersion = '2.25.17'
+	reactiveCommonsVersion = '4.1.4'
 }
 
 dependencies {
@@ -48,6 +49,8 @@ dependencies {
 
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
 	implementation 'io.lettuce:lettuce-core'
+
+	implementation "org.reactivecommons:async-commons-rabbit-starter:${reactiveCommonsVersion}"
 
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	compileOnly 'org.projectlombok:lombok'

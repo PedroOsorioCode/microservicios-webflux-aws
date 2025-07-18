@@ -56,5 +56,6 @@ adapters:
     namePostgresql: "${SECRET_NAME_POSTGRE:local-postgresql}"
     nameMysql: "${SECRET_NAME_MYSQL:local-mysql}"
     nameRedis: "${SECRET_NAME_REDIS:local-redis}"
+    nameRabbitMq: "${SECRET_NAME_RABBIT_MQ:local-rabbitmq}"
   redis:
     expireTime: ${CACHE_EXPIRE_SECONDS:10}

@@ -27,6 +27,7 @@ Introducción a arquitectura limpia [>> Ver](https://medium.com/@diego.coder/int
 * [10. Crear conexión secrets-manager](#id10)
 * [11. Crear conexión redis-cache](#id11)
 * [12. Configurar uso de CRON](#id12)
+* [13. Configurar uso de Rabbit MQ](#id13)
 
 # <div id='id1'/>
 # 1. Crear y configurar el proyecto:
@@ -2437,6 +2438,7 @@ adapters:
     namePostgresql: "${SECRET_NAME_POSTGRE:local-postgresql}"
     nameMysql: "${SECRET_NAME_MYSQL:local-mysql}"
     nameRedis: "${SECRET_NAME_REDIS:local-redis}"
+    nameRabbitMq: "${SECRET_NAME_RABBIT_MQ:local-rabbitmq}"
   redis:
     expireTime: ${CACHE_EXPIRE_SECONDS:10}
 ```
@@ -2707,18 +2709,18 @@ adapters:
     @Configuration
     public class RedisConfig {
         private final SecretsManagerClient secretsClient;
-        private final String secretNameBd;
+        private final String secretNameRedis;
 
         public RedisConfig(@Qualifier("awsSecretManagerSyncConnector") SecretsManagerClient secretsClient,
-                            @Value("${adapters.secrets-manager.nameRedis}") String secretNameBd){
+                            @Value("${adapters.secrets-manager.nameRedis}") String secretNameRedis){
             this.secretsClient = secretsClient;
-            this.secretNameBd = secretNameBd;
+            this.secretNameRedis = secretNameRedis;
         }
 
         @Bean(name = "customRedisConnectionFactory")
         public ReactiveRedisConnectionFactory redisConnectionFactory() {
             GetSecretValueRequest request = GetSecretValueRequest.builder()
-                    .secretId(secretNameBd)
+                    .secretId(secretNameRedis)
                     .build();
 
             GetSecretValueResponse response = secretsClient.getSecretValue(request);
@@ -2968,6 +2970,9 @@ adapters:
 
 - Comandos podman para acceder a Redis Cache Local y ver la información
     ```
+    -- Descargar la imagen
+    podman run -d --name redis-container -p 6379:6379 docker.io/library/redis:latest
+
     -- Listar los contenedores en ejecución
     podman ps
     
@@ -3118,5 +3123,549 @@ entries:
     ```
 
     **Nota:** El cron se ejecuta cuando el reloj marca el minuto 5, para efectos de la prueba se activó la aplicación a las 6:00pm y a las 6:05pm se ejecutó, si se lanza a las 6:04pm, el cron se ejecutará a las 6:05pm, justo cuando marca el minuto 05, 10, 15... 
+
+# <div id='id13'/>
+# 13. Configurar uso de Rabbit MQ (Publicador, Consumidor)
+
+## Conexión con secrets - manager
+
+- Ubicarse en el archivo build.gradle y modificar
+    ```
+    ext {
+        awsSdkVersion = '2.25.17'
+        reactiveCommonsVersion = '4.1.4'
+    }
+
+    dependencias {
+        //... otras dependencias
+
+        implementation "org.reactivecommons:async-commons-rabbit-starter:${reactiveCommonsVersion}"
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.rabbiteventbus.config y crear la clase RabbitMqConfig.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.rabbiteventbus.config;
+
+    import co.com.microservice.aws.application.helpers.utils.SecretUtil;
+    import org.reactivecommons.async.rabbit.config.RabbitProperties;
+    import org.springframework.beans.factory.annotation.Qualifier;
+    import org.springframework.beans.factory.annotation.Value;
+    import org.springframework.context.annotation.Bean;
+    import org.springframework.context.annotation.Configuration;
+    import org.springframework.context.annotation.Primary;
+    import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
+    import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueRequest;
+    import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueResponse;
+
+    import java.util.Map;
+
+    @Configuration
+    public class RabbitMqConfig {
+        private final SecretsManagerClient secretsClient;
+        private final String secretNameRabbit;
+
+        public RabbitMqConfig(@Qualifier("awsSecretManagerSyncConnector") SecretsManagerClient secretsClient,
+                            @Value("${adapters.secrets-manager.nameRabbitMq}") String secretNameRabbit){
+            this.secretsClient = secretsClient;
+            this.secretNameRabbit = secretNameRabbit;
+        }
+
+        @Primary
+        @Bean
+        public RabbitProperties customRabbitProperties() {
+            GetSecretValueRequest request = GetSecretValueRequest.builder()
+                    .secretId(secretNameRabbit)
+                    .build();
+
+            GetSecretValueResponse response = secretsClient.getSecretValue(request);
+            String secretJson = response.secretString();
+
+            Map<String, String> secrets = SecretUtil.parseSecret(secretJson);
+
+            RabbitProperties properties = new RabbitProperties();
+            properties.setHost(secrets.get("hostname"));
+            properties.setPort(Integer.parseInt(secrets.get("port")));
+            properties.setVirtualHost(secrets.get("virtualhost"));
+            properties.setUsername(secrets.get("username"));
+            properties.setPassword(secrets.get("password"));
+            return properties;
+        }
+    }
+    ```
+
+## Publicador
+
+- Ubicarse en el paquete co.com.microservice.aws.domain.model.events y crear la clase Event.java
+    ```
+    package co.com.microservice.aws.domain.model.events;
+
+    import java.io.Serial;
+    import java.io.Serializable;
+
+    import lombok.AllArgsConstructor;
+    import lombok.Builder;
+    import lombok.Getter;
+    import lombok.NoArgsConstructor;
+    import lombok.Setter;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    public class Event<T> implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        private String type;
+        private String specVersion;
+        private String source;
+        private String id;
+        private String time;
+        protected String invoker;
+        private String dataContentType;
+
+        protected transient T data;
+
+        public String getEventId() {
+            return id.concat("-".concat(type));
+        }
+
+        public Event<T> complete(String source, String specVersion, String dataContentType) {
+            this.setSource(source);
+            this.setSpecVersion(specVersion);
+            this.setDataContentType(dataContentType);
+            return this;
+        }
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.domain.model.events y crear la clase EventData.java
+    ```
+    package co.com.microservice.aws.domain.model.events;
+
+    import co.com.microservice.aws.domain.model.rq.Context;
+    import lombok.*;
+
+    import java.io.Serial;
+    import java.io.Serializable;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    public class EventData implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        private Context contextHeaders;
+        private transient Object data;
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.domain.model.events y crear la clase EventType.java
+    ```
+    package co.com.microservice.aws.domain.model.events;
+
+    import lombok.experimental.UtilityClass;
+
+    @UtilityClass
+    public class EventType {
+        public static final String EVENT_EMMITED_NOTIFICATION_SAVE = "myapp.notification.example-event-emited";
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.rabbiteventbus.repository y crear la clase EventOperations.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.rabbiteventbus.repository;
+
+    import co.com.microservice.aws.application.helpers.logs.LoggerBuilder;
+    import co.com.microservice.aws.application.helpers.logs.TransactionLog;
+    import co.com.microservice.aws.domain.model.events.Event;
+    import lombok.RequiredArgsConstructor;
+    import org.reactivecommons.api.domain.DomainEvent;
+    import org.reactivecommons.api.domain.DomainEventBus;
+    import org.reactivecommons.async.impl.config.annotations.EnableDomainEventBus;
+    import reactor.core.publisher.Mono;
+
+    import static org.springframework.util.MimeTypeUtils.APPLICATION_JSON_VALUE;
+    import static reactor.core.publisher.Mono.from;
+
+    @EnableDomainEventBus
+    @RequiredArgsConstructor
+    public class EventOperations {
+        private static final String NAME_CLASS = EventOperations.class.getName();
+        private static final String SPEC_VERSION = "1";
+        private static final String APPLICATION_NAME = "microservice-aws";
+        private static final String MSG_EVENT_EMITTED = "Event emitted";
+        private final DomainEventBus domainEventBus;
+        private final LoggerBuilder logger;
+
+        public Mono<Void> emitEvent(Event<?> event, String messageId) {
+            return generateDomainEvent(event).flatMap(domainEvent -> from(domainEventBus.emit(domainEvent)))
+                .doOnSuccess(e ->
+                    logger.info(TransactionLog.Request.builder().body(event).build(), MSG_EVENT_EMITTED,
+                            messageId, "generateDomainEvent", NAME_CLASS))
+                .onErrorResume(this::printErroEmit);
+        }
+
+        private Mono<DomainEvent<?>> generateDomainEvent(Event<?> incompleteEvent) {
+            return Mono.just(APPLICATION_NAME)
+                    .map(app -> incompleteEvent.complete(app, SPEC_VERSION, APPLICATION_JSON_VALUE))
+                    .map(event -> new DomainEvent<>(event.getType(), event.getId(), event));
+        }
+
+        private Mono<Void> printErroEmit(Throwable throwable) {
+            logger.error(throwable);
+            return Mono.empty();
+        }
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.out y crear la clase EventPort.java
+    ```
+    package co.com.microservice.aws.domain.usecase.out;
+
+    import co.com.microservice.aws.domain.model.events.Event;
+    import reactor.core.publisher.Mono;
+
+    public interface EventPort {
+        Mono<Void> emitEvent(Event<Object> event, String messageId);
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.rabbiteventbus y crear la clase ReactiveEventAdapter.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.rabbiteventbus;
+
+    import co.com.microservice.aws.domain.model.events.Event;
+    import co.com.microservice.aws.domain.usecase.out.EventPort;
+    import co.com.microservice.aws.infrastructure.output.rabbiteventbus.repository.EventOperations;
+    import lombok.RequiredArgsConstructor;
+    import org.springframework.stereotype.Component;
+    import reactor.core.publisher.Mono;
+
+    @Component
+    @RequiredArgsConstructor
+    public class ReactiveEventAdapter implements EventPort {
+        private final EventOperations eventOperations;
+
+        @Override
+        public Mono<Void> emitEvent(Event<Object> event, String messageId) {
+            return Mono.just(event).flatMap(e -> eventOperations.emitEvent(e, messageId));
+        }
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in y crear la clase SentEventUseCase.java
+    ```
+    package co.com.microservice.aws.domain.usecase.in;
+
+    import co.com.microservice.aws.domain.model.rq.Context;
+
+    public interface SentEventUseCase {
+        void sentEvent(Context context, String typeEvent, Object response);
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.application.usecase y crear la clase SentEventUseCaseImpl.java
+    ```
+    package co.com.microservice.aws.application.usecase;
+
+    import co.com.microservice.aws.application.helpers.commons.UseCase;
+    import co.com.microservice.aws.domain.model.events.Event;
+    import co.com.microservice.aws.domain.model.events.EventData;
+    import co.com.microservice.aws.domain.model.rq.Context;
+    import co.com.microservice.aws.domain.usecase.in.SentEventUseCase;
+    import co.com.microservice.aws.domain.usecase.out.EventPort;
+    import lombok.RequiredArgsConstructor;
+    import reactor.core.publisher.Mono;
+    import reactor.core.scheduler.Schedulers;
+
+    import java.time.LocalDateTime;
+    import java.util.UUID;
+
+    @UseCase
+    @RequiredArgsConstructor
+    public class SentEventUseCaseImpl implements SentEventUseCase {
+        private static final String INVOKER = "From-My-App";
+        private final EventPort eventPort;
+
+        @Override
+        public void sentEvent(Context context, String typeEvent, Object response) {
+            Mono.defer(() -> emitEvent(
+                    buildEvent(context, response), typeEvent, context.getId()
+                ).subscribeOn(Schedulers.single())).subscribe();
+        }
+
+        private Mono<Void> emitEvent(Event<Object> event, String typeEvent, String messageId) {
+            event.setId(UUID.randomUUID().toString());
+            event.setType(typeEvent);
+            event.setTime(LocalDateTime.now().toString());
+            event.setInvoker(INVOKER);
+            return eventPort.emitEvent(event, messageId);
+        }
+
+        private static Event<Object> buildEvent(Context context, Object response) {
+            return Event.builder().data(EventData.builder().contextHeaders(context).data(response).build()).build();
+        }
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.application.usecase y modificar la clase CountryUseCaseImpl.java
+    ```
+    package co.com.microservice.aws.application.usecase;
+
+    import co.com.microservice.aws.application.helpers.commons.UseCase;
+    import co.com.microservice.aws.domain.model.Country;
+    import co.com.microservice.aws.domain.model.commons.enums.CacheKey;
+    import co.com.microservice.aws.domain.model.commons.exception.BusinessException;
+    import co.com.microservice.aws.domain.model.commons.exception.TechnicalException;
+    import co.com.microservice.aws.domain.model.commons.util.ResponseMessageConstant;
+    import co.com.microservice.aws.domain.model.rq.Context;
+    import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+    import co.com.microservice.aws.domain.model.rs.TransactionResponse;
+    import co.com.microservice.aws.domain.usecase.in.*;
+    import co.com.microservice.aws.domain.usecase.out.*;
+    import lombok.RequiredArgsConstructor;
+    import reactor.core.publisher.Mono;
+
+    import java.util.Collections;
+    import java.util.List;
+    import java.util.Optional;
+
+    import static co.com.microservice.aws.domain.model.commons.enums.BusinessExceptionMessage.BUSINESS_RECORD_NOT_FOUND;
+    import static co.com.microservice.aws.domain.model.commons.enums.BusinessExceptionMessage.BUSINESS_USERNAME_REQUIRED;
+    import static co.com.microservice.aws.domain.model.commons.enums.TechnicalExceptionMessage.TECHNICAL_REQUEST_ERROR;
+    import static co.com.microservice.aws.domain.model.events.EventType.EVENT_EMMITED_NOTIFICATION_SAVE;
+
+    @UseCase
+    @RequiredArgsConstructor
+    public class CountryUseCaseImpl implements CountryUseCase {
+        private final SavePort<Country> countrySaver;
+        private final ListAllPort<Country> countryLister;
+        private final UpdatePort<Country> countryUpdater;
+        private final DeletePort<Country> countryDeleter;
+        private final FindByShortCodePort<Country> countryFinder;
+        private final RedisPort redisPort;
+        private final SentEventUseCase eventUseCase;
+
+        @Override
+        public Mono<TransactionResponse> listAll(TransactionRequest request) {
+            return Mono.just(request)
+                .filter(this::userIsRequired)
+                .flatMap(req -> redisPort.find(CacheKey.APPLY_AUDIT.getKey()).thenReturn(req))
+                .flatMap(req -> countryLister.listAll(req.getContext()).collectList().flatMap(this::buildResponse)
+                ).switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_USERNAME_REQUIRED))));
+        }
+
+        @Override
+        public Mono<String> save(TransactionRequest request) {
+            return Mono.just(request)
+                .filter(this::userIsRequired)
+                .map(TransactionRequest::getItem)
+                .flatMap(this::buildCountry)
+                .flatMap(country -> countrySaver.save(country, request.getContext()))
+                .doOnNext(country -> eventUseCase.sentEvent(request.getContext(),
+                        EVENT_EMMITED_NOTIFICATION_SAVE, Country.builder().name(country.getName()).description(country.getDescription()).build()))
+                .thenReturn(ResponseMessageConstant.MSG_SAVED_SUCCESS);
+        }
+
+        @Override
+        public Mono<String> delete(TransactionRequest request) {
+            return Mono.just(request)
+                    .filter(this::userIsRequired)
+                    .map(rq -> Country.builder().id(Long.valueOf(rq.getParams().get("id"))).build())
+                    .flatMap(countryDeleter::delete)
+                    .thenReturn(ResponseMessageConstant.MSG_DELETED_SUCCESS);
+        }
+
+        @Override
+        public Mono<TransactionResponse> findByShortCode(TransactionRequest request) {
+            return Mono.just(request)
+                    .filter(this::userIsRequired)
+                    .map(rq -> Country.builder().shortCode(rq.getParams().get("shortCode")).build())
+                    .flatMap(countryFinder::findByShortCode)
+                    .switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_RECORD_NOT_FOUND))))
+                    .flatMap(c -> this.buildResponse(List.of(c))
+                    ).switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_USERNAME_REQUIRED))));
+        }
+
+        @Override
+        public Mono<String> update(TransactionRequest request) {
+            return Mono.just(request)
+                    .filter(this::userIsRequired)
+                    .map(TransactionRequest::getItem)
+                    .flatMap(this::executeUpdate)
+                    .thenReturn(ResponseMessageConstant.MSG_UPDATED_SUCCESS);
+        }
+
+        private Boolean userIsRequired(TransactionRequest request){
+            return Optional.ofNullable(request)
+                .map(TransactionRequest::getContext)
+                .map(Context::getCustomer).map(Context.Customer::getUsername)
+                .filter(username -> !username.isEmpty())
+                .isPresent();
+        }
+
+        private Mono<Country> buildCountry(Object object){
+            if (object instanceof Country country) {
+                return Mono.just(Country.builder().name(country.getName())
+                    .shortCode(country.getShortCode()).status(country.isStatus())
+                    .dateCreation(country.getDateCreation()).description(country.getDescription())
+                    .build());
+            } else {
+                return Mono.error(new TechnicalException(TECHNICAL_REQUEST_ERROR));
+            }
+        }
+
+        private Mono<Country> executeUpdate(Object object){
+            if (object instanceof Country country) {
+                return countryFinder.findByShortCode(Country.builder().shortCode(country.getShortCode()).build())
+                        .switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_RECORD_NOT_FOUND))))
+                        .map(ca -> Country.builder().id(ca.getId()).name(country.getName())
+                                .shortCode(country.getShortCode()).status(country.isStatus())
+                                .dateCreation(country.getDateCreation()).description(country.getDescription())
+                                .build())
+                        .flatMap(countryUpdater::update);
+            } else {
+                return Mono.error(new TechnicalException(TECHNICAL_REQUEST_ERROR));
+            }
+        }
+
+        private Mono<TransactionResponse> buildResponse(List<Country> countries){
+            TransactionResponse response = TransactionResponse.builder()
+                .message(ResponseMessageConstant.MSG_LIST_SUCCESS)
+                .size(countries.size())
+                .response(Collections.singletonList(countries))
+                .build();
+
+            return Mono.just(response);
+        }
+    }
+    ```
+
+## Realizar pruebas
+
+- Crear ambiente RabbitMQ local
+    ```
+    podman machine start
+
+    podman start localstack
+
+    podman run -d --name rabbitmq-container -p 5672:5672 -p 15672:15672 docker.io/library/rabbitmq:latest
+
+    podman exec -it rabbitmq-container rabbitmq-plugins enable rabbitmq_management
+    ```
+
+- Crear secreto
+    ```
+    aws secretsmanager create-secret --name local-rabbitmq --description "Connection to RabbitMQ" --secret-string "{\"virtualhost\":\"/\",\"hostname\":\"localhost\",\"username\":\"guest\",\"password\":\"guest\",\"port\":5672}" --endpoint-url=http://localhost:4566
+    ```
+- Configurar cola en rabbit para ver los mensajes emitidos
+    - Ingresar a: http://localhost:15672
+    - Elegir en el menú: Queues and streams
+    - Ubicarse en: Add a new queue
+    - Dar un nombre: name: test-queue
+    - Dar a boton: Add queue
+
+    ![](./img/modules/5_rabbit_config_queue.png)
+
+    - Seleccionar el registro de la cola creada: test-queue
+    - Seleccionar la sección de bindings
+    - Escribir en From exchange: domainEvents
+    - Escribir en Routing key: myapp.notification.example-event-emited
+    - Presionar el boton Bind
+
+    ![](./img/modules/5_rabbit_config_queue_binding.png)
+
+- Ejecutar la aplicación y ejecutar el metodo save country
+    ```
+    curl --location 'localhost:8080/api/v1/microservice-aws/country/save' \
+    --header 'user-name: usertest' \
+    --header 'message-id: 9999999-9999-0001' \
+    --header 'ip: 172.34.45.12' \
+    --header 'user-agent: application/json' \
+    --header 'platform-type: postman' \
+    --header 'Content-Type: application/json' \
+    --data '{
+        "shortCode": "ECU",
+        "name": "Ecuador",
+        "description": "Cuenta con una población estimada de 10 millones de habitantes.",
+        "status": true,
+        "dateCreation": "2025-07-12T08:00:00"
+    }'
+    ```
+- Ver logs: guardar y e información del evento emitido, para el caso ejemplo message-id es 9999999-9999-0001
+    ```
+    {
+        "instant": {
+            "epochSecond": 1752814380,
+            "nanoOfSecond": 154895700
+        },
+        "thread": "reactor-http-nio-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"Save one record\",\"messageId\":\"9999999-9999-0001\",\"service\":\"Service Api Rest world regions\",\"method\":\"co.com.microservice.aws.infrastructure.input.rest.api.handler.CountryHandler\",\"appName\":\"MicroserviceAws\"},\"request\":{\"headers\":null,\"body\":{\"id\":\"9999999-9999-0001\",\"customer\":{\"ip\":\"172.34.45.12\",\"username\":\"usertest\",\"device\":{\"userAgent\":\"application/json\",\"platformType\":\"postman\"}}}},\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 85,
+        "threadPriority": 5
+    }
+    {
+        "instant": {
+            "epochSecond": 1752814380,
+            "nanoOfSecond": 478357000
+        },
+        "thread": "RMessageSender1-1",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"Event emitted\",\"messageId\":\"9999999-9999-0001\",\"service\":\"generateDomainEvent\",\"method\":\"co.com.microservice.aws.infrastructure.output.rabbiteventbus.repository.EventOperations\",\"appName\":\"MicroserviceAws\"},\"request\":{\"headers\":null,\"body\":{\"type\":\"myapp.notification.example-event-emited\",\"specVersion\":\"1\",\"source\":\"microservice-aws\",\"id\":\"04356cd6-8253-4800-a93e-0fe13d4fb505\",\"time\":\"2025-07-17T23:53:00.453305400\",\"invoker\":\"From-My-App\",\"dataContentType\":\"application/json\",\"data\":{\"contextHeaders\":{\"id\":\"9999999-9999-0001\",\"customer\":{\"ip\":\"172.34.45.12\",\"username\":\"usertest\",\"device\":{\"userAgent\":\"application/json\",\"platformType\":\"postman\"}}},\"data\":{\"id\":null,\"shortCode\":null,\"name\":\"Ecuador\",\"description\":\"Cuenta con una población estimada de 10 millones de habitantes.\",\"status\":false,\"dateCreation\":null}},\"eventId\":\"04356cd6-8253-4800-a93e-0fe13d4fb505-myapp.notification.example-event-emited\"}},\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 105,
+        "threadPriority": 5
+    }
+    ```
+
+- Ver mensaje en la cola creada
+    - Ubicarse en la cola: test-queue
+    - Ubicarse en la sección de GetMessage
+    - Presionar boton Get Message(s)
+    - Ver lo que se evidencia en PayLoad
+
+    ```
+    {
+        "name": "myapp.notification.example-event-emited",
+        "eventId": "04356cd6-8253-4800-a93e-0fe13d4fb505",
+        "data": {
+            "type": "myapp.notification.example-event-emited",
+            "specVersion": "1",
+            "source": "microservice-aws",
+            "id": "04356cd6-8253-4800-a93e-0fe13d4fb505",
+            "time": "2025-07-17T23:53:00.453305400",
+            "invoker": "From-My-App",
+            "dataContentType": "application/json",
+            "data": {
+                "contextHeaders": {
+                    "id": "9999999-9999-0001",
+                    "customer": {
+                        "ip": "172.34.45.12",
+                        "username": "usertest",
+                        "device": {
+                            "userAgent": "application/json",
+                            "platformType": "postman"
+                        }
+                    }
+                },
+                "data": {
+                    "id": null,
+                    "shortCode": null,
+                    "name": "Ecuador",
+                    "description": "Cuenta con una población estimada de 10 millones de habitantes.",
+                    "status": false,
+                    "dateCreation": null
+                }
+            },
+            "eventId": "04356cd6-8253-4800-a93e-0fe13d4fb505-myapp.notification.example-event-emited"
+        }
+    }
+    ```
+
+    ![](./img/modules/5_rabbit_config_queue_get-message.png)
+
 
 ⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](LICENSE.md)
