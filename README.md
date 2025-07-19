@@ -14,18 +14,8 @@
   * [1.4 Spring Webflux](#id1-4)
   * [1.5 Servicios utilidades Docker](#id1-5)
     * [1.5.1 WireMock (Api rest)](#id1-5-1)
-* [2. Proyecto Java Webflux (Caso práctico con plugin scaffold)](#id2)
-  * [2.1 Proyecto base](#id2-1)
-  * [2.2 API Rest webflux GET](#id2-2)
-  * [2.3 API Rest webflux CRUD dynamoDB](#id2-3)
-    * [2.3.1 API Rest webflux informar errores](#id2-3-1)
-  * [2.4 Load variables y rest consumer](#id2-4)
-  * [2.5 Secrets manager y redis cache](#id2-5)
-  * [2.6 Microservio exponer parámetros](#id2-6)
-  * [2.7 Enviar eventos RabbitMQ](#id2-7)
-  * [2.8 Microservicio leer eventos RabbitMQ](#id2-8)
-* [3. Proyecto Java Webflux (Caso práctico con spring initializr)](#id3)
-  * [3.1 API Rest webflux CRUD Postgre SQL](#id3-1)
+* [2. Proyecto Java Webflux (Caso práctico con spring initializr)](#id2)
+  * [2.1 Proyecto Java-Reactivo Stack tecnológico](#id2-1)
 
 # <div id='id1'/>
 # 1 Documentación
@@ -126,69 +116,62 @@ Un bucket en Amazon S3 es un contenedor lógico donde se almacenan objetos (arch
 
 [>> Primeros pasos spring webflux)](1-5-1-wiremock-apirest.md)
 
-# <div id='id2'/>
-# 2. Proyecto Java Webflux (Caso práctico con plugin scaffold)
-
-# <div id='id2-1'/>
-## 2.1 Proyecto base
-
-### Ejecutar primeros pasos
-
-[>> Primeros pasos crear proyecto)](2-1-crear-proyecto-base.md)
-
-# <div id='id2-2'/>
-## 2.2 API Rest Java Spring Webflux GET
-
-### Ejecutar primeros pasos
-
-Se indica paso a paso como crear un api rest y las diferentes formas de crearlo
-
-[>> Crear proyecto api rest](2-2-crear-api-rest.md)
-
-# <div id='id2-3'/>
-## 2.3 API Rest webflux CRUD dynamoDB
-
-### Ejecutar primeros pasos
-
-Se indica paso a paso como crear un api rest para crear, actualizar, borrar y consultar información en una tabla en dynamodb
-
-[>> Crear proyecto api rest CRUD DynamoDB](2-3-crear-api-rest-crud-dynamodb.md)
-
-# <div id='id2-3-1'/>
-### 2.3.1 API Rest webflux informar errores
-
-### Ejecutar primeros pasos
-
-Se indica paso a paso como configurar el proyecto para retornar errores técnicos o de negocio personalizados, evitando exponer la estructura del proyecto
-
-[>> Crear proyecto api rest Informar errores técnicos y negocio](2-3-1-crear-api-rest-informar-errores.md)
-
-# <div id='id2-4'/>
-## 2.4 Load variables locales y consumo api rest con reintentos
-
-Se indica paso a paso como configurar el proyecto para obtener variables locales, por consumos de servicios externos con reintentos en casos de fallo y servicios mockeados
-
-[>> Crear proyecto load variables locales y consumo de servicios externos](2-4-crear-load-variables-rest-consumer.md)
-
-# <div id='id2-5'/>
-## 2.5 Almacenar parámetros en redis cache, uso de secretos
-
-Se indica paso a paso como configurar el proyecto para guardar un parámetro en redis cache y configuración de la conexión con secrets-manager
-
-[>> Crear proyecto secrets-manager y redis cache](2-5-crear-secrest-manager-redis-cache.md)
-
-
 # <div id='id3'/>
-# 3. Proyecto Java Webflux (Caso práctico con spring initializr)
-
 # <div id='id3-1'/>
-## 3.1 API Rest webflux CRUD PostgreSQL
+# 3. Proyecto Java Webflux (Caso práctico con spring initializr)
+## 3.1 Proyecto Java-Reactivo Stack tecnológico
 
-### Ejecutar primeros pasos
+Este proyecto tiene como objetivo el desarrollo de un sistema backend reactivo, robusto y escalable basado en Spring WebFlux, que proporciona una API REST para realizar operaciones CRUD (crear, consultar, actualizar y eliminar) sobre diversas entidades almacenadas en bases de datos relacionales. El enfoque principal es ofrecer un diseño limpio, orientado a eventos, con una arquitectura moderna y desacoplada.
 
-Se indica paso a paso como crear un api rest para crear, actualizar, borrar y consultar información en una tabla en postgresql
+### Características Principales
 
-[>> Crear proyecto api rest CRUD PostgreSQL](3-1-crear-api-rest-crud-postgresql.md)
+- **API RESTful con Spring WebFlux**  
+Implementación de endpoints reactivos para la gestión de recursos.
+
+  Control de flujo no bloqueante basado en Mono y Flux.
+
+  Separación clara entre respuestas técnicas (errores de infraestructura, validaciones, etc.) y respuestas de negocio (reglas funcionales del dominio).
+
+- **Bases de Datos Relacionales**  
+  PostgreSQL: Base de datos principal usada para el almacenamiento de entidades del dominio.
+
+  MySQL: Base de datos secundaria utilizada en módulos específicos que requieren interoperabilidad o sincronización de datos.
+
+- **Cache con Redis**  
+  Integración de Redis Cache para mejorar el rendimiento mediante almacenamiento temporal de datos consultados frecuentemente.
+
+  Configuración reactiva y uso eficiente con Spring Data Redis Reactive.
+
+- **Gestión de Credenciales con AWS Secrets Manager**  
+  Acceso seguro a credenciales de bases de datos y otros servicios a través de Secrets Manager.
+
+  Desacoplamiento de las configuraciones sensibles del código fuente.
+
+- **Mensajería Asíncrona con RabbitMQ**  
+  Envío y recepción de eventos de dominio a través de RabbitMQ, usando la librería async-commons-rabbit-starter.
+
+  Configuración de colas, intercambios y binding keys definidos en archivos YAML para facilitar la mantenibilidad y el versionamiento.
+
+- **Arquitectura Hexagonal**  
+  Separación clara entre la lógica de negocio (dominio) y las dependencias externas (bases de datos, colas, controladores HTTP).
+
+  Uso de puertos y adaptadores para mantener bajo acoplamiento y facilitar las pruebas unitarias.
+
+- **Sistema de Logging Estructurado**  
+  Implementación de logs enriquecidos mediante un LoggerBuilder personalizado.
+
+  Impresión detallada de headers, requests, responses y metadatos.
+
+  Formato en JSON compatible con herramientas de monitoreo como ELK (Elasticsearch, Logstash, Kibana).
+
+- **Estrategia de Respuestas Unificadas**  
+  Respuestas técnicas con códigos HTTP precisos y mensajes claros.
+
+  Respuestas de negocio estandarizadas, con códigos funcionales y descripciones comprensibles para el consumidor.
+
+<a href="3-1-crear-api-rest-crud-postgresql.md" style="background-color:#4CAF50;color:white;padding:10px 20px;text-align:center;text-decoration:none;display:inline-block;border-radius:5px;font-weight:bold;">
+📘 Ver Instructivo del Proyecto Java-Reactivo
+</a>
 
 ---
 

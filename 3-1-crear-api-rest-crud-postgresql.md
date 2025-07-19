@@ -2,6 +2,8 @@
 
 > A continuación se describe la configuración base de un proyecto construido bajo principios de microservicios y arquitectura limpia, integrando un sólido stack tecnológico.
 
+⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](LICENSE.md)
+
 ### Requisitos
 
 - ⚠️ Java 17 o superior
