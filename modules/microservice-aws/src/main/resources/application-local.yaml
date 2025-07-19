@@ -46,7 +46,7 @@ entries:
     name: "${REGEX_COUNTRY_NAME:^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]{3,50}$}"
     codeShort: "${REGEX_COUNTRY_CODE_SHORT:^[a-zA-Z]{3,4}$}"
   properties:
-    expression-timer: "${EXPRESSION_TIMER:0 */5 * * * ?}"
+    expression-timer: "${EXPRESSION_TIMER:0 */15 * * * ?}"
     process-on-schedule: "${PROCESS_ON_SCHEDULE:Y}"
 
 adapters:
@@ -59,3 +59,9 @@ adapters:
     nameRabbitMq: "${SECRET_NAME_RABBIT_MQ:local-rabbitmq}"
   redis:
     expireTime: ${CACHE_EXPIRE_SECONDS:10}
+
+listen:
+  event:
+    names:
+      saveCountry: "${EVENT_NAME_SAVE_COUNTRY:business.myapp.save.country}"
+      saveCacheCountCountry: "${EVENT_NAME_COUNT_IN_CACHE_COUNTRY:business.myapp.save-cache-count.country}"

@@ -13,7 +13,7 @@ import reactor.core.publisher.Mono;
 @Component
 @RequiredArgsConstructor
 public class CountryAdapter implements SavePort<Country>, ListAllPort<Country>,
-        UpdatePort<Country>, DeletePort<Country>, FindByShortCodePort<Country> {
+        UpdatePort<Country>, DeletePort<Country>, FindByShortCodePort<Country>, CountByStatusPort {
     private final CountryEntityMapper mapper;
     private final CountryRepository countryRepository;
 
@@ -51,5 +51,10 @@ public class CountryAdapter implements SavePort<Country>, ListAllPort<Country>,
                 .map(mapper::toEntityFromModel)
                 .flatMap(countryRepository::save)
                 .map(mapper::toModelFromEntity);
+    }
+
+    @Override
+    public Mono<Integer> countByStatus(boolean status) {
+        return countryRepository.countByStatus(status);
     }
 }

@@ -14,6 +14,7 @@ import co.com.microservice.aws.domain.usecase.out.*;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -33,6 +34,7 @@ public class CountryUseCaseImpl implements CountryUseCase {
     private final FindByShortCodePort<Country> countryFinder;
     private final RedisPort redisPort;
     private final SentEventUseCase eventUseCase;
+    private final CountByStatusPort countryCounter;
 
     @Override
     public Mono<TransactionResponse> listAll(TransactionRequest request) {
@@ -51,7 +53,9 @@ public class CountryUseCaseImpl implements CountryUseCase {
             .flatMap(this::buildCountry)
             .flatMap(country -> countrySaver.save(country, request.getContext()))
             .doOnNext(country -> eventUseCase.sentEvent(request.getContext(),
-                    EVENT_EMMITED_NOTIFICATION_SAVE, Country.builder().name(country.getName()).description(country.getDescription()).build()))
+                    EVENT_EMMITED_NOTIFICATION_SAVE, Country.builder().name(country.getName())
+                            .description(country.getDescription()).shortCode(country.getShortCode())
+                            .status(country.isStatus()).build()))
             .thenReturn(ResponseMessageConstant.MSG_SAVED_SUCCESS);
     }
 
@@ -84,6 +88,17 @@ public class CountryUseCaseImpl implements CountryUseCase {
                 .thenReturn(ResponseMessageConstant.MSG_UPDATED_SUCCESS);
     }
 
+    @Override
+    public Mono<Integer> countByStatus(TransactionRequest request) {
+        return Mono.just(request)
+            .map(TransactionRequest::getItem)
+            .flatMap(this::buildCountry)
+            .flatMap(c -> countryCounter.countByStatus(c.isStatus()))
+            .flatMap(count ->
+                redisPort.save(CacheKey.KEY_COUNT_BY_STATUS.getKey(), String.valueOf(count))
+                    .thenReturn(count));
+    }
+
     private Boolean userIsRequired(TransactionRequest request){
         return Optional.ofNullable(request)
             .map(TransactionRequest::getContext)
@@ -96,7 +111,7 @@ public class CountryUseCaseImpl implements CountryUseCase {
         if (object instanceof Country country) {
             return Mono.just(Country.builder().name(country.getName())
                 .shortCode(country.getShortCode()).status(country.isStatus())
-                .dateCreation(country.getDateCreation()).description(country.getDescription())
+                .dateCreation(LocalDateTime.now()).description(country.getDescription())
                 .build());
         } else {
             return Mono.error(new TechnicalException(TECHNICAL_REQUEST_ERROR));
@@ -126,4 +141,6 @@ public class CountryUseCaseImpl implements CountryUseCase {
 
         return Mono.just(response);
     }
+
+
 }

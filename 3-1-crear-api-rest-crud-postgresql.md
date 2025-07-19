@@ -1,5 +1,6 @@
-# Instructivo paso a paso Postgresql, Mysql database; Secrets, Redis, Cron
-> A continuación se realiza la creación base del proyecto basada en microservicios y arquitectura limpia
+# Instructivo paso a paso Postgresql, Mysql database; Secrets, Redis, Cron, RabbitMQ (Publicador - Consumidor)
+
+> A continuación se describe la configuración base de un proyecto construido bajo principios de microservicios y arquitectura limpia, integrando un sólido stack tecnológico.
 
 ### Requisitos
 
@@ -3630,26 +3631,22 @@ entries:
     ```
     {
         "name": "myapp.notification.example-event-emited",
-        "eventId": "04356cd6-8253-4800-a93e-0fe13d4fb505",
+        "eventId": "ce8fbd41-0e7d-470b-abdc-123a12d27542",
         "data": {
             "type": "myapp.notification.example-event-emited",
             "specVersion": "1",
             "source": "microservice-aws",
-            "id": "04356cd6-8253-4800-a93e-0fe13d4fb505",
-            "time": "2025-07-17T23:53:00.453305400",
+            "id": "ce8fbd41-0e7d-470b-abdc-123a12d27542",
+            "time": "2025-07-18T16:30:15.001640700",
             "invoker": "From-My-App",
             "dataContentType": "application/json",
             "data": {
-                "contextHeaders": {
+                "headers": {
+                    "user-name": "usertest",
+                    "platform-type": "postman",
+                    "ip": "172.34.45.12",
                     "id": "9999999-9999-0001",
-                    "customer": {
-                        "ip": "172.34.45.12",
-                        "username": "usertest",
-                        "device": {
-                            "userAgent": "application/json",
-                            "platformType": "postman"
-                        }
-                    }
+                    "user-agent": "application/json"
                 },
                 "data": {
                     "id": null,
@@ -3660,12 +3657,695 @@ entries:
                     "dateCreation": null
                 }
             },
-            "eventId": "04356cd6-8253-4800-a93e-0fe13d4fb505-myapp.notification.example-event-emited"
+            "eventId": "ce8fbd41-0e7d-470b-abdc-123a12d27542-myapp.notification.example-event-emited"
         }
     }
     ```
 
     ![](./img/modules/5_rabbit_config_queue_get-message.png)
 
+## Consumidor
+
+- Ubicarse en el archivo application-local.yaml y colocar la siguiente información: corresponde a los eventos que vamos a estar escuchando.
+```
+listen:
+  event:
+    names:
+      saveCountry: "${EVENT_NAME_SAVE_COUNTRY:business.myapp.save.country}"
+      saveCacheCountCountry: "${EVENT_NAME_COUNT_IN_CACHE_COUNTRY:business.myapp.save-cache-count.country}"
+```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.listenevent.config y crear la clase EventNameProperties.java
+    ```
+    package co.com.microservice.aws.infrastructure.input.listenevent.config;
+
+    import org.springframework.boot.context.properties.ConfigurationProperties;
+    import org.springframework.boot.context.properties.EnableConfigurationProperties;
+    import org.springframework.context.annotation.Configuration;
+
+    import lombok.Getter;
+    import lombok.Setter;
+
+    @Getter
+    @Setter
+    @Configuration
+    @EnableConfigurationProperties
+    @ConfigurationProperties(prefix = "listen.event.names")
+    public class EventNameProperties {
+        private String saveCountry;
+        private String saveCacheCountCountry;
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.listenevent.util y crear la clase EventData.java
+    ```
+    package co.com.microservice.aws.infrastructure.input.listenevent.util;
+
+    import com.fasterxml.jackson.databind.DeserializationFeature;
+    import com.fasterxml.jackson.databind.ObjectMapper;
+    import lombok.experimental.UtilityClass;
+    import org.reactivecommons.api.domain.DomainEvent;
+
+    @UtilityClass
+    public class EventData {
+        private static final ObjectMapper objectMapper = new ObjectMapper();
+
+        static {
+            objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        }
+
+        public static <T> T getValueData(DomainEvent<Object> event, Class<T> clazz) {
+            return objectMapper.convertValue(event.getData(), clazz);
+        }
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.domain.model.events y crear la clase Headers.java
+    ```
+    package co.com.microservice.aws.domain.model.events;
+
+    import com.fasterxml.jackson.annotation.JsonAlias;
+    import lombok.AllArgsConstructor;
+    import lombok.Data;
+    import lombok.NoArgsConstructor;
+
+    import java.io.Serial;
+    import java.io.Serializable;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public class Headers implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        @JsonAlias({ "message-id" })
+        private String messageId;
+        private String ip;
+        @JsonAlias({ "user-name" })
+        private String username;
+        @JsonAlias({ "user-agent" })
+        private String userAgent;
+        @JsonAlias({ "platform-type" })
+        private String platformType;
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.domain.model.events y crear la clase SaveCountry.java
+    ```
+    package co.com.microservice.aws.domain.model.events;
+
+    import lombok.AllArgsConstructor;
+    import lombok.Builder;
+    import lombok.Data;
+    import lombok.NoArgsConstructor;
+
+    import java.io.Serial;
+    import java.io.Serializable;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public class SaveCountry implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        private TrxData data = new TrxData();
+
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        public static class TrxData implements Serializable {
+            @Serial
+            private static final long serialVersionUID = 1L;
+            private TransactionRequest transactionRequest = new TransactionRequest();
+            private TransactionResponse transactionResponse = new TransactionResponse();
+        }
+
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        public static class TransactionRequest implements Serializable {
+            @Serial
+            private static final long serialVersionUID = 1L;
+            private Headers headers = new Headers();
+        }
+
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        public static class TransactionResponse implements Serializable {
+            @Serial
+            private static final long serialVersionUID = 1L;
+            private String statusResponse;
+            private Country country = new Country();
+        }
+
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @Builder(toBuilder = true)
+        public static class Country implements Serializable {
+            @Serial
+            private static final long serialVersionUID = 1L;
+
+            private String shortCode;
+            private String name;
+            private String description;
+            private boolean status;
+        }
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in y crear la clase CountByStatusUseCase.java
+    ```
+    package co.com.microservice.aws.domain.usecase.in;
+
+    import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+    import reactor.core.publisher.Mono;
+
+    public interface CountByStatusUseCase {
+        Mono<Integer> countByStatus(TransactionRequest request);
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in y modificar la clase CountryUseCase.java
+    ```
+    package co.com.microservice.aws.domain.usecase.in;
+
+    public interface CountryUseCase extends SaveUseCase, UpdateUseCase, DeleteUseCase,
+            ListAllUseCase, FindByShortCodeUseCase, CountByStatusUseCase{
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.postgresql.repository y modificar la clase CountryRepository.java, para efectos de la prueba y abordar otras formas de hacer consultas se crea usando @Query, pero si el metodo solo dice countByStatus(boolean status) es suficiente.
+    ```
+    package co.com.microservice.aws.infrastructure.output.postgresql.repository;
+
+    import co.com.microservice.aws.infrastructure.output.postgresql.entity.CountryEntity;
+    import org.springframework.data.r2dbc.repository.Query;
+    import org.springframework.data.r2dbc.repository.R2dbcRepository;
+    import org.springframework.data.repository.query.Param;
+    import reactor.core.publisher.Mono;
+
+    public interface CountryRepository extends R2dbcRepository<CountryEntity, Long> {
+        Mono<CountryEntity> findByShortCode(String shortCode);
+
+        @Query("SELECT COUNT(*) FROM worldregion.countries WHERE status = :status")
+        Mono<Integer> countByStatus(@Param("status") boolean status);
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.out y crear la clase CountByStatusPort.java
+    ```
+    package co.com.microservice.aws.domain.usecase.out;
+
+    import reactor.core.publisher.Mono;
+
+    public interface CountByStatusPort {
+        Mono<Integer> countByStatus(boolean status);
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.postgresql y modificar la clase CountryAdapter.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.postgresql;
+
+    import co.com.microservice.aws.domain.model.Country;
+    import co.com.microservice.aws.domain.model.rq.Context;
+    import co.com.microservice.aws.domain.usecase.out.*;
+    import co.com.microservice.aws.infrastructure.output.postgresql.mapper.CountryEntityMapper;
+    import co.com.microservice.aws.infrastructure.output.postgresql.repository.CountryRepository;
+    import lombok.RequiredArgsConstructor;
+    import org.springframework.stereotype.Component;
+    import reactor.core.publisher.Flux;
+    import reactor.core.publisher.Mono;
+
+    @Component
+    @RequiredArgsConstructor
+    public class CountryAdapter implements SavePort<Country>, ListAllPort<Country>,
+            UpdatePort<Country>, DeletePort<Country>, FindByShortCodePort<Country>, CountByStatusPort {
+        private final CountryEntityMapper mapper;
+        private final CountryRepository countryRepository;
+
+        @Override
+        public Mono<Country> save(Country country, Context context) {
+            return Mono.just(country)
+                    .map(mapper::toEntityFromModel)
+                    .flatMap(countryRepository::save)
+                    .map(mapper::toModelFromEntity);
+        }
+
+        @Override
+        public Flux<Country> listAll(Context context) {
+            return countryRepository.findAll().map(mapper::toModelFromEntity);
+        }
+
+        @Override
+        public Mono<Void> delete(Country country) {
+            return Mono.just(country)
+                    .map(mapper::toEntityFromModel)
+                    .flatMap(countryRepository::delete);
+        }
+
+        @Override
+        public Mono<Country> findByShortCode(Country country) {
+            return Mono.just(country)
+                    .map(Country::getShortCode)
+                    .flatMap(countryRepository::findByShortCode)
+                    .map(mapper::toModelFromEntity);
+        }
+
+        @Override
+        public Mono<Country> update(Country country) {
+            return Mono.just(country)
+                    .map(mapper::toEntityFromModel)
+                    .flatMap(countryRepository::save)
+                    .map(mapper::toModelFromEntity);
+        }
+
+        @Override
+        public Mono<Integer> countByStatus(boolean status) {
+            return countryRepository.countByStatus(status);
+        }
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.domain.model.commons.enums y modificar la clase CacheKey.java
+    ```
+    package co.com.microservice.aws.domain.model.commons.enums;
+
+    import lombok.Getter;
+    import lombok.RequiredArgsConstructor;
+
+    @Getter
+    @RequiredArgsConstructor
+    public enum CacheKey {
+        APPLY_AUDIT("APPLY_AUDIT"),
+        KEY_DEFAULT("KEY_DEFAULT"),
+        KEY_COUNT_BY_STATUS("KEY_COUNT_BY_STATUS");
+
+        private final String key;
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.application.usecase y crear la clase CountryUseCaseImpl.java
+    ```
+    package co.com.microservice.aws.application.usecase;
+
+    import co.com.microservice.aws.application.helpers.commons.UseCase;
+    import co.com.microservice.aws.domain.model.Country;
+    import co.com.microservice.aws.domain.model.commons.enums.CacheKey;
+    import co.com.microservice.aws.domain.model.commons.exception.BusinessException;
+    import co.com.microservice.aws.domain.model.commons.exception.TechnicalException;
+    import co.com.microservice.aws.domain.model.commons.util.ResponseMessageConstant;
+    import co.com.microservice.aws.domain.model.rq.Context;
+    import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+    import co.com.microservice.aws.domain.model.rs.TransactionResponse;
+    import co.com.microservice.aws.domain.usecase.in.*;
+    import co.com.microservice.aws.domain.usecase.out.*;
+    import lombok.RequiredArgsConstructor;
+    import reactor.core.publisher.Mono;
+
+    import java.time.LocalDateTime;
+    import java.util.Collections;
+    import java.util.List;
+    import java.util.Optional;
+
+    import static co.com.microservice.aws.domain.model.commons.enums.BusinessExceptionMessage.BUSINESS_RECORD_NOT_FOUND;
+    import static co.com.microservice.aws.domain.model.commons.enums.BusinessExceptionMessage.BUSINESS_USERNAME_REQUIRED;
+    import static co.com.microservice.aws.domain.model.commons.enums.TechnicalExceptionMessage.TECHNICAL_REQUEST_ERROR;
+    import static co.com.microservice.aws.domain.model.events.EventType.EVENT_EMMITED_NOTIFICATION_SAVE;
+
+    @UseCase
+    @RequiredArgsConstructor
+    public class CountryUseCaseImpl implements CountryUseCase {
+        private final SavePort<Country> countrySaver;
+        private final ListAllPort<Country> countryLister;
+        private final UpdatePort<Country> countryUpdater;
+        private final DeletePort<Country> countryDeleter;
+        private final FindByShortCodePort<Country> countryFinder;
+        private final RedisPort redisPort;
+        private final SentEventUseCase eventUseCase;
+        private final CountByStatusPort countryCounter;
+
+        @Override
+        public Mono<TransactionResponse> listAll(TransactionRequest request) {
+            return Mono.just(request)
+                .filter(this::userIsRequired)
+                .flatMap(req -> redisPort.find(CacheKey.APPLY_AUDIT.getKey()).thenReturn(req))
+                .flatMap(req -> countryLister.listAll(req.getContext()).collectList().flatMap(this::buildResponse)
+                ).switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_USERNAME_REQUIRED))));
+        }
+
+        @Override
+        public Mono<String> save(TransactionRequest request) {
+            return Mono.just(request)
+                .filter(this::userIsRequired)
+                .map(TransactionRequest::getItem)
+                .flatMap(this::buildCountry)
+                .flatMap(country -> countrySaver.save(country, request.getContext()))
+                .doOnNext(country -> eventUseCase.sentEvent(request.getContext(),
+                        EVENT_EMMITED_NOTIFICATION_SAVE, Country.builder().name(country.getName())
+                                .description(country.getDescription()).shortCode(country.getShortCode())
+                                .status(country.isStatus()).build()))
+                .thenReturn(ResponseMessageConstant.MSG_SAVED_SUCCESS);
+        }
+
+        @Override
+        public Mono<String> delete(TransactionRequest request) {
+            return Mono.just(request)
+                    .filter(this::userIsRequired)
+                    .map(rq -> Country.builder().id(Long.valueOf(rq.getParams().get("id"))).build())
+                    .flatMap(countryDeleter::delete)
+                    .thenReturn(ResponseMessageConstant.MSG_DELETED_SUCCESS);
+        }
+
+        @Override
+        public Mono<TransactionResponse> findByShortCode(TransactionRequest request) {
+            return Mono.just(request)
+                    .filter(this::userIsRequired)
+                    .map(rq -> Country.builder().shortCode(rq.getParams().get("shortCode")).build())
+                    .flatMap(countryFinder::findByShortCode)
+                    .switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_RECORD_NOT_FOUND))))
+                    .flatMap(c -> this.buildResponse(List.of(c))
+                    ).switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_USERNAME_REQUIRED))));
+        }
+
+        @Override
+        public Mono<String> update(TransactionRequest request) {
+            return Mono.just(request)
+                    .filter(this::userIsRequired)
+                    .map(TransactionRequest::getItem)
+                    .flatMap(this::executeUpdate)
+                    .thenReturn(ResponseMessageConstant.MSG_UPDATED_SUCCESS);
+        }
+
+        @Override
+        public Mono<Integer> countByStatus(TransactionRequest request) {
+            return Mono.just(request)
+                .map(TransactionRequest::getItem)
+                .flatMap(this::buildCountry)
+                .flatMap(c -> countryCounter.countByStatus(c.isStatus()))
+                .flatMap(count ->
+                    redisPort.save(CacheKey.KEY_COUNT_BY_STATUS.getKey(), String.valueOf(count))
+                        .thenReturn(count));
+        }
+
+        private Boolean userIsRequired(TransactionRequest request){
+            return Optional.ofNullable(request)
+                .map(TransactionRequest::getContext)
+                .map(Context::getCustomer).map(Context.Customer::getUsername)
+                .filter(username -> !username.isEmpty())
+                .isPresent();
+        }
+
+        private Mono<Country> buildCountry(Object object){
+            if (object instanceof Country country) {
+                return Mono.just(Country.builder().name(country.getName())
+                    .shortCode(country.getShortCode()).status(country.isStatus())
+                    .dateCreation(LocalDateTime.now()).description(country.getDescription())
+                    .build());
+            } else {
+                return Mono.error(new TechnicalException(TECHNICAL_REQUEST_ERROR));
+            }
+        }
+
+        private Mono<Country> executeUpdate(Object object){
+            if (object instanceof Country country) {
+                return countryFinder.findByShortCode(Country.builder().shortCode(country.getShortCode()).build())
+                        .switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_RECORD_NOT_FOUND))))
+                        .map(ca -> Country.builder().id(ca.getId()).name(country.getName())
+                                .shortCode(country.getShortCode()).status(country.isStatus())
+                                .dateCreation(country.getDateCreation()).description(country.getDescription())
+                                .build())
+                        .flatMap(countryUpdater::update);
+            } else {
+                return Mono.error(new TechnicalException(TECHNICAL_REQUEST_ERROR));
+            }
+        }
+
+        private Mono<TransactionResponse> buildResponse(List<Country> countries){
+            TransactionResponse response = TransactionResponse.builder()
+                .message(ResponseMessageConstant.MSG_LIST_SUCCESS)
+                .size(countries.size())
+                .response(Collections.singletonList(countries))
+                .build();
+
+            return Mono.just(response);
+        }
+
+
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.listenevent.events y crear la clase CountryEventListener.java
+    ```
+    package co.com.microservice.aws.infrastructure.input.listenevent.events;
+
+    import co.com.microservice.aws.application.helpers.logs.LoggerBuilder;
+    import co.com.microservice.aws.application.helpers.logs.TransactionLog;
+    import co.com.microservice.aws.domain.model.Country;
+    import co.com.microservice.aws.domain.model.events.SaveCountry;
+    import co.com.microservice.aws.domain.model.rq.Context;
+    import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+    import co.com.microservice.aws.domain.usecase.in.CountryUseCase;
+    import co.com.microservice.aws.infrastructure.input.listenevent.config.EventNameProperties;
+    import co.com.microservice.aws.infrastructure.input.listenevent.util.EventData;
+    import lombok.RequiredArgsConstructor;
+    import org.reactivecommons.api.domain.DomainEvent;
+    import org.reactivecommons.async.api.HandlerRegistry;
+    import org.springframework.context.annotation.Bean;
+    import org.springframework.context.annotation.Configuration;
+    import org.springframework.context.annotation.Primary;
+    import reactor.core.publisher.Mono;
+
+    @Configuration
+    @RequiredArgsConstructor
+    public class CountryEventListener {
+        private static final String NAME_CLASS = CountryEventListener.class.getName();
+
+        private final EventNameProperties eventNameProperties;
+        private final CountryUseCase countryUseCase;
+        private final LoggerBuilder logger;
+
+        @Bean
+        @Primary
+        public HandlerRegistry handlerRegistry() {
+            logger.info(eventNameProperties.getSaveCountry());
+            return HandlerRegistry.register()
+                .listenEvent(eventNameProperties.getSaveCountry(), this::saveCountry, Object.class)
+                .listenEvent(eventNameProperties.getSaveCacheCountCountry(), this::saveCacheCountCountryByStatus,
+                    Object.class);
+        }
+
+        private Mono<Void> saveCountry(DomainEvent<Object> event) {
+            var saveCountry = EventData.getValueData(event, SaveCountry.class);
+            var saveCountryData = saveCountry.getData();
+            var headers = saveCountryData.getTransactionRequest().getHeaders();
+            var request = TransactionRequest.builder()
+                .item(buildCountry(saveCountryData.getTransactionResponse().getCountry()))
+                .context(Context.builder()
+                    .customer(Context.Customer.builder().username(headers.getUsername()).build()).build())
+                .build();
+
+            printEventData(event, headers.getMessageId());
+            return Mono.just(request).flatMap(countryUseCase::save)
+                    .onErrorResume(this::printFailed).then();
+        }
+
+        private Mono<Void> saveCacheCountCountryByStatus(DomainEvent<Object> event) {
+            var saveCountry = EventData.getValueData(event, SaveCountry.class);
+            var saveCountryData = saveCountry.getData();
+            var headers = saveCountryData.getTransactionRequest().getHeaders();
+            var request = TransactionRequest.builder()
+                    .item(buildCountry(saveCountryData.getTransactionResponse().getCountry())).build();
+            var status = saveCountryData.getTransactionResponse().getCountry().isStatus();
+
+            printEventData(event, headers.getMessageId());
+            return Mono.just(request).flatMap(countryUseCase::countByStatus)
+                    .doOnNext(count -> logger.info(String.format("country status: %s, count: %s", status, count)))
+                    .doOnError(this::printFailed).then();
+        }
+
+        private Country buildCountry(SaveCountry.Country country){
+            return Country.builder()
+                    .shortCode(country.getShortCode())
+                    .name(country.getName())
+                    .description(country.getDescription())
+                    .status(country.isStatus())
+                    .build();
+        }
+
+        private void printEventData(DomainEvent<?> event, String messageId) {
+            logger.info(TransactionLog.Request.builder().body(event).build(),
+                    "Event save country", messageId, "Save Country", NAME_CLASS);
+        }
+
+        private Mono<String> printFailed(Throwable throwable) {
+            logger.error(throwable);
+            return Mono.empty();
+        }
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws y modificar la clase MicroserviceAwsApplication.java
+    ```
+    package co.com.microservice.aws;
+
+    import org.reactivecommons.async.impl.config.annotations.EnableDomainEventBus;
+    import org.reactivecommons.async.impl.config.annotations.EnableEventListeners;
+    import org.springframework.boot.SpringApplication;
+    import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+    @EnableDomainEventBus
+    @EnableEventListeners
+    @SpringBootApplication(exclude = {
+            org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration.class,
+            org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration.class
+    })
+    public class MicroserviceAwsApplication {
+        public static void main(String[] args) {
+            SpringApplication.run(MicroserviceAwsApplication.class, args);
+        }
+    }
+    ```
+
+    **Importante:** 
+    - @EnableDomainEventBus → Necesaria para el binding en rabbitmq de forma automatica.
+    - @EnableEventListeners → Necesaria para escuchar y manejar los eventos.
+
+## Realizar pruebas
+
+- Ingresar a RabbitMQ local
+    - Ir a la opción de menú exchanges
+    - Elegir el exchanges domaintEvents
+    - Validar que se visualicen los eventos que queremos escuchar
+
+    ![](./img/modules/6_rabbit_consumer_listeners.png)
+
+    ![](./img/modules/6_rabbit_consumer_listeners_listed.png)
+
+    - Preparamos la información para los eventos de acuerdo a la estructura que hemos definido en la clase SaveCountry.java en el paquete co.com.microservice.aws.domain.model.events
+
+    - Routing Key: business.myapp.save.country
+    - Payload: 
+    ```
+    {
+        "name": "business.myapp.save.country",
+        "eventId": "2ee1b68b-fc21-4250-9be5-d4ce81d972ab",
+        "data": {
+            "type": "business.myapp.save.country",
+            "specVersion": "1.x-wip",
+            "source": "other-microservicio",
+            "id": "8888888-8888-8888",
+            "time": "2025-07-18T08:44:02",
+            "dataContentType": "application/json",
+            "invoker": "",
+            "data": {
+            "transactionRequest": {
+                "headers": {
+                "user-name": "usertest",
+                "platform-type": "postman",
+                "ip": "172.34.45.12",
+                "message-id": "9999999-9999-0001",
+                "user-agent": "application/json"
+                    }
+                },
+            "transactionResponse": {
+                "statusResponse": "SUCCESS",
+                "country": {
+                    "shortCode": "BOL",
+                    "name": "Bolivia",
+                    "description": "Cuenta con una población estimada de 8 millones de habitantes.",
+                    "status": false
+                    }
+                }
+            }
+        }
+    }
+    ```
+
+    - Enviar el mensaje
+
+    ![](./img/modules/6_rabbit_consumer_publish_message.png)
+
+    - Validar que el mensaje se envió con éxito, si dice que no fue enrutado es porque ningun microservicio esta escuchando el evento
+
+    ![](./img/modules/6_rabbit_consumer_publish_message_ok.png)
+
+    - Resultando validando la base de datos: debe aparecer el pais que hemos lanzado para ser guardado
+
+    ![](./img/modules/6_rabbit_consumer_publish_message_bd.png)
+
+    - Preparamos la información para los eventos de acuerdo a la estructura que hemos definido en la clase SaveCountry.java en el paquete co.com.microservice.aws.domain.model.events, notese que en este caso solo es necesario enviar el status atributo por el cual vamos a contar cuantos elementos tiene, para efectos de la prueba tenemos en la base de datos 
+
+    ```
+    select count(1) from worldregion.countries c where c.status = false  
+    ```
+
+    ![](./img/modules/7_rabbit_consumer_count_by_status_bd.png)
+
+    - Enviamos el evento en rabbitMQ
+
+    - Routing Key: business.myapp.save-cache-count.country
+    - Payload: 
+    ```
+    {
+        "name": "business.myapp.save-cache-count.country",
+        "eventId": "2ee1b68b-fc21-4250-9be5-d4ce81d972ab",
+        "data": {
+            "type": "business.myapp.save-cache-count.country",
+            "specVersion": "1.x-wip",
+            "source": "other-microservicio",
+            "id": "8888888-8888-8888",
+            "time": "2025-07-18T08:44:02",
+            "dataContentType": "application/json",
+            "invoker": "",
+            "data": {
+            "transactionRequest": {
+                "headers": {
+                "user-name": "usertest",
+                "platform-type": "postman",
+                "ip": "172.34.45.12",
+                "message-id": "9999999-9999-0001",
+                "user-agent": "application/json"
+                    }
+                },
+            "transactionResponse": {
+                "statusResponse": "SUCCESS",
+                "country": {
+                    "status": false
+                    }
+                }
+            }
+        }
+    }
+    ```
+
+    - Enviar el mensaje
+
+    ![](./img/modules/7_rabbit_consumer_count_by_status_message_ok.png)
+
+    - Resultando validando redis cache en la consola
+
+    ```
+    -- Ingresar al CLI del contenedor
+    podman exec -it redis-container redis-cli
+
+    -- Obtener el valor de la clave en Redis
+    get APPLY_AUDIT
+    ```
+
+    - Vemos el resultado de la cache
+
+    ![](./img/modules/7_rabbit_consumer_count_by_status_cache_redis.png)
+
+    - Logs de la ejecución
+
+    ```
+    {
+        "instant": {
+            "epochSecond": 1752955755,
+            "nanoOfSecond": 881965600
+        },
+        "thread": "lettuce-nioEventLoop-5-1",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "country status: false, count: 3",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 86,
+        "threadPriority": 5
+    }
+    ```
 
 ⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](LICENSE.md)

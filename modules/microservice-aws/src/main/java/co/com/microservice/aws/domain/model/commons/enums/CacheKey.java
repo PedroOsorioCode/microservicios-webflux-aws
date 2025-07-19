@@ -7,7 +7,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum CacheKey {
     APPLY_AUDIT("APPLY_AUDIT"),
-    KEY_DEFAULT("KEY_DEFAULT");
+    KEY_DEFAULT("KEY_DEFAULT"),
+    KEY_COUNT_BY_STATUS("KEY_COUNT_BY_STATUS");
 
     private final String key;
 }

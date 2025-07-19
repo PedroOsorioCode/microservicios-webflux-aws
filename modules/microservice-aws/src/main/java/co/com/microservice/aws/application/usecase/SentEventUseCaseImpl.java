@@ -11,6 +11,8 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @UseCase
@@ -35,6 +37,17 @@ public class SentEventUseCaseImpl implements SentEventUseCase {
     }
 
     private static Event<Object> buildEvent(Context context, Object response) {
-        return Event.builder().data(EventData.builder().contextHeaders(context).data(response).build()).build();
+        return Event.builder().data(EventData.builder().headers(buildHeaders(context)).data(response).build()).build();
+    }
+
+    private static Map<String, String> buildHeaders(Context context){
+        Map<String, String> map = new HashMap<>();
+        map.put("id", context.getId());
+        map.put("ip", context.getCustomer().getIp());
+        map.put("user-name", context.getCustomer().getUsername());
+        map.put("user-agent", context.getCustomer().getDevice().getUserAgent());
+        map.put("platform-type", context.getCustomer().getDevice().getPlatformType());
+
+        return map;
     }
 }
