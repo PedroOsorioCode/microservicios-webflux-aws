@@ -52,7 +52,7 @@
 
     - Generar el proyecto y descomprimir el proyecto
 
-2. Cargar proyecto en intellij y crear paquetes de arquitectura limpia
+2. Cargar proyecto en intellij y crear paquetes de arquitectura limpia, en el paso a paso se especificarán los paquetes donde debe crearse la clase, si el paquete no existe, este debe crearse de acuerdo a la estructura propuesta
 
 3. Configurar el proyecto
 
@@ -3142,7 +3142,10 @@ entries:
     }
     ```
 
-    [>> Ver documentación reactive-commons](https://github.com/reactive-commons)
+    [>> Overview reactive-commons](https://bancolombia.github.io/reactive-commons-java/docs/intro)
+
+    [>> Examples reactive-commons](https://github.com/reactive-commons)
+
 
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.rabbiteventbus.config y crear la clase RabbitMqConfig.java
     ```

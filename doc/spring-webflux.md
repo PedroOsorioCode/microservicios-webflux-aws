@@ -1,7 +1,18 @@
 # Instructivo paso a paso comprender conceptos Programación reactiva con Java Webflux
 > A continuación se explica que es programación reactiva, webflux, características y explicaciones de los metodos mas usados.
 
-## ¿Qué es programación reactiva?
+### Indice
+
+* [1. ¿Qué es programación reactiva?](#id1)
+* [2. ¿Qué es webflux?](#id2)
+* [3. Hilos en Java vs Modelo Reactivo con Spring WebFlux](#id3)
+* [4. Construcción de hilos en JAVA](#id4)
+* [5. Métodos mas usados en Mono](#id5)
+* [6. Métodos mas usados en Flux](#id6)
+* [7. Ejemplos Mono y Flux](#id7)
+
+# <div id='id1'/>
+## 1. ¿Qué es programación reactiva?
 > La programación reactiva es un paradigma de programación que se enfoca en manejar flujos de datos asíncronos y la propagación de cambios. En lugar de escribir código que ejecuta instrucciones paso a paso (como en la programación imperativa), en la programación reactiva defines cómo deben reaccionar tus aplicaciones a ciertos eventos o cambios de estado.
 
 ### Características principales
@@ -15,7 +26,8 @@
 - Código más declarativo y expresivo para manejar eventos, errores y asincronía.
 - Mejor rendimiento en aplicaciones de tiempo real o intensivas en I/O.
 
-## ¿Qué es Webflux?
+# <div id='id2'/>
+## 2. ¿Qué es Webflux?
 > Spring WebFlux es un módulo del ecosistema Spring Framework diseñado para construir aplicaciones web reactivas, es decir, aplicaciones que manejan peticiones de forma asíncrona y no bloqueante.
 
 ### Características principales de WebFlux:
@@ -31,7 +43,206 @@
 1. **¿Qué es un Mono?:** Mono<T> representa 0 o 1 elemento que será emitido en el futuro (de forma asíncrona y no bloqueante); Mono es ideal para flujos reactivos que devuelven un solo valor; Puedes encadenar todos estos métodos para construir pipelines potentes y controlados.
 2. **¿Qué es un Flux?:** Flux<T> representa una secuencia reactiva de 0 a N elementos (puede ser vacía o infinita), se usa ampliamente en Spring WebFlux para manejar múltiples elementos de forma asíncrona y no bloqueante; Flux se usa cuando tienes varios elementos en tu flujo reactivo; Es común en streams de base de datos, respuestas de APIs, WebSockets, etc.
 
-## Métodos mas usados en Mono
+# <div id='id3'/>
+## 3. Hilos en Java vs Modelo Reactivo con Spring WebFlux
+
+Un hilo (Thread) es una unidad de ejecución independiente dentro de un proceso. En Java, cada solicitud o tarea puede ejecutarse en su propio hilo. Los hilos tradicionales son parte del modelo de concurrencia imperativo y bloqueante, donde:
+
+Cada operación que involucra IO (acceso a red, base de datos, disco, etc.) bloquea el hilo hasta que termine.
+
+Para manejar múltiples peticiones concurrentes, se crean múltiples hilos, cada uno esperando su turno.
+
+## ⚙️ Características de los hilos tradicionales en Java
+
+| Característica         | Hilos en Java (servlets clásicos)        |
+| ---------------------- | ---------------------------------------- |
+| Modelo de ejecución    | Por cada solicitud, un hilo              |
+| Manejo de concurrencia | Pool de hilos (por ejemplo, Tomcat)      |
+| Consumo de recursos    | Alto (cada hilo ocupa memoria y CPU)     |
+| Escalabilidad          | Limitada (cuello de botella con IO)      |
+| Ejemplo clásico        | Spring MVC, servlets, ThreadPoolExecutor |
+| Latencia frente a IO   | Alta (bloqueo mientras espera respuesta) |
+
+## ⚡¿Qué propone el modelo reactivo de Spring WebFlux?
+
+Spring WebFlux se basa en el modelo reactivo no bloqueante, usando internamente Reactor (Mono y Flux) y el estándar Reactive Streams. No asigna un hilo por solicitud, sino que:
+
+Usa pocos hilos (event loop) para manejar muchas conexiones simultáneas.
+
+No bloquea hilos en operaciones IO. En lugar de esperar, registra una función callback que se ejecuta cuando la respuesta esté lista.
+
+Ideal para aplicaciones con altas cargas concurrentes y uso intensivo de IO.
+
+## ⚙️ Características del modelo reactivo con WebFlux
+
+| Característica       | Spring WebFlux (reactivo, no bloqueante)      |
+| -------------------- | --------------------------------------------- |
+| Modelo de ejecución  | Basado en eventos, sin bloqueo                |
+| Hilos utilizados     | Pocos hilos (Netty event loops)               |
+| Consumo de recursos  | Bajo, eficiente en memoria y CPU              |
+| Escalabilidad        | Alta (decenas de miles de conexiones activas) |
+| Ejemplo clásico      | Mono, Flux, WebClient, RouterFunction         |
+| Latencia frente a IO | Baja (no bloquea, se suspende la operación)   |
+
+## 🧪 Comparativo práctico
+
+| Aspecto                     | Hilos tradicionales (Spring MVC) | Reactivo (Spring WebFlux)        |
+| --------------------------- | -------------------------------- | -------------------------------- |
+| Modelo                      | Imperativo, bloqueante           | Declarativo, no bloqueante       |
+| Hilo por petición           | Sí                               | No                               |
+| Escalabilidad               | Media                            | Alta                             |
+| Manejo de IO lento (DB/API) | Bloquea el hilo                  | Libera el hilo (callback)        |
+| Pool de hilos               | Requiere gran tamaño             | Tamaño pequeño, controlado       |
+| Flujo de datos              | Paso a paso                      | Flujo reactivo (`Mono` / `Flux`) |
+| Ideal para                  | CPU intensivo, lógica simple     | IO intensivo, muchas peticiones  |
+
+## 🎯 Comparación visual (simplificada):
+
+| Petición | Spring MVC (bloqueante)       | WebFlux (reactivo, no bloqueante)     |
+| -------- | ----------------------------- | ------------------------------------- |
+| 1        | Usa Hilo-1 → espera IO        | Usa Hilo-1 → libera → retoma al final |
+| 2        | Usa Hilo-2 → espera DB        | Usa Hilo-2 → libera → retoma al final |
+| 3        | Usa Hilo-3 → espera otra cosa | Usa Hilo-1 (reutilizado) → sigue      |
+
+# <div id='id4'/>
+## 4. Construcción de hilos en JAVA
+
+- Extendiendo la clase Thread
+    ```
+    public class MiHilo extends Thread {
+        public void run() {
+            System.out.println("Ejecutando en: " + Thread.currentThread().getName());
+        }
+    }
+
+    // Uso
+    new MiHilo().start();
+    ```
+
+- Implementando Runnable
+    ```
+    public class MiTarea implements Runnable {
+        public void run() {
+            System.out.println("Desde hilo: " + Thread.currentThread().getName());
+        }
+    }
+
+    // Uso
+    Thread hilo = new Thread(new MiTarea());
+    hilo.start();
+    ```
+
+- Usando expresiones lambda
+    ```
+    Thread hilo = new Thread(() -> System.out.println("Hola desde un hilo"));
+    hilo.start();
+    ```
+
+## ¿Qué se puede configurar en un hilo?
+
+| Configuración             | Descripción                                                         |
+| ------------------------- | ------------------------------------------------------------------- |
+| **Nombre del hilo**       | Ayuda al seguimiento y logging.                                     |
+| **Prioridad**             | De 1 a 10, puede influir en el orden de ejecución.                  |
+| **Daemon**                | Si el hilo es de fondo (no bloquea la terminación del programa).    |
+| **Timeouts/Interrupción** | Control de cuándo parar el hilo en ejecuciones largas o colgadas.   |
+| **Pool size**             | En `ExecutorService`, cuántos hilos simultáneos se pueden ejecutar. |
+| **Queue capacity**        | Cuántas tareas se pueden poner en espera antes de rechazar nuevas.  |
+
+
+- Ejemplo con ExecutorService
+
+    ```
+    ExecutorService pool = Executors.newFixedThreadPool(10);
+    pool.submit(() -> {
+        System.out.println("Tarea ejecutada en hilo: " + Thread.currentThread().getName());
+    });
+    ```
+
+- Ejemplo Comparativo JAVA vrs Webflux, en un proyecto java con webflux puede crearse la siguiente clasa para validar respuestas y comparar rendimiento. vamos a simular 100 peticiones, en java se usarán 3 hilos
+
+    - Resumen:
+    - Java con 3 hilos procesa 100 peticiones con espera de 0.3 segundos cada hilo en aproximadamente 11 segundos
+    - Java con 10 hilos procesa 100 peticiones con espera de 0.3 segundos cada hilo en aproximadamente 4 segundos
+    - Webflux procesa 100 peticiones con espera de 0.3 segundos cada hilo en 0.5 segundos
+
+- Código de prueba
+
+    ```
+    package co.com.microservice.aws;
+
+    import java.util.concurrent.*;
+    import reactor.core.publisher.Flux;
+    import reactor.core.publisher.Mono;
+    import java.time.Duration;
+
+    public class RequestComparison {
+
+        public static void main(String[] args) throws InterruptedException {
+            runBlockingExample();
+            runReactiveExample();
+        }
+
+        static void runBlockingExample() throws InterruptedException {
+            System.out.println("---- Starting blocking execution ----");
+
+            int totalRequests = 100;
+            int threadPoolSize = 3;
+            ExecutorService pool = Executors.newFixedThreadPool(threadPoolSize);
+
+            long start = System.currentTimeMillis();
+            CountDownLatch latch = new CountDownLatch(totalRequests);
+
+            for (int i = 0; i < totalRequests; i++) {
+                pool.submit(() -> {
+                    try {
+                        Thread.sleep(300); // Simulates blocking I/O
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    latch.countDown();
+                });
+            }
+
+            latch.await();
+            long end = System.currentTimeMillis();
+            System.out.println("Blocking total time: " + (end - start) + " ms");
+
+            pool.shutdown();
+            System.out.println("---- Finished blocking execution ----\n");
+        }
+
+        static void runReactiveExample() {
+            System.out.println("---- Starting reactive execution ----");
+
+            int totalRequests = 100;
+            long start = System.currentTimeMillis();
+
+            Flux.range(1, totalRequests)
+                    .flatMap(i -> Mono.delay(Duration.ofMillis(300)))
+                    .doOnComplete(() -> {
+                        long end = System.currentTimeMillis();
+                        System.out.println("Reactive total time: " + (end - start) + " ms");
+                        System.out.println("---- Finished reactive execution ----");
+                    })
+                    .blockLast(); // Wait for all reactive flows to complete
+        }
+    }
+    ```
+
+- Resultado de ejecutar el código anterior:
+    ```
+    ---- Starting blocking execution ----
+    Blocking total time: 10595 ms
+    ---- Finished blocking execution ----
+
+    ---- Starting reactive execution ----
+    Reactive total time: 492 ms
+    ---- Finished reactive execution ----
+    ```
+
+# <div id='id5'/>
+## 5. Métodos mas usados en Mono
 
 1. **map** – Transformación síncrona
     ```
@@ -150,7 +361,8 @@
     mono.defaultIfEmpty("Nuevo valor");
     ```
 
-## Métodos mas usados en Flux
+# <div id='id6'/>
+## 6. Métodos mas usados en Flux
 
 1. **map** – Transformación síncrona
     ```
@@ -280,7 +492,8 @@
     ```
     - ¿Qué hace? Se usa para realizar limpieza de recursos, logs de auditoría o simplemente para entender qué datos no fueron procesados.
 
-## Ejemplo combinando funciones con un flujo Mono
+# <div id='id7'/>
+## 7. Ejemplo combinando funciones con un flujo Mono
     ```
     public Mono<ServerResponse> handleRequest(ServerRequest request) {
         return request.bodyToMono(String.class) // 1. Recibe el nombre del usuario
