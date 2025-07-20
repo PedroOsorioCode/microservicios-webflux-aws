@@ -17,24 +17,29 @@ Para ver una copia completa de esta licencia, visita:
 
 ---
 
-## Créditos
+# Créditos
 
 Autor: **Pedro Luis Osorio Pavas**  
 GitHub: [https://github.com/PedroOsorioCode](https://github.com/PedroOsorioCode)  
 LinkedIn: [https://www.linkedin.com/in/pedro-luis-osorio-pavas-68b3a7106](https://www.linkedin.com/in/pedro-luis-osorio-pavas-68b3a7106)  
-Fecha Inicio: "2025-06-01"
-Fecha Ultima Actualización: "2025-07-13"
+Fecha Inicio: "2025-06-01"  
+Fecha Ultima Actualización: "2025-07-19"
 
 ---
-
 ## ¿Te ha sido útil este contenido?
 
 Puedes apoyar este proyecto con una donación:
 
-[☕ Invítame un café](https://ko-fi.com/microservicesbypedro)  
-[💸 Haz una donación vía PayPal](https://paypal.me/tuusuario)
+☕☕☕☕☕☕  
+**[Invítame un café]** → Transferencia Nequí: **311-715-9402** → desde **$1 USD**  
+☕☕☕☕☕☕
 
-> Gracias por respetar la licencia y reconocer el trabajo compartido.
+---
 
-> Gracias por apoyar el software libre 🙌
+📩 ¿Tienes dudas, sugerencias o deseas contactarme?  
+Puedes escribirme a: **pedro.osoriopavas.ibm@gmail.com**
 
+---
+
+- Gracias por respetar la licencia y reconocer el trabajo compartido.  
+- Gracias por apoyar el software libre 🙌
