@@ -30,9 +30,9 @@ Fecha Ultima Actualización: "2025-07-19"
 
 Puedes apoyar este proyecto con una donación:
 
-☕☕☕☕☕☕  
+☕  
 **[Invítame un café]** → Transferencia Nequí: **311-715-9402** → desde **$1 USD**  
-☕☕☕☕☕☕
+☕
 
 ---
 

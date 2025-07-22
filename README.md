@@ -17,6 +17,15 @@ Implementación de endpoints reactivos para la gestión de recursos.
 
   MySQL: Base de datos secundaria utilizada en módulos específicos que requieren interoperabilidad o sincronización de datos.
 
+  🔗 👉 [📘 Primeros pasos bd relacionales](./doc/bd-relacionales.md)
+
+- **Bases de Datos No Relacionales**  
+  Utilizadas para almacenar información que no requiere esquemas rígidos, relaciones complejas o que necesita alta disponibilidad, baja latencia y escalabilidad horizontal.
+
+  Son ideales para almacenamiento de eventos, cache, documentos, claves-valor o datos semiestructurados.
+
+  🔗 👉 [📘 Primeros pasos bd No relacionales](./doc/bd-no-relacionales.md)
+
 - **Simulación de servicios AWS con Podman + Localstack**  
   Uso de Podman como motor de contenedores liviano y compatible con Docker para orquestar servicios locales.
   
@@ -90,9 +99,9 @@ Implementación de endpoints reactivos para la gestión de recursos.
 
 Puedes apoyar este proyecto con una donación:
 
-☕☕☕☕☕  
+☕  
 **[Invítame un café]** → Transferencia Nequí: **311-715-9402** → desde **$1 USD**  
-☕☕☕☕☕
+☕
 
 ---
 

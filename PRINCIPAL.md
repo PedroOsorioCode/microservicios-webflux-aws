@@ -6,11 +6,11 @@
 
 ### Requisitos
 
-- ⚠️ Java 17 o superior
+- ⚠️ Instalar Java 17 o superior
 - ⚠️ Gradle 8.8 o posterior
-- ⚠️ Docker o Podman
-- ⚠️ Postman
-- ⚠️ Intellij
+- ⚠️ Instalar Docker o Podman
+- ⚠️ Instalar Postman
+- ⚠️ Instalar Intellij
 - ⚠️ Instalar Plugin lombok en intellij
 
 ### Indice

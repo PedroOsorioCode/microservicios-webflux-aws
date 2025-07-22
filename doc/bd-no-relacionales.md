@@ -1,5 +1,136 @@
-# Montaje ambiente local DYNAMODB
-> A continuación se explica que es dynamodb, características e indicaciones del paso a paso que se debe realizar para crear un contenedor con el servicio de dynamoDB
+
+### Indice
+
+* [1. BD no relacionales](#id1)
+* [2. Tecnologías NoSQL destacadas](#id2)
+* [3. Ambiente Local Dynamo DB](#id3)
+
+# <div id='id1'/>
+# 1. Bases de Datos No Relacionales
+> A diferencia de las bases de datos relacionales, las bases de datos no relacionales (NoSQL) permiten almacenar información sin necesidad de un esquema fijo, ofreciendo flexibilidad en el modelado de datos, alto rendimiento y facilidad de escalabilidad horizontal. Son ampliamente utilizadas en arquitecturas modernas que requieren respuestas rápidas y alta disponibilidad.
+
+## Características principales
+
+- Esquema flexible: No es necesario definir una estructura fija para los datos.
+- Escalabilidad horizontal: Permiten crecer distribuyendo los datos entre múltiples nodos.
+- Altamente disponibles: Diseñadas para tolerar fallos y mantener disponibilidad.
+- Optimización para tipos de acceso específicos: Algunos motores están diseñados para lectura rápida, otros para escritura masiva.
+- Alto rendimiento: Especialmente útiles para datos en tiempo real, caché o grandes volúmenes de información.
+
+## Tecnologías comunes NoSQL
+
+| Tipo            | Ejemplos                | Uso típico                           |
+| --------------- | ----------------------- | ------------------------------------ |
+| **Clave-Valor** | Redis, Amazon DynamoDB  | Cache, sesiones, configuraciones     |
+| **Documentos**  | MongoDB, Couchbase      | Datos semiestructurados (JSON)       |
+| **Columnas**    | Apache Cassandra, HBase | Analítica, grandes volúmenes         |
+| **Grafos**      | Neo4j, Amazon Neptune   | Relaciones complejas, redes sociales |
+
+## Optimización por tipo de acceso
+
+| Tipo de acceso                        | Tecnologías destacadas                | Descripción breve                                                                                      |
+| ------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Lectura rápida**                    | **Redis**, MongoDB (con índices)      | Diseñados para responder en milisegundos, ideales para cache, sesiones, respuestas inmediatas.         |
+| **Escritura masiva**                  | **Apache Cassandra**, Amazon DynamoDB | Soportan altos volúmenes de escritura distribuida con baja latencia, ideales para eventos, logs o IoT. |
+| **Acceso mixto equilibrado**          | **MongoDB**, Couchbase                | Buen rendimiento tanto en lecturas como escrituras con gran flexibilidad.                              |
+| **Consultas de relaciones complejas** | **Neo4j**, Amazon Neptune             | Optimizados para búsquedas profundas y relaciones (por ejemplo: redes sociales, rutas, permisos).      |
+
+
+# <div id='id2'/>
+# 2. Tecnologías NoSQL destacadas
+
+- 🔑 Clave-Valor
+    - Redis: Motor en memoria extremadamente rápido, ideal para cache, sesiones, contadores y operaciones atómicas.
+
+        ### Ejemplo
+        ```
+        SET user:123:name "Pedro"
+        GET user:123:name
+        ```
+
+    - Amazon DynamoDB: Base de datos clave-valor totalmente gestionada por AWS, con alta disponibilidad, escalabilidad automática y baja latencia.
+
+        ### Ejemplo
+        ```
+        {
+            "userId": "123",
+            "timestamp": 1721020800000,
+            "activity": "LOGIN"
+        }
+        ```
+
+- 📄 Documentos
+    - MongoDB: Almacena datos en formato JSON/BSON. Muy flexible, ideal para aplicaciones con estructuras de datos variables o semiestructuradas.
+
+        ### Ejemplo
+        ```
+        {
+            "_id": "user123",
+            "name": "Pedro",
+            "email": "pedro@example.com",
+            "roles": ["admin", "user"]
+        }
+        ```
+
+    - Couchbase: Base de datos distribuida orientada a documentos, con capacidades de cache, búsquedas y sincronización offline.
+
+        ### Ejemplo
+        ```
+        {
+            "type": "product",
+            "id": "abc123",
+            "name": "Laptop",
+            "price": 999.99,
+            "inventory": 14
+        }
+        ```
+
+- 🧱 Columnas
+    - Apache Cassandra: Diseñada para grandes volúmenes de datos distribuidos, ofrece alta disponibilidad sin un único punto de fallo.
+
+        ### Ejemplo
+        ```
+        CREATE TABLE user_events (
+            user_id UUID,
+            event_time timestamp,
+            event_type text,
+            PRIMARY KEY (user_id, event_time)
+        );
+        ```
+
+    - HBase: Basada en Hadoop, ideal para aplicaciones analíticas que requieren almacenamiento en columnas a gran escala.
+
+        ### Ejemplo
+        ```
+        Row Key: sensor_001#2025-07-19T18:00:00
+        Column Family: metrics
+            - temperature: 26.3
+            - humidity: 62
+            - battery: 93
+        ```
+
+- 🕸️ Grafos
+    - Neo4j: Base de datos orientada a grafos, permite modelar y consultar relaciones complejas de forma eficiente.
+
+        ### Ejemplo: Relaciones entre personas
+        ```
+        CREATE (a:Person {name: "Pedro"})
+        CREATE (b:Person {name: "Laura"})
+        CREATE (a)-[:FRIEND]->(b)
+        ```
+
+    - Amazon Neptune: Servicio gestionado para grafos compatible con los modelos Property Graph y RDF, optimizado para análisis de relaciones.
+
+        ### Ejemplo
+        ```
+        <http://example.com/person/Pedro> 
+        <http://xmlns.com/foaf/0.1/knows>
+        <http://example.com/person/Laura> .
+        ```
+
+
+# <div id='id3'/>
+# 3. Ambiente Local Dynamo DB
 
 ### Requisitos: 
 
