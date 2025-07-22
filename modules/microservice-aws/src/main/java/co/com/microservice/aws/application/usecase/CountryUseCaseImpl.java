@@ -9,18 +9,19 @@ import co.com.microservice.aws.domain.model.commons.util.ResponseMessageConstant
 import co.com.microservice.aws.domain.model.rq.Context;
 import co.com.microservice.aws.domain.model.rq.TransactionRequest;
 import co.com.microservice.aws.domain.model.rs.TransactionResponse;
-import co.com.microservice.aws.domain.usecase.in.*;
+import co.com.microservice.aws.domain.usecase.in.CountryUseCase;
+import co.com.microservice.aws.domain.usecase.in.SentEventUseCase;
+import co.com.microservice.aws.domain.usecase.in.WorldCountryUseCase;
 import co.com.microservice.aws.domain.usecase.out.*;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import static co.com.microservice.aws.domain.model.commons.enums.BusinessExceptionMessage.BUSINESS_RECORD_NOT_FOUND;
-import static co.com.microservice.aws.domain.model.commons.enums.BusinessExceptionMessage.BUSINESS_USERNAME_REQUIRED;
+import static co.com.microservice.aws.domain.model.commons.enums.BusinessExceptionMessage.*;
 import static co.com.microservice.aws.domain.model.commons.enums.TechnicalExceptionMessage.TECHNICAL_REQUEST_ERROR;
 import static co.com.microservice.aws.domain.model.events.EventType.EVENT_EMMITED_NOTIFICATION_SAVE;
 
@@ -33,8 +34,10 @@ public class CountryUseCaseImpl implements CountryUseCase {
     private final DeletePort<Country> countryDeleter;
     private final FindByShortCodePort<Country> countryFinder;
     private final RedisPort redisPort;
-    private final SentEventUseCase eventUseCase;
     private final CountByStatusPort countryCounter;
+
+    private final SentEventUseCase eventUseCase;
+    private final WorldCountryUseCase useCaseFinder;
 
     @Override
     public Mono<TransactionResponse> listAll(TransactionRequest request) {
@@ -49,6 +52,9 @@ public class CountryUseCaseImpl implements CountryUseCase {
     public Mono<String> save(TransactionRequest request) {
         return Mono.just(request)
             .filter(this::userIsRequired)
+            .switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_USERNAME_REQUIRED))))
+            .filterWhen(req -> this.countryExist(useCaseFinder.findByName(req)))
+            .switchIfEmpty(Mono.error(new BusinessException(BUSINESS_COUNTRY_NOT_EXIST)))
             .map(TransactionRequest::getItem)
             .flatMap(this::buildCountry)
             .flatMap(country -> countrySaver.save(country, request.getContext()))
@@ -136,11 +142,16 @@ public class CountryUseCaseImpl implements CountryUseCase {
         TransactionResponse response = TransactionResponse.builder()
             .message(ResponseMessageConstant.MSG_LIST_SUCCESS)
             .size(countries.size())
-            .response(Collections.singletonList(countries))
+            .response(new ArrayList<>(countries))
             .build();
 
         return Mono.just(response);
     }
 
-
+    private Mono<Boolean> countryExist(Mono<TransactionResponse> res){
+        return res.map(rs -> {
+            List<Object> response = rs.getResponse();
+            return !response.isEmpty() && Boolean.TRUE.equals(response.getFirst());
+        });
+    }
 }

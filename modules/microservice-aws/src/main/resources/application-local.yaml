@@ -59,6 +59,14 @@ adapters:
     nameRabbitMq: "${SECRET_NAME_RABBIT_MQ:local-rabbitmq}"
   redis:
     expireTime: ${CACHE_EXPIRE_SECONDS:10}
+  rest-country:
+    timeout: ${TIMEOUT:5000}
+    url: ${URL_COUNTRIES:http://localhost:3000/api/v3/microservice-countries}
+    info:
+      exist: "${COUNTRY_EXIST:/country/exist/}"
+    retry:
+      retries: ${REST_COUNTRY_RETRIES:3}
+      retryDelay: ${REST_COUNTRY_RETRY_DELAY:2}
 
 listen:
   event:

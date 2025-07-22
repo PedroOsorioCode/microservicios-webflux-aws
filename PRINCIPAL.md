@@ -11,6 +11,7 @@
 - ⚠️ Docker o Podman
 - ⚠️ Postman
 - ⚠️ Intellij
+- ⚠️ Instalar Plugin lombok en intellij
 
 ### Indice
 
@@ -27,6 +28,7 @@
 * [11. Crear conexión redis-cache](#id11)
 * [12. Configurar uso de CRON](#id12)
 * [13. Configurar uso de Rabbit MQ](#id13)
+* [14. Configurar consumo de APIs Externas con Webclient](#id14)
 
 # <div id='id1'/>
 # 1. Crear y configurar el proyecto:
@@ -235,6 +237,8 @@ adapters:
     rootLogger.appenderRefs = stdout
     rootLogger.appenderRef.stdout.ref = STDOUT
     ```
+
+- 💡 **Tip**, si en algun momento requieres mover una clase a un paquete, lo haces haciendo click derecho sobre la clase, elegir opción refactor, luego la opción move class y escribes el paquete o en los "..." puedes elegir en forma de arbol el paquete donde deseas ubicar la clase
 
 - Ubicarse en el paquete co.com.microservice.aws.application.helpers.logs y crear la clase TransactionLog.java
     ```
@@ -884,12 +888,11 @@ adapters:
         Mono<TransactionResponse> listAll(TransactionRequest request);
     }
     ```
-- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in y crear la clase ListAllUseCase.java
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in y crear la clase SaveUseCase.java
     ```
     package co.com.microservice.aws.domain.usecase.in;
 
     import co.com.microservice.aws.domain.model.rq.TransactionRequest;
-    import co.com.microservice.aws.domain.model.rs.TransactionResponse;
     import reactor.core.publisher.Mono;
 
     public interface SaveUseCase {
@@ -907,7 +910,7 @@ adapters:
         Flux<T> listAll(Context context);
     }
     ```
-- Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.exception y crear la clase SavePort.java
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.out y crear la clase SavePort.java
     ```
     package co.com.microservice.aws.domain.usecase.out;
 
@@ -1848,7 +1851,7 @@ adapters:
             TransactionResponse response = TransactionResponse.builder()
                 .message(ResponseMessageConstant.MSG_LIST_SUCCESS)
                 .size(countries.size())
-                .response(Collections.singletonList(countries))
+                .response(new ArrayList<>(countries))
                 .build();
 
             return Mono.just(response);
@@ -2275,37 +2278,45 @@ adapters:
     }
     ```
 
-- Ubicarse en el paquete co.com.microservice.aws.application.usecase y crear la clase ParameterUseCase.java
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in y crear la clase ParameterUseCase.java
+    ```
+    package co.com.microservice.aws.domain.usecase.in;
+
+    public interface ParameterUseCase extends FindByNameUseCase{
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.usecase y crear la clase ParameterUseCaseImpl.java
     ```
     package co.com.microservice.aws.application.usecase;
 
     import co.com.microservice.aws.application.helpers.commons.UseCase;
     import co.com.microservice.aws.domain.model.Parameter;
-    import co.com.microservice.aws.domain.model.commons.exception.BusinessException;
+    import co.com.microservice.aws.domain.model.commons.enums.CacheKey;
     import co.com.microservice.aws.domain.model.commons.util.ResponseMessageConstant;
     import co.com.microservice.aws.domain.model.rq.TransactionRequest;
     import co.com.microservice.aws.domain.model.rs.TransactionResponse;
-    import co.com.microservice.aws.domain.usecase.in.FindByNameUseCase;
+    import co.com.microservice.aws.domain.usecase.in.ParameterUseCase;
     import co.com.microservice.aws.domain.usecase.out.FindByNamePort;
+    import co.com.microservice.aws.domain.usecase.out.RedisPort;
     import lombok.RequiredArgsConstructor;
     import reactor.core.publisher.Mono;
 
     import java.util.Collections;
     import java.util.List;
 
-    import static co.com.microservice.aws.domain.model.commons.enums.BusinessExceptionMessage.BUSINESS_RECORD_NOT_FOUND;
-
     @UseCase
     @RequiredArgsConstructor
-    public class ParameterUseCase implements FindByNameUseCase {
+    public class ParameterUseCaseImpl implements ParameterUseCase {
         private final FindByNamePort<Parameter> parameterFinder;
+        private final RedisPort redisPort;
 
         @Override
         public Mono<TransactionResponse> findByName(TransactionRequest request) {
             return Mono.just(request)
                     .map(rq -> Parameter.builder().name(rq.getParams().get("param1")).build())
                     .flatMap(parameterFinder::findByName)
-                    .switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_RECORD_NOT_FOUND))))
+                    .flatMap(pv -> redisPort.save(CacheKey.APPLY_AUDIT.getKey(), pv.toString()).thenReturn(pv))
                     .flatMap(c -> this.buildResponse(List.of(c)));
         }
 
@@ -2313,7 +2324,7 @@ adapters:
             TransactionResponse response = TransactionResponse.builder()
                     .message(ResponseMessageConstant.MSG_LIST_SUCCESS)
                     .size(parameters.size())
-                    .response(Collections.singletonList(parameters))
+                    .response(new ArrayList<>(parameters))
                     .build();
 
             return Mono.just(response);
@@ -2328,10 +2339,11 @@ adapters:
     import co.com.microservice.aws.application.helpers.logs.LoggerBuilder;
     import co.com.microservice.aws.application.helpers.logs.TransactionLog;
     import co.com.microservice.aws.domain.model.rq.TransactionRequest;
-    import co.com.microservice.aws.domain.usecase.in.FindByNameUseCase;
+    import co.com.microservice.aws.domain.usecase.in.ParameterUseCase;
     import lombok.RequiredArgsConstructor;
     import org.springframework.boot.context.event.ApplicationReadyEvent;
     import org.springframework.context.event.EventListener;
+    import org.springframework.core.annotation.Order;
     import org.springframework.stereotype.Component;
 
     import java.util.Map;
@@ -2340,9 +2352,10 @@ adapters:
     @Component
     @RequiredArgsConstructor
     public class ParameterLoaderConfig {
-        private final FindByNameUseCase useCasefinder;
+        private final ParameterUseCase useCasefinder;
         private final LoggerBuilder logger;
 
+        @Order(1)
         @EventListener(ApplicationReadyEvent.class)
         public void initialParamterStatus() {
             var parameters = Map.of("param1", "Aply_audit", "param2", "Message_in_spanish");
@@ -3535,7 +3548,7 @@ entries:
             TransactionResponse response = TransactionResponse.builder()
                 .message(ResponseMessageConstant.MSG_LIST_SUCCESS)
                 .size(countries.size())
-                .response(Collections.singletonList(countries))
+                .response(new ArrayList<>(countries))
                 .build();
 
             return Mono.just(response);
@@ -4083,7 +4096,7 @@ listen:
             TransactionResponse response = TransactionResponse.builder()
                 .message(ResponseMessageConstant.MSG_LIST_SUCCESS)
                 .size(countries.size())
-                .response(Collections.singletonList(countries))
+                .response(new ArrayList<>(countries))
                 .build();
 
             return Mono.just(response);
@@ -4351,6 +4364,823 @@ listen:
         "threadPriority": 5
     }
     ```
+
+# <div id='id14'/>
+# 14. Configurar consumo de APIs Externas con Webclient
+
+- Ubicarse en el archivo application-local.yaml y agregar
+    ```
+adapters:
+  rest-country:
+    timeout: ${TIMEOUT:5000}
+    url: ${URL_COUNTRIES:http://localhost:3000/api/v3/microservice-countries}
+    info:
+      exist: "${COUNTRY_EXIST:/country/exist}"
+    retry:
+      retries: ${REST_COUNTRY_RETRIES:3}
+      retryDelay: ${REST_COUNTRY_RETRY_DELAY:2}
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.restconsumer.config y crear la clase RestConsumerProperties.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.restconsumer.config;
+
+    import lombok.AllArgsConstructor;
+    import lombok.Getter;
+    import lombok.NoArgsConstructor;
+    import lombok.Setter;
+    import org.springframework.boot.context.properties.ConfigurationProperties;
+    import org.springframework.context.annotation.Configuration;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Configuration
+    @ConfigurationProperties(prefix = "adapters.rest-country")
+    public class RestConsumerProperties {
+        private String url;
+        private int timeout;
+    }
+    ```
+- Ubicarse en el paquete ApiInfoProperties y crear la clase ApiInfoProperties.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.restconsumer.config;
+
+    import lombok.AllArgsConstructor;
+    import lombok.Getter;
+    import lombok.NoArgsConstructor;
+    import lombok.Setter;
+    import org.springframework.boot.context.properties.ConfigurationProperties;
+    import org.springframework.context.annotation.Configuration;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Configuration
+    @ConfigurationProperties(prefix = "adapters.rest-country.info")
+    public class ApiInfoProperties {
+        private String exist;
+    }
+    ```
+- Ubicarse en el paquete ApiInfoProperties y crear la clase ApiInfoProperties.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.restconsumer.config;
+
+    import lombok.AllArgsConstructor;
+    import lombok.Getter;
+    import lombok.NoArgsConstructor;
+    import lombok.Setter;
+    import org.springframework.boot.context.properties.ConfigurationProperties;
+    import org.springframework.context.annotation.Configuration;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Configuration
+    @ConfigurationProperties(prefix = "adapters.rest-country.retry")
+    public class RetryProperties {
+        private int retries;
+        private int retryDelay;
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws y crear la clase RestConsumerUtils.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.restconsumer.config;
+
+    import io.netty.handler.timeout.ReadTimeoutHandler;
+    import io.netty.handler.timeout.WriteTimeoutHandler;
+    import lombok.experimental.UtilityClass;
+    import org.springframework.http.client.reactive.ClientHttpConnector;
+    import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+    import reactor.netty.http.client.HttpClient;
+
+    import static io.netty.channel.ChannelOption.CONNECT_TIMEOUT_MILLIS;
+    import static java.util.concurrent.TimeUnit.MILLISECONDS;
+
+    @UtilityClass
+    public class RestConsumerUtils {
+        public static ClientHttpConnector getClientHttpConnector(Long timeout) {
+            return new ReactorClientHttpConnector(HttpClient.create()
+                    .compress(true)
+                    .keepAlive(true)
+                    .option(CONNECT_TIMEOUT_MILLIS, timeout.intValue())
+                    .doOnConnected(connection -> {
+                        connection.addHandlerLast(new ReadTimeoutHandler(timeout, MILLISECONDS));
+                        connection.addHandlerLast(new WriteTimeoutHandler(timeout, MILLISECONDS));
+                    }));
+        }
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.restconsumer.config y crear la clase RestConsumerConfig.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.restconsumer.config;
+
+    import lombok.RequiredArgsConstructor;
+    import org.springframework.context.annotation.Bean;
+    import org.springframework.context.annotation.Configuration;
+    import org.springframework.http.HttpHeaders;
+    import org.springframework.http.MediaType;
+    import org.springframework.web.reactive.function.client.WebClient;
+
+    import static co.com.microservice.aws.infrastructure.output.restconsumer.config.RestConsumerUtils.getClientHttpConnector;
+
+    @Configuration
+    @RequiredArgsConstructor
+    public class RestConsumerConfig {
+        private final RestConsumerProperties properties;
+
+        @Bean(name = "webClientConfig")
+        public WebClient webClientConfig() {
+            return WebClient.builder()
+                    .baseUrl(properties.getUrl())
+                    .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .clientConnector(getClientHttpConnector((long) properties.getTimeout()))
+                    .build();
+        }
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.domain.model y crear la clase InfoCountry.java
+    ```
+    package co.com.microservice.aws.domain.model;
+
+    import lombok.AllArgsConstructor;
+    import lombok.Builder;
+    import lombok.Data;
+    import lombok.NoArgsConstructor;
+
+    import java.io.Serial;
+    import java.io.Serializable;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    public class InfoCountry implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        private String code;
+        private String name;
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.out y crear la clase WorldCountryPort.java
+    ```
+    package co.com.microservice.aws.domain.usecase.out;
+
+    import co.com.microservice.aws.domain.model.rq.Context;
+    import reactor.core.publisher.Mono;
+
+    public interface WorldCountryPort {
+        Mono<Boolean> exist(Context context, String name);
+    }
+    ```
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.restconsumer y crear la clase WorldCountryAdapter.java
+    ```
+    package co.com.microservice.aws.infrastructure.output.restconsumer;
+
+    import co.com.microservice.aws.application.helpers.logs.LoggerBuilder;
+    import co.com.microservice.aws.application.helpers.logs.TransactionLog;
+    import co.com.microservice.aws.domain.model.InfoCountry;
+    import co.com.microservice.aws.domain.model.commons.enums.TechnicalExceptionMessage;
+    import co.com.microservice.aws.domain.model.commons.exception.TechnicalException;
+    import co.com.microservice.aws.domain.model.rq.Context;
+    import co.com.microservice.aws.domain.usecase.out.WorldCountryPort;
+    import co.com.microservice.aws.infrastructure.output.restconsumer.config.ApiInfoProperties;
+    import co.com.microservice.aws.infrastructure.output.restconsumer.config.RetryProperties;
+    import org.springframework.beans.factory.annotation.Qualifier;
+    import org.springframework.http.HttpStatusCode;
+    import org.springframework.http.MediaType;
+    import org.springframework.stereotype.Service;
+    import org.springframework.web.reactive.function.client.ClientResponse;
+    import org.springframework.web.reactive.function.client.WebClient;
+    import org.springframework.web.reactive.function.client.WebClient.RequestHeadersSpec;
+    import reactor.core.publisher.Mono;
+    import reactor.util.retry.Retry;
+
+    import java.time.Duration;
+    import java.util.Objects;
+
+    import static co.com.microservice.aws.domain.model.commons.util.LogMessage.MESSAGE_SERVICE;
+
+    @Service
+    public class WorldCountryAdapter implements WorldCountryPort {
+        private static final String NAME_CLASS = WorldCountryAdapter.class.getName();
+        private final WebClient webClientConfig;
+        private final ApiInfoProperties apiInfoProperties;
+        private final RetryProperties retryProperties;
+        private final LoggerBuilder logger;
+
+        public WorldCountryAdapter(@Qualifier(value = "webClientConfig") WebClient webClientConfig,
+                                ApiInfoProperties apiInfoProperties, LoggerBuilder loggerBuilder,
+                                RetryProperties retryProperties){
+            this.webClientConfig = webClientConfig.mutate().build();
+            this.apiInfoProperties = apiInfoProperties;
+            this.logger = loggerBuilder;
+            this.retryProperties = retryProperties;
+        }
+
+        @Override
+        public Mono<Boolean> exist(Context context, String name) {
+            logger.info("rest get info country", context.getId(), NAME_CLASS, "exist");
+            return this.getCountry(context, apiInfoProperties.getExist(), name);
+        }
+
+        private Mono<Boolean> getCountry(Context context, String urlPath, String name) {
+            return this.buildGetRequestWithHeaders(context, urlPath.concat(name))
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, res -> this.errorStatusFunction(res, context))
+                    .bodyToMono(InfoCountry.class)
+                    .retryWhen(Retry
+                            .fixedDelay(retryProperties.getRetries(), Duration.ofSeconds(retryProperties.getRetryDelay()))
+                            .doBeforeRetry(signal -> this.printErrorRetry(signal, context))
+                            .doAfterRetry(retrySignal -> logger.info("Retry: " + (retrySignal.totalRetries() + 1), context.getId(), NAME_CLASS, "isAuditOnList")))
+                    .doOnNext(res -> this.printOnProcess(context, res))
+                    .doOnError(logger::error)
+                    .onErrorMap(original -> new TechnicalException(TECHNICAL_REST_CLIENT_ERROR))
+                    .flatMap(this::createResponse);
+        }
+
+        private Mono<Boolean> createResponse(InfoCountry result) {
+            return !Objects.isNull(result) && !result.getCode().isEmpty() ?
+                    Mono.just(Boolean.TRUE): Mono.just(Boolean.FALSE);
+        }
+
+        private RequestHeadersSpec<?> buildGetRequestWithHeaders(Context context, String urlPath) {
+            return webClientConfig.get().uri(urlPath)
+                    .header("message-id", context.getId())
+                    .header("ip", context.getCustomer().getIp())
+                    .header("user-name", context.getCustomer().getUsername());
+        }
+
+        private void printErrorRetry(Retry.RetrySignal retrySignal, Context context){
+            var messageInfo = String.format("%s, wating retry: '%s'",
+                    TechnicalExceptionMessage.TECHNICAL_REST_CLIENT_ERROR.getDescription(),
+                    (retrySignal.totalRetries() + 1));
+            logger.info(messageInfo, context.getId(), NAME_CLASS, "printErrorRetry");
+            logger.error(retrySignal.failure());
+        }
+
+        private Mono<Throwable> errorStatusFunction(ClientResponse response, Context context) {
+            var messageInfo = String.format("rest get info country %s", response.statusCode());
+            logger.info(messageInfo, context.getId(), NAME_CLASS, "errorStatusFunction");
+            return response.bodyToMono(String.class).switchIfEmpty(Mono.just(response.statusCode().toString()))
+                    .map(msg -> new TechnicalException(new RuntimeException(msg),
+                            TechnicalExceptionMessage.TECHNICAL_REST_CLIENT_ERROR));
+        }
+
+        private void printOnProcess(Context context, InfoCountry infoCountry){
+            logger.info(TransactionLog.Request.builder().body(context).build(),
+                    context.getId(), context.getId(), MESSAGE_SERVICE, NAME_CLASS);
+            logger.info(TransactionLog.Response.builder().body(infoCountry).build(),
+                    context.getId(), context.getId(), MESSAGE_SERVICE, NAME_CLASS);
+        }
+    }
+    ```
+
+    | Línea de código | Explicación breve |
+    |-----------------|------------------|
+    | `defineHeaders(context)` | Construye el `WebClient.RequestHeadersSpec` con headers personalizados para el contexto |
+    | `.accept(MediaType.APPLICATION_JSON)` | Agrega header `Accept: application/json` |
+    | `.retrieve()` | Inicia el procesamiento de la respuesta del `WebClient` |
+    | `.onStatus(HttpStatusCode::isError, ...)` | Si la respuesta HTTP tiene un código 4xx o 5xx, se lanza un error controlado |
+    | `.bodyToMono(InfoCountry.class)` | Convierte el cuerpo de la respuesta a un `Mono<InfoCountry>` |
+    | `.retryWhen(...)` | Reintenta la llamada si falla (por excepción), según una política definida |
+    | `Retry.fixedDelay(...)` | Número de reintentos y tiempo de espera fijo entre intentos fallidos (por ejemplo, 3 reintentos cada 2 segundos) |
+    | `.doBeforeRetry(...)` | Acción a ejecutar antes de cada reintento (ej: loguear el error del intento anterior) |
+    | `.doAfterRetry(...)` | Acción a ejecutar después de que se ha planificado el reintento (ej: loguear intento actual) |
+    | `.doOnNext(...)` | Acción adicional cuando llega una respuesta exitosa (ej: imprimir logs del parámetro recibido) |
+    | `.doOnError(...)` | Loguea cualquier error que no haya sido capturado anteriormente |
+    | `.flatMap(this::createResponse)` | Transforma el resultado a un `Mono<Boolean>` final según la lógica de negocio |
+    | `.option(CONNECT_TIMEOUT_MILLIS, timeout.intValue())` | Define cuánto tiempo máximo se esperará por la respuesta del servidor antes de lanzar TimeoutException |
+
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in y crear la clase WorldCountryUseCase.java
+    ```
+    package co.com.microservice.aws.domain.usecase.in;
+
+    public interface WorldCountryUseCase extends FindByNameUseCase{
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.usecase y crear la clase InfoCountryUseCase.java
+    ```
+    package co.com.microservice.aws.application.usecase;
+
+    import co.com.microservice.aws.application.helpers.commons.UseCase;
+    import co.com.microservice.aws.domain.model.Country;
+    import co.com.microservice.aws.domain.model.commons.exception.TechnicalException;
+    import co.com.microservice.aws.domain.model.commons.util.ResponseMessageConstant;
+    import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+    import co.com.microservice.aws.domain.model.rs.TransactionResponse;
+    import co.com.microservice.aws.domain.usecase.in.WorldCountryUseCase;
+    import co.com.microservice.aws.domain.usecase.out.WorldCountryPort;
+    import lombok.RequiredArgsConstructor;
+    import reactor.core.publisher.Mono;
+
+    import java.time.LocalDateTime;
+    import java.util.Collections;
+    import java.util.List;
+
+    import static co.com.microservice.aws.domain.model.commons.enums.TechnicalExceptionMessage.TECHNICAL_REQUEST_ERROR;
+
+    @UseCase
+    @RequiredArgsConstructor
+    public class WorldCountryUseCaseImpl implements WorldCountryUseCase {
+        private final WorldCountryPort worldCountryPort;
+
+        @Override
+        public Mono<TransactionResponse> findByName(TransactionRequest request) {
+            return Mono.just(request)
+                    .map(TransactionRequest::getItem)
+                    .flatMap(this::buildCountry)
+                    .flatMap(c -> worldCountryPort.exist(request.getContext(), c.getName()))
+                    .flatMap(res -> this.buildResponse(List.of(res)));
+        }
+
+        private Mono<Country> buildCountry(Object object){
+            if (object instanceof Country country) {
+                return Mono.just(Country.builder().name(country.getName())
+                        .shortCode(country.getShortCode()).status(country.isStatus())
+                        .dateCreation(LocalDateTime.now()).description(country.getDescription())
+                        .build());
+            } else {
+                return Mono.error(new TechnicalException(TECHNICAL_REQUEST_ERROR));
+            }
+        }
+
+        private Mono<TransactionResponse> buildResponse(List<Boolean> existCountries){
+            TransactionResponse response = TransactionResponse.builder()
+                    .message(ResponseMessageConstant.MSG_LIST_SUCCESS)
+                    .size(existCountries.size())
+                    .response(new ArrayList<>(existCountries))
+                    .build();
+
+            return Mono.just(response);
+        }
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.usecase y crear la clase CountryUseCaseImpl.java
+    ```
+    package co.com.microservice.aws.application.usecase;
+
+    import co.com.microservice.aws.application.helpers.commons.UseCase;
+    import co.com.microservice.aws.domain.model.Country;
+    import co.com.microservice.aws.domain.model.commons.enums.CacheKey;
+    import co.com.microservice.aws.domain.model.commons.exception.BusinessException;
+    import co.com.microservice.aws.domain.model.commons.exception.TechnicalException;
+    import co.com.microservice.aws.domain.model.commons.util.ResponseMessageConstant;
+    import co.com.microservice.aws.domain.model.rq.Context;
+    import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+    import co.com.microservice.aws.domain.model.rs.TransactionResponse;
+    import co.com.microservice.aws.domain.usecase.in.CountryUseCase;
+    import co.com.microservice.aws.domain.usecase.in.SentEventUseCase;
+    import co.com.microservice.aws.domain.usecase.in.WorldCountryUseCase;
+    import co.com.microservice.aws.domain.usecase.out.*;
+    import lombok.RequiredArgsConstructor;
+    import reactor.core.publisher.Mono;
+
+    import java.time.LocalDateTime;
+    import java.util.ArrayList;
+    import java.util.List;
+    import java.util.Optional;
+
+    import static co.com.microservice.aws.domain.model.commons.enums.BusinessExceptionMessage.*;
+    import static co.com.microservice.aws.domain.model.commons.enums.TechnicalExceptionMessage.TECHNICAL_REQUEST_ERROR;
+    import static co.com.microservice.aws.domain.model.events.EventType.EVENT_EMMITED_NOTIFICATION_SAVE;
+
+    @UseCase
+    @RequiredArgsConstructor
+    public class CountryUseCaseImpl implements CountryUseCase {
+        private final SavePort<Country> countrySaver;
+        private final ListAllPort<Country> countryLister;
+        private final UpdatePort<Country> countryUpdater;
+        private final DeletePort<Country> countryDeleter;
+        private final FindByShortCodePort<Country> countryFinder;
+        private final RedisPort redisPort;
+        private final CountByStatusPort countryCounter;
+
+        private final SentEventUseCase eventUseCase;
+        private final WorldCountryUseCase useCaseFinder;
+
+        @Override
+        public Mono<TransactionResponse> listAll(TransactionRequest request) {
+            return Mono.just(request)
+                .filter(this::userIsRequired)
+                .flatMap(req -> redisPort.find(CacheKey.APPLY_AUDIT.getKey()).thenReturn(req))
+                .flatMap(req -> countryLister.listAll(req.getContext()).collectList().flatMap(this::buildResponse)
+                ).switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_USERNAME_REQUIRED))));
+        }
+
+        @Override
+        public Mono<String> save(TransactionRequest request) {
+            return Mono.just(request)
+                .filter(this::userIsRequired)
+                .switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_USERNAME_REQUIRED))))
+                .filterWhen(req -> this.countryExist(useCaseFinder.findByName(req)))
+                .switchIfEmpty(Mono.error(new BusinessException(BUSINESS_COUNTRY_NOT_EXIST)))
+                .map(TransactionRequest::getItem)
+                .flatMap(this::buildCountry)
+                .flatMap(country -> countrySaver.save(country, request.getContext()))
+                .doOnNext(country -> eventUseCase.sentEvent(request.getContext(),
+                        EVENT_EMMITED_NOTIFICATION_SAVE, Country.builder().name(country.getName())
+                                .description(country.getDescription()).shortCode(country.getShortCode())
+                                .status(country.isStatus()).build()))
+                .thenReturn(ResponseMessageConstant.MSG_SAVED_SUCCESS);
+        }
+
+        @Override
+        public Mono<String> delete(TransactionRequest request) {
+            return Mono.just(request)
+                    .filter(this::userIsRequired)
+                    .map(rq -> Country.builder().id(Long.valueOf(rq.getParams().get("id"))).build())
+                    .flatMap(countryDeleter::delete)
+                    .thenReturn(ResponseMessageConstant.MSG_DELETED_SUCCESS);
+        }
+
+        @Override
+        public Mono<TransactionResponse> findByShortCode(TransactionRequest request) {
+            return Mono.just(request)
+                    .filter(this::userIsRequired)
+                    .map(rq -> Country.builder().shortCode(rq.getParams().get("shortCode")).build())
+                    .flatMap(countryFinder::findByShortCode)
+                    .switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_RECORD_NOT_FOUND))))
+                    .flatMap(c -> this.buildResponse(List.of(c))
+                    ).switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_USERNAME_REQUIRED))));
+        }
+
+        @Override
+        public Mono<String> update(TransactionRequest request) {
+            return Mono.just(request)
+                    .filter(this::userIsRequired)
+                    .map(TransactionRequest::getItem)
+                    .flatMap(this::executeUpdate)
+                    .thenReturn(ResponseMessageConstant.MSG_UPDATED_SUCCESS);
+        }
+
+        @Override
+        public Mono<Integer> countByStatus(TransactionRequest request) {
+            return Mono.just(request)
+                .map(TransactionRequest::getItem)
+                .flatMap(this::buildCountry)
+                .flatMap(c -> countryCounter.countByStatus(c.isStatus()))
+                .flatMap(count ->
+                    redisPort.save(CacheKey.KEY_COUNT_BY_STATUS.getKey(), String.valueOf(count))
+                        .thenReturn(count));
+        }
+
+        private Boolean userIsRequired(TransactionRequest request){
+            return Optional.ofNullable(request)
+                .map(TransactionRequest::getContext)
+                .map(Context::getCustomer).map(Context.Customer::getUsername)
+                .filter(username -> !username.isEmpty())
+                .isPresent();
+        }
+
+        private Mono<Country> buildCountry(Object object){
+            if (object instanceof Country country) {
+                return Mono.just(Country.builder().name(country.getName())
+                    .shortCode(country.getShortCode()).status(country.isStatus())
+                    .dateCreation(LocalDateTime.now()).description(country.getDescription())
+                    .build());
+            } else {
+                return Mono.error(new TechnicalException(TECHNICAL_REQUEST_ERROR));
+            }
+        }
+
+        private Mono<Country> executeUpdate(Object object){
+            if (object instanceof Country country) {
+                return countryFinder.findByShortCode(Country.builder().shortCode(country.getShortCode()).build())
+                        .switchIfEmpty(Mono.defer(() -> Mono.error(new BusinessException(BUSINESS_RECORD_NOT_FOUND))))
+                        .map(ca -> Country.builder().id(ca.getId()).name(country.getName())
+                                .shortCode(country.getShortCode()).status(country.isStatus())
+                                .dateCreation(country.getDateCreation()).description(country.getDescription())
+                                .build())
+                        .flatMap(countryUpdater::update);
+            } else {
+                return Mono.error(new TechnicalException(TECHNICAL_REQUEST_ERROR));
+            }
+        }
+
+        private Mono<TransactionResponse> buildResponse(List<Country> countries){
+            TransactionResponse response = TransactionResponse.builder()
+                .message(ResponseMessageConstant.MSG_LIST_SUCCESS)
+                .size(countries.size())
+                .response(new ArrayList<>(countries))
+                .build();
+
+            return Mono.just(response);
+        }
+
+        private Mono<Boolean> countryExist(Mono<TransactionResponse> res){
+            return res.map(rs -> {
+                List<Object> response = rs.getResponse();
+                return !response.isEmpty() && Boolean.TRUE.equals(response.getFirst());
+            });
+        }
+    }
+    ```
+
+## Realizar pruebas
+
+- Ejecutar la aplicación
+
+- Logs: se imprimé que intentó guardar el registro y que se reintentó la petición hasta 3 veces cada 2 segundos, pero se lanza excepción indicando que ocurrió un error
+    ```
+    curl --location 'localhost:8080/api/v1/microservice-aws/country/save' \
+    --header 'user-name: usertest' \
+    --header 'message-id: 9999999-9999-0001' \
+    --header 'ip: 172.34.45.12' \
+    --header 'user-agent: application/json' \
+    --header 'platform-type: postman' \
+    --header 'Content-Type: application/json' \
+    --data '{
+        "shortCode": "ECU",
+        "name": "Ecuador",
+        "description": "Cuenta con una población estimada de 10 millones de habitantes.",
+        "status": true
+    }'
+
+    -- respuesta en postman
+
+    {
+        "errors": [
+            {
+                "reason": "WRT02 - An error has occurred in the Rest Client",
+                "domain": "POST:/api/v1/microservice-aws/country/save",
+                "code": "WRT02",
+                "message": "An error has occurred in the Rest Client"
+            }
+        ]
+    }
+
+    -- logs relevantes
+    
+    -- Pasó por el metodo guardar
+    {
+        "instant": {
+            "epochSecond": 1753138089,
+            "nanoOfSecond": 145151800
+        },
+        "thread": "reactor-http-nio-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"Save one record\",\"messageId\":\"9999999-9999-0001\",\"service\":\"Service Api Rest world regions\",\"method\":\"co.com.microservice.aws.infrastructure.input.rest.api.handler.CountryHandler\",\"appName\":\"MicroserviceAws\"},\"request\":{\"headers\":null,\"body\":{\"id\":\"9999999-9999-0001\",\"customer\":{\"ip\":\"172.34.45.12\",\"username\":\"usertest\",\"device\":{\"userAgent\":\"application/json\",\"platformType\":\"postman\"}}}},\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 93,
+        "threadPriority": 5
+    }
+    
+    -- Pasó por el metodo obtener información del pais
+    {
+        "instant": {
+            "epochSecond": 1753138089,
+            "nanoOfSecond": 204889300
+        },
+        "thread": "reactor-http-nio-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"rest get info country\",\"messageId\":\"9999999-9999-0001\",\"service\":\"co.com.microservice.aws.infrastructure.output.restconsumer.WorldCountryAdapter\",\"method\":\"exist\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 93,
+        "threadPriority": 5
+    }
+
+    -- Reintento 1
+    {
+        "instant": {
+            "epochSecond": 1753138089,
+            "nanoOfSecond": 271307500
+        },
+        "thread": "reactor-http-nio-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"WRT02 - An error has occurred in the Rest Client, wating retry: '1'\",\"messageId\":\"9999999-9999-0001\",\"service\":\"co.com.microservice.aws.infrastructure.output.restconsumer.WorldCountryAdapter\",\"method\":\"printErrorRetry\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 93,
+        "threadPriority": 5
+    }
+
+    -- Pasan 2 segundos, Reintento 2
+    {
+        "instant": {
+            "epochSecond": 1753138091,
+            "nanoOfSecond": 342309000
+        },
+        "thread": "reactor-http-nio-4",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"WRT02 - An error has occurred in the Rest Client, wating retry: '2'\",\"messageId\":\"9999999-9999-0001\",\"service\":\"co.com.microservice.aws.infrastructure.output.restconsumer.WorldCountryAdapter\",\"method\":\"printErrorRetry\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 94,
+        "threadPriority": 5
+    }
+
+    -- Pasan 2 segundos, Reintento 3
+    {
+        "instant": {
+            "epochSecond": 1753138093,
+            "nanoOfSecond": 361146100
+        },
+        "thread": "reactor-http-nio-5",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"WRT02 - An error has occurred in the Rest Client, wating retry: '3'\",\"messageId\":\"9999999-9999-0001\",\"service\":\"co.com.microservice.aws.infrastructure.output.restconsumer.WorldCountryAdapter\",\"method\":\"printErrorRetry\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 95,
+        "threadPriority": 5
+    }
+
+    -- Finalmente lanza el error técnico
+    ```
+
+- Debido a que de momento no tenemos un microservicio que entregue la información del pais entonces vamos a simular la respuesta con la estructura que esperamos, utilizando **wiremock**
+
+    Ejecutar en la consola para este caso windows
+    ```
+    podman run -d --name mock-server -p 3000:8080 docker.io/wiremock/wiremock
+    ```
+
+    Si ya existe se inicia el contenedor
+    ```
+    podman start mock-server
+    ```
+
+    - Curls para simular respuesta correcta
+    ```
+    curl -X POST http://localhost:3000/__admin/mappings \
+    -H "Content-Type: application/json" \
+    -d '{
+        "request": {
+        "method": "GET",
+        "urlPathPattern": "/api/v3/microservice-countries/country/exist/.*"
+        },
+        "response": {
+        "status": 500,
+        "body": "Internal Server Error"
+        },
+        "scenarioName": "AuditParamRetry",
+        "requiredScenarioState": "Started",
+        "newScenarioState": "SecondAttempt"
+    }'
+    ```
+
+    ```
+    curl -X POST http://localhost:3000/__admin/mappings \
+    -H "Content-Type: application/json" \
+    -d '{
+        "request": {
+        "method": "GET",
+        "urlPathPattern": "/api/v3/microservice-countries/country/exist/.*"
+        },
+        "response": {
+        "fixedDelayMilliseconds": 10000
+        },
+        "scenarioName": "AuditParamRetry",
+        "requiredScenarioState": "SecondAttempt",
+        "newScenarioState": "ThirdAttempt"
+    }'
+    ```
+    
+    ```
+    curl -X POST http://localhost:3000/__admin/mappings \
+    -H "Content-Type: application/json" \
+    -d '{
+        "request": {
+        "method": "GET",
+        "urlPathPattern": "/api/v3/microservice-countries/country/exist/.*"
+        },
+        "response": {
+        "status": 200,
+        "body": "{ \"code\": \"LLL\", \"name\": \"nameCountry\"}",
+        "headers": {
+            "Content-Type": "application/json"
+        }
+        },
+        "scenarioName": "AuditParamRetry",
+        "requiredScenarioState": "ThirdAttempt",
+        "newScenarioState": "Completed"
+    }'
+    ```
+
+    -- curl guardar nuevo pais
+    ```
+    curl --location 'localhost:8080/api/v1/microservice-aws/country/save' \
+    --header 'user-name: usertest' \
+    --header 'message-id: 9999999-9999-0001' \
+    --header 'ip: 172.34.45.12' \
+    --header 'user-agent: application/json' \
+    --header 'platform-type: postman' \
+    --header 'Content-Type: application/json' \
+    --data '{
+        "shortCode": "USA",
+        "name": "Estados Unidos",
+        "description": "Cuenta con una población estimada de 300 millones de habitantes.",
+        "status": true
+    }'
+    ```
+    
+    -- logs relevantes
+    -- Pasó por el metodo guardar
+    ```
+    {
+        "instant": {
+            "epochSecond": 1753146977,
+            "nanoOfSecond": 692667900
+        },
+        "thread": "reactor-http-nio-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"Save one record\",\"messageId\":\"9999999-9999-0001\",\"service\":\"Service Api Rest world regions\",\"method\":\"co.com.microservice.aws.infrastructure.input.rest.api.handler.CountryHandler\",\"appName\":\"MicroserviceAws\"},\"request\":{\"headers\":null,\"body\":{\"id\":\"9999999-9999-0001\",\"customer\":{\"ip\":\"172.34.45.12\",\"username\":\"usertest\",\"device\":{\"userAgent\":\"application/json\",\"platformType\":\"postman\"}}}},\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 94,
+        "threadPriority": 5
+    }
+    
+    -- Pasó por el metodo obtener información del pais
+    {
+        "instant": {
+            "epochSecond": 1753146977,
+            "nanoOfSecond": 741437700
+        },
+        "thread": "reactor-http-nio-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"rest get info country\",\"messageId\":\"9999999-9999-0001\",\"service\":\"co.com.microservice.aws.infrastructure.output.restconsumer.WorldCountryAdapter\",\"method\":\"exist\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 94,
+        "threadPriority": 5
+    }
+
+    -- Reintento 1, Error 500
+    {
+        "instant": {
+            "epochSecond": 1753147319,
+            "nanoOfSecond": 174606000
+        },
+        "thread": "reactor-http-nio-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"rest get info country 500 INTERNAL_SERVER_ERROR\",\"messageId\":\"9999999-9999-0001\",\"service\":\"co.com.microservice.aws.infrastructure.output.restconsumer.WorldCountryAdapter\",\"method\":\"errorStatusFunction\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 94,
+        "threadPriority": 5
+    }
+
+    -- Pasan 2 segundos, Reintento 2, Error por timeout
+    {
+        "instant": {
+            "epochSecond": 1753147319,
+            "nanoOfSecond": 201915700
+        },
+        "thread": "reactor-http-nio-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"WRT02 - An error has occurred in the Rest Client, wating retry: '1'\",\"messageId\":\"9999999-9999-0001\",\"service\":\"co.com.microservice.aws.infrastructure.output.restconsumer.WorldCountryAdapter\",\"method\":\"printErrorRetry\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 94,
+        "threadPriority": 5
+    }
+
+    -- Pasan 2 segundos, Reintento 3, Status 200
+    {
+        "instant": {
+            "epochSecond": 1753147328,
+            "nanoOfSecond": 455661400
+        },
+        "thread": "reactor-http-nio-4",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"9999999-9999-0001\",\"messageId\":\"9999999-9999-0001\",\"service\":\"Service Api Rest world regions\",\"method\":\"co.com.microservice.aws.infrastructure.output.restconsumer.WorldCountryAdapter\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":{\"headers\":null,\"body\":{\"code\":\"LLL\",\"name\":\"nameCountry\"}}}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 109,
+        "threadPriority": 5
+    }
+
+    -- Se obtiene la información correctamente:
+    "response":{
+        "headers":"null",
+        "body":{
+            "code":"LLL",
+            "name":"nameCountry"
+        }
+    }
+    ```
+
+    **Importante**: Cuando se ejecuten los escenarios se debe reiniciar su estado o sino dará error 404
 
 [< Volver al índice](README.md)
 

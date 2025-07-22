@@ -47,6 +47,15 @@ Implementación de endpoints reactivos para la gestión de recursos.
 
   🔗 👉 [📘 Primeros pasos con RabbitMQ](./doc/rabbitmq.md)
 
+- **Consumo de servicio externos con WebClient**  
+  Integración de servicios externos mediante WebClient, el cliente HTTP no bloqueante de Spring WebFlux.
+  Se implementa un enfoque reactivo para realizar llamadas remotas, permitiendo controlar eficientemente los recursos del sistema.
+
+  El consumo incluye una estrategia de reintentos automáticos con esperas configurables entre cada intento, lo que mejora la resiliencia ante errores temporales (como timeouts o fallas de red).
+  Además, se manejan adecuadamente los errores HTTP para diferenciarlos entre fallas técnicas y de negocio, asegurando trazabilidad en logs y respuestas consistentes.
+  
+  🔗 👉 [📘 Primeros pasos con Webclient](./doc/webclient-wiremock-apirest.md)
+
 - **Arquitectura Hexagonal**  
   Separación clara entre la lógica de negocio (dominio) y las dependencias externas (bases de datos, colas, controladores HTTP).
 

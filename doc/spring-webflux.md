@@ -159,12 +159,12 @@ Ideal para aplicaciones con altas cargas concurrentes y uso intensivo de IO.
     });
     ```
 
-- Ejemplo Comparativo JAVA vrs Webflux, en un proyecto java con webflux puede crearse la siguiente clasa para validar respuestas y comparar rendimiento. vamos a simular 100 peticiones, en java se usarán 3 hilos
+- Ejemplo Comparativo JAVA vrs Webflux, en un proyecto java con webflux puede crearse la siguiente clase para validar respuestas y comparar rendimiento. vamos a simular 100 peticiones, se usarán 3 hilos
 
     - Resumen:
-    - Java con 3 hilos procesa 100 peticiones con espera de 0.3 segundos cada hilo en aproximadamente 11 segundos
-    - Java con 10 hilos procesa 100 peticiones con espera de 0.3 segundos cada hilo en aproximadamente 4 segundos
-    - Webflux procesa 100 peticiones con espera de 0.3 segundos cada hilo en 0.5 segundos
+    - Con 3 hilos procesa 100 peticiones con espera de 0.3 segundos por cada hilo en aproximadamente 11 segundos
+    - Con 10 hilos procesa 100 peticiones con espera de 0.3 segundos por cada hilo en aproximadamente 4 segundos
+    - Webflux procesa 100 peticiones con espera de 0.3 segundos en 0.5 segundos
 
 - Código de prueba
 

@@ -3,7 +3,7 @@ package co.com.microservice.aws.application.config;
 import co.com.microservice.aws.application.helpers.logs.LoggerBuilder;
 import co.com.microservice.aws.application.helpers.logs.TransactionLog;
 import co.com.microservice.aws.domain.model.rq.TransactionRequest;
-import co.com.microservice.aws.domain.usecase.in.FindByNameUseCase;
+import co.com.microservice.aws.domain.usecase.in.ParameterUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -16,7 +16,7 @@ import java.util.UUID;
 @Component
 @RequiredArgsConstructor
 public class ParameterLoaderConfig {
-    private final FindByNameUseCase useCasefinder;
+    private final ParameterUseCase useCasefinder;
     private final LoggerBuilder logger;
 
     @Order(1)

@@ -1,9 +1,42 @@
-# Instructivo paso a paso montaje ambiente local Wiremock
+
+### Indice
+
+* [1. Doc Webclient](#id1)
+* [2. Doc Wiremock](#id2)
+
+# <div id='id1'/>
+# 1. Consumo de apis externas
+> En esta sección se explica qué es WebClient, sus principales características, cómo utilizarlo para consumir servicios externos de manera reactiva, así como las recomendaciones para realizar pruebas usando WireMock como herramienta de simulación.
+
+## ¿Qué es WebClient?
+
+**WebClient** es el cliente HTTP no bloqueante incluido en el módulo spring-webflux. Está diseñado para trabajar con flujos reactivos (Mono y Flux), permitiendo consumir servicios REST de forma eficiente, sin bloquear los hilos del sistema.
+
+Es el reemplazo moderno de RestTemplate y se integra naturalmente con aplicaciones reactivas basadas en Project Reactor.
+
+## Características principales
+
+- Comunicación no bloqueante y reactiva.
+- Soporte para múltiples métodos HTTP: GET, POST, PUT, DELETE, etc.
+- Manejo de encabezados, parámetros y cuerpo de la solicitud de forma fluida.
+- Configuración de timeouts, reintentos con espera personalizada y manejo de errores HTTP.
+- Integración directa con Spring Boot y soporte para filtros, interceptores y loggers personalizados.
+- Compatible con pruebas simuladas mediante herramientas como WireMock.
+
+## Protocolos de comunicación compatibles
+WebClient permite realizar llamadas a servicios que operen sobre los siguientes protocolos:
+
+- HTTP / HTTPS: Principal protocolo utilizado para consumir APIs RESTful.
+- WebSocket (en casos específicos): a través de una extensión con WebSocketClient.
+- No es compatible directamente con gRPC, pero existen adaptadores y clientes externos para este caso.
+
+# <div id='id2'/>
+# 2. Montaje ambiente local Wiremock
 > A continuación se explica que es wiremock, características e indicaciones del paso a paso que se debe realizar para crear mocks
 
 ### Requisitos: 
 
-⚠️ Debes haber realizado el instructivo de [Primeros pasos ambiente local](README-AMBIENTE-LOCAL.md)
+⚠️ Debes haber realizado el instructivo de [Primeros pasos ambiente local](podman-localstack-aws.md)
 
 ## ¿Qué es WireMock?
 
@@ -116,6 +149,30 @@ WireMock es una herramienta de simulación de APIs (mock server) que permite emu
         "requiredScenarioState": "ThirdAttempt",
         "newScenarioState": "Completed"
     }'
+
+    {
+        "instant": {
+            "epochSecond": 1753149252,
+            "nanoOfSecond": 502441200
+        },
+        "thread": "RMessageSender1-1",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"Event emitted\",\"messageId\":\"9999999-9999-0001\",\"service\":\"generateDomainEvent\",\"method\":\"co.com.microservice.aws.infrastructure.output.rabbiteventbus.repository.EventOperations\",\"appName\":\"MicroserviceAws\"},\"request\":{\"headers\":null,\"body\":{\"type\":\"myapp.notification.example-event-emited\",\"specVersion\":\"1\",\"source\":\"microservice-aws\",\"id\":\"2ea60812-025f-486d-9162-843d56421b5d\",\"time\":\"2025-07-21T20:54:12.477500100\",\"invoker\":\"From-My-App\",\"dataContentType\":\"application/json\",\"data\":{\"data\":{\"id\":null,\"shortCode\":\"USA\",\"name\":\"Estados Unidos\",\"description\":\"Cuenta con una población estimada de 300 millones de habitantes.\",\"status\":true,\"dateCreation\":null},\"headers\":{\"user-name\":\"usertest\",\"platform-type\":\"postman\",\"ip\":\"172.34.45.12\",\"id\":\"9999999-9999-0001\",\"user-agent\":\"application/json\"}},\"eventId\":\"2ea60812-025f-486d-9162-843d56421b5d-myapp.notification.example-event-emited\"}},\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 131,
+        "threadPriority": 5
+    }
+
+    Response postman
+    Saved successfull!
+    ```
+
+    **Importante**: Cuando se ejecuten los escenarios se debe reiniciar su estado o sino dará error 404
+
+    ```
+    curl --location --request POST 'http://localhost:3000/__admin/scenarios/reset'
     ```
 
     **¿Qué hace esto?**
@@ -125,6 +182,8 @@ WireMock es una herramienta de simulación de APIs (mock server) que permite emu
     2do intento: simula un timeout tardando 10 segundos.
 
     3er intento: responde 200 OK con el parámetro.
+
+    reset: reinicia los escenarios
 
     Esto es perfecto para probar reintentos reactivos (.retryWhen) en WebClient.
 

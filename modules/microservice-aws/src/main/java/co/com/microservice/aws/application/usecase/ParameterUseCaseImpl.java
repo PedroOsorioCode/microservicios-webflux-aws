@@ -6,18 +6,19 @@ import co.com.microservice.aws.domain.model.commons.enums.CacheKey;
 import co.com.microservice.aws.domain.model.commons.util.ResponseMessageConstant;
 import co.com.microservice.aws.domain.model.rq.TransactionRequest;
 import co.com.microservice.aws.domain.model.rs.TransactionResponse;
-import co.com.microservice.aws.domain.usecase.in.FindByNameUseCase;
+import co.com.microservice.aws.domain.usecase.in.ParameterUseCase;
 import co.com.microservice.aws.domain.usecase.out.FindByNamePort;
 import co.com.microservice.aws.domain.usecase.out.RedisPort;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 @UseCase
 @RequiredArgsConstructor
-public class ParameterUseCase implements FindByNameUseCase {
+public class ParameterUseCaseImpl implements ParameterUseCase {
     private final FindByNamePort<Parameter> parameterFinder;
     private final RedisPort redisPort;
 
@@ -34,7 +35,7 @@ public class ParameterUseCase implements FindByNameUseCase {
         TransactionResponse response = TransactionResponse.builder()
                 .message(ResponseMessageConstant.MSG_LIST_SUCCESS)
                 .size(parameters.size())
-                .response(Collections.singletonList(parameters))
+                .response(new ArrayList<>(parameters))
                 .build();
 
         return Mono.just(response);
