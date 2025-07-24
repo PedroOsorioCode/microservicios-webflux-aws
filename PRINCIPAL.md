@@ -17,18 +17,35 @@
 
 * [1. Crear proyecto](#id1)
 * [2. Crear la aplicación](#id2)
-* [3. Crear la conexión con postgresql](#id3)
-* [4. Crear la instancia de base de datos en Podman](#id4)
-* [5. Realizar pruebas (listall - save)](#id5)
-* [6. Completar la aplicación con otros metodos](#id6)
-* [7. Realizar pruebas (update - delete - findby)](#id7)
-* [8. Crear la conexión con mysql](#id8)
-* [9. Crear la instancia de base de datos en Podman](#id9)
-* [10. Crear conexión secrets-manager](#id10)
-* [11. Crear conexión redis-cache](#id11)
-* [12. Configurar uso de CRON](#id12)
-* [13. Configurar uso de Rabbit MQ](#id13)
-* [14. Configurar consumo de APIs Externas con Webclient](#id14)
+* [3. Postgresql: Crear la conexión](#id3)
+* [4. Postgresql: Crear la instancia de base de datos en Podman](#id4)
+* [5. Postgresql: Realizar pruebas (listall - save)](#id5)
+* [6. Postgresql: Completar la aplicación con otros metodos](#id6)
+* [7. Postgresql: Realizar pruebas (update - delete - findby)](#id7)
+* [8. Mysql: Crear la conexión](#id8)
+* [9. Mysql: Crear la instancia de base de datos en Podman](#id9)
+* [10. Secrets-manager: Crear conexión ](#id10)
+* [11. Secrets-manager: Crear secretos en podman](#id11)
+* [12. Redis-cache: Crear conexión](#id12)
+* [13. Redis-cache: Crear la instancia en podman](#id13)
+* [14. Cron: Crear tarea en background](#id14)
+* [15. Cron: Logs y validación en Redis](#id15)
+* [16. Rabbit-MQ: Crear conexión](#id16)
+* [17. Rabbit-MQ: Publicador](#id17)
+* [18. Rabbit-MQ: Publicador pruebas](#id18)
+* [19. Rabbit-MQ: Publicador logs](#id19)
+* [20. Rabbit-MQ: Consumidor](#id20)
+* [21. Rabbit-MQ: Consumidor pruebas](#id21)
+* [22. Rabbit-MQ: Consumidor logs](#id22)
+* [23. Webclient: Configurar consumo de APIs Externas](#id23)
+* [24. Webclient: pruebas](#id24)
+* [25. Webclient: logs](#id25)
+* [26. S3: Configurar](#id26)
+* [27. S3: Pruebas Txt](#id27)
+* [28. S3: Logs Txt](#id28)
+* [29. S3: Pruebas Zip](#id29)
+* [30. S3: Logs Zip](#id30)
+* [31. Dynamodb: Configuración](#id31)
 
 # <div id='id1'/>
 # 1. Crear y configurar el proyecto:
@@ -68,7 +85,7 @@
 
         rootProject.name = 'microservice-aws'
         ```
-        Actualizar dependencias
+        ⚠️ Actualizar dependencias
 
     - Ubicarse en la raiz del proyecto y modificar el archivo build.gradle por
         ```
@@ -97,6 +114,13 @@
             mavenCentral()
         }
 
+        ext {
+            awsSdkVersion = '2.25.17'
+            reactiveCommonsVersion = '4.1.4'
+            tikaVersion = '3.1.0'
+            commonsCompressVersion = '1.27.1'
+        }
+
         dependencies {
             implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
             implementation 'org.springframework.boot:spring-boot-starter-webflux'
@@ -108,6 +132,22 @@
             implementation 'org.mapstruct:mapstruct:1.5.2.Final'
             // Driver R2DBC para MySQL usando jasync
             implementation 'com.github.jasync-sql:jasync-r2dbc-mysql:2.1.16'
+
+            implementation platform('software.amazon.awssdk:bom:2.25.2')
+            implementation 'software.amazon.awssdk:auth'
+
+            implementation "software.amazon.awssdk:secretsmanager:$awsSdkVersion"
+            implementation "software.amazon.awssdk:regions:$awsSdkVersion"
+            implementation "software.amazon.awssdk:core:$awsSdkVersion"
+
+            implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
+            implementation 'io.lettuce:lettuce-core'
+
+            implementation "org.reactivecommons:async-commons-rabbit-starter:${reactiveCommonsVersion}"
+
+            implementation 'software.amazon.awssdk:s3'
+            implementation "org.apache.tika:tika-core:${tikaVersion}"
+            implementation "org.apache.commons:commons-compress:${commonsCompressVersion}"
 
             developmentOnly 'org.springframework.boot:spring-boot-devtools'
             compileOnly 'org.projectlombok:lombok'
@@ -125,7 +165,7 @@
 
         // Para evitar conflicto con Logback
         configurations {
-            all {
+            configureEach {
                 exclude group: 'org.apache.logging.log4j', module: 'log4j-to-slf4j'
                 exclude group: 'org.springframework.boot', module: 'spring-boot-starter-logging'
             }
@@ -141,7 +181,7 @@
             options.incremental = false
         }
         ```
-        Actualizar dependencias
+        ⚠️ Actualizar dependencias
 
     - Ubicarse en src > main > resources y crear el archivo application.yaml y de igual forma application-local.yaml con lo siguiente
 ```
@@ -192,17 +232,42 @@ entries:
   regex-body-wr:
     name: "${REGEX_COUNTRY_NAME:^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]{3,50}$}"
     codeShort: "${REGEX_COUNTRY_CODE_SHORT:^[a-zA-Z]{3,4}$}"
+  properties:
+    expression-timer: "${EXPRESSION_TIMER:0 */15 * * * ?}"
+    process-on-schedule: "${PROCESS_ON_SCHEDULE:Y}"
 
 adapters:
-  postgresql:
-    url: r2dbc:postgresql://localhost:5432/my_postgres_db
-    usr: postgres
-    psw: 123456
-  mysql:
-    url: r2dbc:mysql://localhost:3306/my_mysql_db
-    usr: myroot
-    psw: myroot123
+  secrets-manager:
+    region: "${AWS_REGION:us-east-1}"
+    endpoint: ${PARAM_URL:http://localhost:4566}
+    namePostgresql: "${SECRET_NAME_POSTGRE:local-postgresql}"
+    nameMysql: "${SECRET_NAME_MYSQL:local-mysql}"
+    nameRedis: "${SECRET_NAME_REDIS:local-redis}"
+    nameRabbitMq: "${SECRET_NAME_RABBIT_MQ:local-rabbitmq}"
+  redis:
+    expireTime: ${CACHE_EXPIRE_SECONDS:10}
+  rest-country:
+    timeout: ${TIMEOUT:5000}
+    url: ${URL_COUNTRIES:http://localhost:3000/api/v3/microservice-countries}
+    info:
+      exist: "${COUNTRY_EXIST:/country/exist/}"
+    retry:
+      retries: ${REST_COUNTRY_RETRIES:3}
+      retryDelay: ${REST_COUNTRY_RETRY_DELAY:2}
+  s3:
+    region: "${AWS_REGION:us-east-1}"
+    endpoint: http://localhost:4566
+    accessKey: "test"
+    secretKey: "test"
+
+listen:
+  event:
+    names:
+      saveCountry: "${EVENT_NAME_SAVE_COUNTRY:business.myapp.save.country}"
+      saveCacheCountCountry: "${EVENT_NAME_COUNT_IN_CACHE_COUNTRY:business.myapp.save-cache-count.country}"
+      saveWorldRegion: "${EVENT_NAME_SAVE_ALL_WORLD_REGION:business.myapp.save-all.world-region}"
 ```
+⚠️ Algunas configuraciones serán de importancia en desarrollos mas adelante
 
 - Abrir el archivo MicroserviceAwsApplication.java y click derecho y ejecutar la aplicación
     
@@ -1966,6 +2031,7 @@ adapters:
 # 7. Realizar pruebas (update - delete - findby)
 
 - Curls "findByShortCode"
+
     ```
     curl --location --request GET 'localhost:8080/api/v1/microservice-aws/country/findByShortCode/CO' \
     --header 'user-name: usertest' \
@@ -1982,7 +2048,9 @@ adapters:
         "dateCreation": "2025-07-12T08:00:00"
     }'
     ```
+
 - Curls "delete"
+
     ```
     curl --location --request DELETE 'localhost:8080/api/v1/microservice-aws/country/delete/7' \
     --header 'user-name: usertest' \
@@ -1999,7 +2067,9 @@ adapters:
         "dateCreation": "2025-07-12T08:00:00"
     }'
     ```
+    
 - Curls "update"
+
     ```
     curl --location --request PUT 'localhost:8080/api/v1/microservice-aws/country/update' \
     --header 'user-name: usertest' \
@@ -2661,6 +2731,9 @@ adapters:
     }
     ```
 
+# <div id='id11'/>
+# 11. Crear secretos en podman (Postgresql y mysql)
+
 - Preparar el ambiente local creando los secretos, en la consola de comandos (windows en este caso) ejecutar los siguientes:
     ```
     podman start localstack
@@ -2668,12 +2741,13 @@ adapters:
     aws secretsmanager create-secret --name local-postgresql --description "Connection to local PostgreSQL" --secret-string "{\"url\":\"r2dbc:postgresql://localhost:5432/my_postgres_db\",\"usr\":\"postgres\",\"psw\":\"123456\"}" --endpoint-url=http://localhost:4566
 
     aws secretsmanager create-secret --name local-mysql --description "Conexión local a MySQL para microservicio" --secret-string "{\"url\":\"r2dbc:mysql://localhost:3306/my_mysql_db\",\"usr\":\"myroot\",\"psw\":\"myroot123\"}" --endpoint-url http://localhost:4566
+
     ```
 
 - Ejecutar la aplicación y todo debe continuar funcionando, los servicios de postman y el log de imprimir la información del parámetro
 
-# <div id='id11'/>
-# 11. Crear conexión redis-cache
+# <div id='id12'/>
+# 12. Crear conexión redis-cache
 
 - Agregar en el archivo build.gradle
     ```
@@ -2963,7 +3037,7 @@ adapters:
         "threadPriority": 5
     }
 
-    Mostrarmos el acceso al dato almacenado en Redis con la clave: APPLY_AUDIT
+    Mostramos el acceso al dato almacenado en Redis con la clave: APPLY_AUDIT
     {
         "instant": {
             "epochSecond": 1752635746,
@@ -2980,6 +3054,9 @@ adapters:
     }
     ```
 
+# <div id='id13'/>
+# 13. Crear instancia en podman
+
 - Comandos podman para acceder a Redis Cache Local y ver la información
     ```
     -- Descargar la imagen
@@ -2989,6 +3066,9 @@ adapters:
     podman ps
     
     -- Elegimos el nombre que le hemos dado al contendor, en este caso: redis-container
+
+    -- Crear secreto
+    aws secretsmanager create-secret --name local-redis --description "Connection to Redis" --secret-string "{\"host\":\"localhost\",\"port\":\"6379\",\"password\":\"\"}" --endpoint-url=http://localhost:4566
 
     -- Ingresar al CLI del contenedor
     podman exec -it redis-container redis-cli
@@ -3005,8 +3085,21 @@ adapters:
     "Value by started application"
     ```
 
-# <div id='id12'/>
-# 12. Configurar uso de CRON
+# <div id='id14'/>
+# 14. Configurar uso de CRON
+
+- Tabla general de caracteres especiales en expresiones CRON
+
+| Símbolo | Significado | Ejemplo | Explicación |
+| ------- | ----------- | ------- | ----------- |
+| `*`     | Todos los valores posibles         | `* * * * * *`       | Ejecuta cada segundo, minuto, hora, día, mes, día de la semana.                                 |
+| `?`     | Sin especificar                    | `0 0 12 * * ?`      | Ejecuta a las 12:00 pm todos los días (cuando no necesitas día del mes **y** día de la semana). |
+| `*/n`   | Cada `n` unidades                  | `0 */5 * * * ?`     | Cada 5 minutos.                                                                                 |
+| `n1-n2` | Rango de valores                   | `0 0 9-17 * * ?`    | Cada hora entre 9 am y 5 pm.                                                                    |
+| `n1,n2` | Lista de valores específicos       | `0 0 8,14,20 * * ?` | A las 8 am, 2 pm y 8 pm.                                                                        |
+| `L`     | Último día del mes o semana        | `0 0 0 L * ?`       | A medianoche del **último día del mes**.                                                        |
+| `W`     | Día hábil más cercano al día dado  | `0 0 0 15W * ?`     | Día hábil más cercano al día 15 del mes.                                                        |
+| `#`     | N.º de ocurrencia de un día en mes | `0 0 8 ? * 2#1`     | Primer lunes (`2`) del mes a las 8 am.                                                          |
 
 - En el archivo application.yaml agregar la configuración del timer para el cron
 ```
@@ -3077,19 +3170,8 @@ entries:
 | 6        | `?`   | **Día de la semana** (`?` o específico) | `?` indica que **no se especifica** (se usa cuando ya se definió día del mes) |
 
 
-- Tabla general de caracteres especiales en expresiones CRON
-
-| Símbolo | Significado | Ejemplo | Explicación |
-| ------- | ----------- | ------- | ----------- |
-| `*`     | Todos los valores posibles         | `* * * * * *`       | Ejecuta cada segundo, minuto, hora, día, mes, día de la semana.                                 |
-| `?`     | Sin especificar                    | `0 0 12 * * ?`      | Ejecuta a las 12:00 pm todos los días (cuando no necesitas día del mes **y** día de la semana). |
-| `*/n`   | Cada `n` unidades                  | `0 */5 * * * ?`     | Cada 5 minutos.                                                                                 |
-| `n1-n2` | Rango de valores                   | `0 0 9-17 * * ?`    | Cada hora entre 9 am y 5 pm.                                                                    |
-| `n1,n2` | Lista de valores específicos       | `0 0 8,14,20 * * ?` | A las 8 am, 2 pm y 8 pm.                                                                        |
-| `L`     | Último día del mes o semana        | `0 0 0 L * ?`       | A medianoche del **último día del mes**.                                                        |
-| `W`     | Día hábil más cercano al día dado  | `0 0 0 15W * ?`     | Día hábil más cercano al día 15 del mes.                                                        |
-| `#`     | N.º de ocurrencia de un día en mes | `0 0 8 ? * 2#1`     | Primer lunes (`2`) del mes a las 8 am.                                                          |
-
+# <div id='id15'/>
+# 15. Logs y validación en redis
 
 - Resultado logs y valor en Redis cache local
     ```
@@ -3136,10 +3218,12 @@ entries:
 
     **Nota:** El cron se ejecuta cuando el reloj marca el minuto 5, para efectos de la prueba se activó la aplicación a las 6:00pm y a las 6:05pm se ejecutó, si se lanza a las 6:04pm, el cron se ejecutará a las 6:05pm, justo cuando marca el minuto 05, 10, 15... 
 
-# <div id='id13'/>
-# 13. Configurar uso de Rabbit MQ (Publicador, Consumidor)
+# <div id='id16'/>
+# 16. Configurar Rabbit MQ
 
-## Conexión con secrets - manager
+💡 [>> Overview reactive-commons](https://bancolombia.github.io/reactive-commons-java/docs/intro)
+
+💡 [>> Examples reactive-commons](https://github.com/reactive-commons)
 
 - Ubicarse en el archivo build.gradle y modificar
     ```
@@ -3155,12 +3239,7 @@ entries:
     }
     ```
 
-    [>> Overview reactive-commons](https://bancolombia.github.io/reactive-commons-java/docs/intro)
-
-    [>> Examples reactive-commons](https://github.com/reactive-commons)
-
-
-- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.rabbiteventbus.config y crear la clase RabbitMqConfig.java
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.rabbiteventbus.config y crear la clase RabbitMqConfig.java con uso de secrets-manager
     ```
     package co.com.microservice.aws.infrastructure.output.rabbiteventbus.config;
 
@@ -3211,7 +3290,8 @@ entries:
     }
     ```
 
-## Publicador
+# <div id='id17'/>
+# 17. Publicador
 
 - Ubicarse en el paquete co.com.microservice.aws.domain.model.events y crear la clase Event.java
     ```
@@ -3257,7 +3337,9 @@ entries:
         }
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.model.events y crear la clase EventData.java
+
     ```
     package co.com.microservice.aws.domain.model.events;
 
@@ -3280,7 +3362,9 @@ entries:
         private transient Object data;
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.model.events y crear la clase EventType.java
+
     ```
     package co.com.microservice.aws.domain.model.events;
 
@@ -3291,7 +3375,9 @@ entries:
         public static final String EVENT_EMMITED_NOTIFICATION_SAVE = "myapp.notification.example-event-emited";
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.rabbiteventbus.repository y crear la clase EventOperations.java
+
     ```
     package co.com.microservice.aws.infrastructure.output.rabbiteventbus.repository;
 
@@ -3337,6 +3423,7 @@ entries:
         }
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.usecase.out y crear la clase EventPort.java
     ```
     package co.com.microservice.aws.domain.usecase.out;
@@ -3348,6 +3435,7 @@ entries:
         Mono<Void> emitEvent(Event<Object> event, String messageId);
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.rabbiteventbus y crear la clase ReactiveEventAdapter.java
     ```
     package co.com.microservice.aws.infrastructure.output.rabbiteventbus;
@@ -3370,6 +3458,7 @@ entries:
         }
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in y crear la clase SentEventUseCase.java
     ```
     package co.com.microservice.aws.domain.usecase.in;
@@ -3380,6 +3469,7 @@ entries:
         void sentEvent(Context context, String typeEvent, Object response);
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.application.usecase y crear la clase SentEventUseCaseImpl.java
     ```
     package co.com.microservice.aws.application.usecase;
@@ -3423,6 +3513,7 @@ entries:
         }
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.application.usecase y modificar la clase CountryUseCaseImpl.java
     ```
     package co.com.microservice.aws.application.usecase;
@@ -3555,8 +3646,8 @@ entries:
         }
     }
     ```
-
-## Realizar pruebas
+# <div id='id18'/>
+# 18. Publicador pruebas
 
 - Crear ambiente RabbitMQ local
     ```
@@ -3573,6 +3664,7 @@ entries:
     ```
     aws secretsmanager create-secret --name local-rabbitmq --description "Connection to RabbitMQ" --secret-string "{\"virtualhost\":\"/\",\"hostname\":\"localhost\",\"username\":\"guest\",\"password\":\"guest\",\"port\":5672}" --endpoint-url=http://localhost:4566
     ```
+
 - Configurar cola en rabbit para ver los mensajes emitidos
     - Ingresar a: http://localhost:15672
     - Elegir en el menú: Queues and streams
@@ -3607,6 +3699,10 @@ entries:
         "dateCreation": "2025-07-12T08:00:00"
     }'
     ```
+
+# <div id='id19'/>
+# 19. Publicador logs
+
 - Ver logs: guardar y e información del evento emitido, para el caso ejemplo message-id es 9999999-9999-0001
     ```
     {
@@ -3681,7 +3777,8 @@ entries:
 
     ![](./img/modules/5_rabbit_config_queue_get-message.png)
 
-## Consumidor
+# <div id='id20'/>
+# 20. Consumidor
 
 - Ubicarse en el archivo application-local.yaml y colocar la siguiente información: corresponde a los eventos que vamos a estar escuchando.
 ```
@@ -3713,6 +3810,7 @@ listen:
         private String saveCacheCountCountry;
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.listenevent.util y crear la clase EventData.java
     ```
     package co.com.microservice.aws.infrastructure.input.listenevent.util;
@@ -3735,6 +3833,7 @@ listen:
         }
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.model.events y crear la clase Headers.java
     ```
     package co.com.microservice.aws.domain.model.events;
@@ -3765,6 +3864,7 @@ listen:
         private String platformType;
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.model.events y crear la clase SaveCountry.java
     ```
     package co.com.microservice.aws.domain.model.events;
@@ -3830,6 +3930,7 @@ listen:
         }
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in y crear la clase CountByStatusUseCase.java
     ```
     package co.com.microservice.aws.domain.usecase.in;
@@ -3841,6 +3942,7 @@ listen:
         Mono<Integer> countByStatus(TransactionRequest request);
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in y modificar la clase CountryUseCase.java
     ```
     package co.com.microservice.aws.domain.usecase.in;
@@ -3849,6 +3951,7 @@ listen:
             ListAllUseCase, FindByShortCodeUseCase, CountByStatusUseCase{
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.postgresql.repository y modificar la clase CountryRepository.java, para efectos de la prueba y abordar otras formas de hacer consultas se crea usando @Query, pero si el metodo solo dice countByStatus(boolean status) es suficiente.
     ```
     package co.com.microservice.aws.infrastructure.output.postgresql.repository;
@@ -3866,6 +3969,7 @@ listen:
         Mono<Integer> countByStatus(@Param("status") boolean status);
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.usecase.out y crear la clase CountByStatusPort.java
     ```
     package co.com.microservice.aws.domain.usecase.out;
@@ -3876,6 +3980,7 @@ listen:
         Mono<Integer> countByStatus(boolean status);
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.postgresql y modificar la clase CountryAdapter.java
     ```
     package co.com.microservice.aws.infrastructure.output.postgresql;
@@ -3939,6 +4044,7 @@ listen:
         }
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.model.commons.enums y modificar la clase CacheKey.java
     ```
     package co.com.microservice.aws.domain.model.commons.enums;
@@ -3956,6 +4062,7 @@ listen:
         private final String key;
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.application.usecase y crear la clase CountryUseCaseImpl.java
     ```
     package co.com.microservice.aws.application.usecase;
@@ -4105,6 +4212,7 @@ listen:
 
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.listenevent.events y crear la clase CountryEventListener.java
     ```
     package co.com.microservice.aws.infrastructure.input.listenevent.events;
@@ -4194,6 +4302,7 @@ listen:
         }
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws y modificar la clase MicroserviceAwsApplication.java
     ```
     package co.com.microservice.aws;
@@ -4220,7 +4329,8 @@ listen:
     - @EnableDomainEventBus → Necesaria para el binding en rabbitmq de forma automatica.
     - @EnableEventListeners → Necesaria para escuchar y manejar los eventos.
 
-## Realizar pruebas
+# <div id='id21'/>
+# 21. Consumidor pruebas
 
 - Ingresar a RabbitMQ local
     - Ir a la opción de menú exchanges
@@ -4334,6 +4444,9 @@ listen:
 
     - Resultando validando redis cache en la consola
 
+# <div id='id22'/>
+# 22. Consumidor logs
+
     ```
     -- Ingresar al CLI del contenedor
     podman exec -it redis-container redis-cli
@@ -4365,11 +4478,11 @@ listen:
     }
     ```
 
-# <div id='id14'/>
-# 14. Configurar consumo de APIs Externas con Webclient
+# <div id='id23'/>
+# 23. Configurar consumo de APIs Externas con Webclient
 
 - Ubicarse en el archivo application-local.yaml y agregar
-    ```
+```
 adapters:
   rest-country:
     timeout: ${TIMEOUT:5000}
@@ -4379,7 +4492,7 @@ adapters:
     retry:
       retries: ${REST_COUNTRY_RETRIES:3}
       retryDelay: ${REST_COUNTRY_RETRY_DELAY:2}
-    ```
+ ```
 
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.restconsumer.config y crear la clase RestConsumerProperties.java
     ```
@@ -4403,6 +4516,7 @@ adapters:
         private int timeout;
     }
     ```
+
 - Ubicarse en el paquete ApiInfoProperties y crear la clase ApiInfoProperties.java
     ```
     package co.com.microservice.aws.infrastructure.output.restconsumer.config;
@@ -4424,6 +4538,7 @@ adapters:
         private String exist;
     }
     ```
+
 - Ubicarse en el paquete ApiInfoProperties y crear la clase ApiInfoProperties.java
     ```
     package co.com.microservice.aws.infrastructure.output.restconsumer.config;
@@ -4446,6 +4561,7 @@ adapters:
         private int retryDelay;
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws y crear la clase RestConsumerUtils.java
     ```
     package co.com.microservice.aws.infrastructure.output.restconsumer.config;
@@ -4474,6 +4590,7 @@ adapters:
         }
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.restconsumer.config y crear la clase RestConsumerConfig.java
     ```
     package co.com.microservice.aws.infrastructure.output.restconsumer.config;
@@ -4502,6 +4619,7 @@ adapters:
         }
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.model y crear la clase InfoCountry.java
     ```
     package co.com.microservice.aws.domain.model;
@@ -4526,6 +4644,7 @@ adapters:
         private String name;
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.usecase.out y crear la clase WorldCountryPort.java
     ```
     package co.com.microservice.aws.domain.usecase.out;
@@ -4537,6 +4656,7 @@ adapters:
         Mono<Boolean> exist(Context context, String name);
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.restconsumer y crear la clase WorldCountryAdapter.java
     ```
     package co.com.microservice.aws.infrastructure.output.restconsumer;
@@ -4884,7 +5004,8 @@ adapters:
     }
     ```
 
-## Realizar pruebas
+# <div id='id24'/>
+# 24. Webclient pruebas
 
 - Ejecutar la aplicación
 
@@ -4916,6 +5037,9 @@ adapters:
             }
         ]
     }
+
+# <div id='id25'/>
+# 25. Webclient logs
 
     -- logs relevantes
     
@@ -5181,6 +5305,282 @@ adapters:
     ```
 
     **Importante**: Cuando se ejecuten los escenarios se debe reiniciar su estado o sino dará error 404
+
+# <div id='id26'/>
+# 26. Configurar S3 (getFile, Uploadfile)
+
+- Ubicarse en el archivo application-local.yaml y colocar la siguiente información: agregar en adapters la información de s3
+```
+adapters:
+  s3:
+    region: ${AWS_REGION:us-east-1}
+    bucketName: ${BUCKET_NAME_FILE:local-bucket-worldregion}
+```
+
+- Ubicarse en el archivo build.gradle y colocar la siguiente dependencia:
+    ```
+    dependencies {
+        implementation 'software.amazon.awssdk:s3'
+    }
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3ConnectionProperties.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.domain.model.commons.enums y crear la clase TechnicalExceptionMessage.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.operations y crear la clase S3Operations.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.out y crear la clase FileStoragePort.java
+    ```
+    ```
+
+- Ubicarse en el paquete cco.com.microservice.aws.infrastructure.output.s3repository y crear la clase S3Adapter.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.domain.model.events y crear la clase ProccessWorldRegionFile.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in.commons y crear la clase ProcessFileUseCase.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.helpers.file.mime y crear la clase MimeDetect.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.helpers.file.mime y crear la clase MimeTypes.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.helpers.file.model y crear la clase FileBytes.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.helpers.file.model y crear la clase FileData.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.helpers.file.model y crear la clase ZipValidatorResult.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.helpers.file.zipfile y crear la clase ZipValidator.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.helpers.file.txt y crear la clase TxtValidator.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.helpers.file y crear la clase FlatFile.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.helpers.utils y crear la clase FileStructureValidator.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.application.usecase y crear la clase WorldRegionUseCaseImpl.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.listenevent.events y crear la clase WorldRegionEventLister.java
+    ```
+    ```
+
+# <div id='id27'/>
+# 27. S3 Pruebas Txt
+
+- Lectura del evento
+- Mostrar log de extracción de datos (ZIP y TXT)
+
+- Ubicarse en la siguiente carpeta, para este caso será el disco C: de windows
+    ```
+    C:\example-s3
+    ```
+    y crear el archivo: world-region-example.txt con los siguientes datos
+
+    ```
+    REGION-LATAM;d40b2031-2e14-4845-91cb-af0bf87a8ce3;Colombia;COUNTRY-COL
+    REGION-LATAM;ff50f4f8-2dd1-4466-a55f-47ce560e1f19;argentina;COUNTRY-ARG
+    COUNTRY-COL;0c3cbfbb-ef59-4e7e-a629-d64394f3dd77;Antioquia;DEPARTMENT-ANT
+    DEPARTMENT-ANT;f46a680a-5b1d-4d18-a01b-a07e90176e3c;Medellin;CITY-MED
+    ```
+
+- Abrir la consola de comandos desde la carpeta donde está el archivo y escribir los siguientes comandos para crear el bucket en nuestro localstack
+    ```
+    podman machine start
+    podman start localstack
+
+    -- Creamos el bucket
+    aws --endpoint-url=http://localhost:4566 s3 mb s3://local-bucket-worldregion
+
+    -- Subimos el archivo al bucket con una estructura de carpetas
+    aws --endpoint-url=http://localhost:4566 s3 cp world-region-example.txt s3://local-bucket-worldregion/maestro/save/lote/world-region-example.txt
+
+    -- Validamos que si se haya subido
+    C:\example-s3>aws --endpoint-url=http://localhost:4566 s3 ls s3://local-bucket-worldregion/maestro/save/lote/
+
+    -- Resultado
+    2025-07-23 19:00:22        289 world-region-example.txt
+
+    podman start rabbitmq-container
+
+    aws secretsmanager create-secret --name local-rabbitmq --description "Connection to RabbitMQ" --secret-string "{\"virtualhost\":\"/\",\"hostname\":\"localhost\",\"username\":\"guest\",\"password\":\"guest\",\"port\":5672}" --endpoint-url=http://localhost:4566
+    ```
+
+- Ahora preparamos el evento para RabbitMQ
+    ```
+    {
+        "name": "business.myapp.save-all.world-region",
+        "eventId": "2ee1b68b-fc21-4250-9be5-d4ce81d972ab",
+        "data": {
+            "type": "business.myapp.save.country",
+            "specVersion": "1.x-wip",
+            "source": "other-microservicio",
+            "id": "8888888-8888-8888",
+            "time": "2025-07-18T08:44:02",
+            "dataContentType": "application/json",
+            "invoker": "",
+            "data": {
+            "transactionRequest": {
+                "headers": {
+                "user-name": "usertest",
+                "platform-type": "postman",
+                "ip": "172.34.45.12",
+                "message-id": "9999999-9999-0001",
+                "user-agent": "application/json"
+                    }
+                },
+            "transactionResponse": {
+                "statusResponse": "SUCCESS",
+                "response": {
+                    "fileName": "world-region-example.txt",
+                    "bucketName": "local-bucket-worldregion",
+                    "path": "maestro/save/lote/world-region-example.txt"
+                    }
+                }
+            }
+        }
+    }
+    ```
+
+# <div id='id27'/>
+# 28. S3 logs Txt
+    ```
+    {
+        "instant": {
+            "epochSecond": 1753324776,
+            "nanoOfSecond": 998397600
+        },
+        "thread": "ApplicationEventListener-1",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"Event save WorldRegion\",\"messageId\":\"9999999-9999-0001\",\"service\":\"Save WorldRegion\",\"method\":\"co.com.microservice.aws.infrastructure.input.listenevent.events.WorldRegionEventLister\",\"appName\":\"MicroserviceAws\"},\"request\":{\"headers\":null,\"body\":{\"name\":\"business.myapp.save-all.world-region\",\"eventId\":\"2ee1b68b-fc21-4250-9be5-d4ce81d972ab\",\"data\":{\"type\":\"business.myapp.save.country\",\"specVersion\":\"1.x-wip\",\"source\":\"other-microservicio\",\"id\":\"8888888-8888-8888\",\"time\":\"2025-07-18T08:44:02\",\"dataContentType\":\"application/json\",\"invoker\":\"\",\"data\":{\"transactionRequest\":{\"headers\":{\"user-name\":\"usertest\",\"platform-type\":\"postman\",\"ip\":\"172.34.45.12\",\"message-id\":\"9999999-9999-0001\",\"user-agent\":\"application/json\"}},\"transactionResponse\":{\"statusResponse\":\"SUCCESS\",\"response\":{\"fileName\":\"world-region-example.txt\",\"bucketName\":\"local-bucket-worldregion\",\"path\":\"maestro/save/lote/world-region-example.txt\"}}}}}},\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 90,
+        "threadPriority": 5
+    }
+    {
+        "instant": {
+            "epochSecond": 1753324777,
+            "nanoOfSecond": 144724500
+        },
+        "thread": "sdk-async-response-1-0",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"getFile success\",\"messageId\":\"9999999-9999-0001\",\"service\":\"getFile\",\"method\":\"co.com.microservice.aws.infrastructure.output.s3repository.S3Adapter\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 99,
+        "threadPriority": 5
+    }
+    [
+        REGION-LATAM;d40b2031-2e14-4845-91cb-af0bf87a8ce3;Colombia;COUNTRY-COL, 
+        REGION-LATAM;ff50f4f8-2dd1-4466-a55f-47ce560e1f19;argentina;COUNTRY-ARG, 
+        COUNTRY-COL;0c3cbfbb-ef59-4e7e-a629-d64394f3dd77;Antioquia;DEPARTMENT-ANT, 
+        DEPARTMENT-ANT;f46a680a-5b1d-4d18-a01b-a07e90176e3c;Medellin;CITY-MED
+    ]
+    ```
+
+# <div id='id29'/>
+# 29. S3 Pruebas zip
+
+# <div id='id30'/>
+# 30. S3 logs zip
+
+# <div id='id31'/>
+# 31. DynamoDB Configuración
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+    ```
+    ```
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+    ```
+    ```
+
 
 [< Volver al índice](README.md)
 

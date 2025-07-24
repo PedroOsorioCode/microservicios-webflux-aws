@@ -10,7 +10,7 @@ import co.com.microservice.aws.domain.model.rq.Context;
 import co.com.microservice.aws.domain.model.rq.TransactionRequest;
 import co.com.microservice.aws.domain.model.rs.TransactionResponse;
 import co.com.microservice.aws.domain.usecase.in.CountryUseCase;
-import co.com.microservice.aws.domain.usecase.in.SentEventUseCase;
+import co.com.microservice.aws.domain.usecase.in.commons.SentEventUseCase;
 import co.com.microservice.aws.domain.usecase.in.WorldCountryUseCase;
 import co.com.microservice.aws.domain.usecase.out.*;
 import lombok.RequiredArgsConstructor;

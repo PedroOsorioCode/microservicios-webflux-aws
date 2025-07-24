@@ -67,9 +67,15 @@ adapters:
     retry:
       retries: ${REST_COUNTRY_RETRIES:3}
       retryDelay: ${REST_COUNTRY_RETRY_DELAY:2}
+  s3:
+    region: "${AWS_REGION:us-east-1}"
+    endpoint: http://localhost:4566
+    accessKey: "test"
+    secretKey: "test"
 
 listen:
   event:
     names:
       saveCountry: "${EVENT_NAME_SAVE_COUNTRY:business.myapp.save.country}"
       saveCacheCountCountry: "${EVENT_NAME_COUNT_IN_CACHE_COUNTRY:business.myapp.save-cache-count.country}"
+      saveWorldRegion: "${EVENT_NAME_SAVE_ALL_WORLD_REGION:business.myapp.save-all.world-region}"

@@ -1,4 +1,6 @@
 package co.com.microservice.aws.domain.usecase.in;
 
-public interface WorldCountryUseCase extends FindByNameUseCase{
+import co.com.microservice.aws.domain.usecase.in.commons.FindByNameUseCase;
+
+public interface WorldCountryUseCase extends FindByNameUseCase {
 }

@@ -26,6 +26,8 @@ repositories {
 ext {
 	awsSdkVersion = '2.25.17'
 	reactiveCommonsVersion = '4.1.4'
+	tikaVersion = '3.1.0'
+	commonsCompressVersion = '1.27.1'
 }
 
 dependencies {
@@ -51,6 +53,10 @@ dependencies {
 	implementation 'io.lettuce:lettuce-core'
 
 	implementation "org.reactivecommons:async-commons-rabbit-starter:${reactiveCommonsVersion}"
+
+	implementation 'software.amazon.awssdk:s3'
+	implementation "org.apache.tika:tika-core:${tikaVersion}"
+	implementation "org.apache.commons:commons-compress:${commonsCompressVersion}"
 
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	compileOnly 'org.projectlombok:lombok'

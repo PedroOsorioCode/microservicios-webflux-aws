@@ -100,6 +100,48 @@
 | ECR                 | Registro de imágenes de contenedores                       |
 | ElastiCache (Redis) | Caché en memoria (experimental en LocalStack)              |
 
+## ¿Por qué se recomienda usar Podman antes de usar Kubernetes.?
+Kubernetes se ha establecido como el estándar de facto para la gestión de cargas de trabajo a gran escala. Podman es una herramienta poderosa y versátil que ofrece una curva de aprendizaje más suave y una serie de ventajas que lo convierten en el trampolín ideal para el universo de la orquestación de contenedores.
+
+- Simplicidad y Menos Complejidad Inicial:
+
+    Kubernetes es un sistema vasto y complejo, diseñado para manejar infraestructuras distribuidas y entornos de producción a gran escala.
+    
+    Podman, por otro lado, es mucho más sencillo y directo. Se enfoca en la gestión de contenedores individuales y pods (grupos de contenedores relacionados) en una única máquina.
+
+- Entorno sin Demonio (Daemonless):
+
+    Podman opera sin demonio, lo que significa que los contenedores se ejecutan como procesos de usuario normales. Esto tiene varias ventajas:
+
+- Mayor Seguridad: 
+
+    Los usuarios no necesitan permisos de root para ejecutar o construir contenedores.
+
+- Mayor Estabilidad: 
+
+    - La ausencia de un demonio elimina un posible punto de fallo. Si un contenedor falla, no afecta al proceso del demonio ni a otros contenedores.
+
+    - Facilidad de Integración con Systemd: Podman se integra de forma nativa con systemd, lo que permite gestionar contenedores y pods como servicios de sistema, facilitando la automatización y el reinicio automático.
+
+- Compatibilidad con OCI y Sintaxis Familiar (Docker-like):
+
+    Podman es compatible con los estándares de la Open Container Initiative (OCI), lo que asegura que las imágenes y contenedores creados con Podman sean interoperables con otras herramientas que sigan estos estándares, incluyendo Kubernetes.
+
+- Construcción de Imágenes sin Dockerfile (Buildah y Skopeo):
+
+    - Buildah: Permite construir imágenes de contenedores sin necesidad de un Dockerfile. Ofrece un control más granular sobre el proceso de construcción, lo que es útil para crear imágenes mínimas y seguras.
+
+    - Skopeo: Facilita la copia, el movimiento y la inspección de imágenes entre diferentes registros de contenedores, sin necesidad de descargarlas localmente.
+
+    - Estas herramientas, combinadas con Podman, ofrecen un ecosistema robusto para la gestión completa del ciclo de vida de las imágenes de contenedor.
+
+- Preparación para Kubernetes (Generación de YAML):
+
+    Una de las características más destacadas de Podman es su capacidad para generar archivos YAML compatibles con Kubernetes.
+
+    Con un simple comando (podman generate kube), puedes convertir un pod o un conjunto de contenedores en ejecución en un manifiesto YAML que puede ser desplegado directamente en un clúster de Kubernetes.
+
+    Al generar los manifiestos YAML, los usuarios pueden ver cómo sus contenedores y pods se traducen a los objetos de Kubernetes (Deployment, Service, etc.), lo que ayuda a comprender la estructura y los conceptos de Kubernetes de manera práctica.
 
 [< Volver al índice](../README.md)
 

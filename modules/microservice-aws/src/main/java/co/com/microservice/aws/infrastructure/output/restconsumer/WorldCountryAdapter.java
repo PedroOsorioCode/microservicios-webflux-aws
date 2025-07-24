@@ -3,7 +3,6 @@ package co.com.microservice.aws.infrastructure.output.restconsumer;
 import co.com.microservice.aws.application.helpers.logs.LoggerBuilder;
 import co.com.microservice.aws.application.helpers.logs.TransactionLog;
 import co.com.microservice.aws.domain.model.InfoCountry;
-import co.com.microservice.aws.domain.model.commons.enums.TechnicalExceptionMessage;
 import co.com.microservice.aws.domain.model.commons.exception.TechnicalException;
 import co.com.microservice.aws.domain.model.rq.Context;
 import co.com.microservice.aws.domain.usecase.out.WorldCountryPort;

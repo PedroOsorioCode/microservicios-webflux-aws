@@ -4,7 +4,7 @@ import co.com.microservice.aws.application.helpers.commons.UseCase;
 import co.com.microservice.aws.domain.model.events.Event;
 import co.com.microservice.aws.domain.model.events.EventData;
 import co.com.microservice.aws.domain.model.rq.Context;
-import co.com.microservice.aws.domain.usecase.in.SentEventUseCase;
+import co.com.microservice.aws.domain.usecase.in.commons.SentEventUseCase;
 import co.com.microservice.aws.domain.usecase.out.EventPort;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;

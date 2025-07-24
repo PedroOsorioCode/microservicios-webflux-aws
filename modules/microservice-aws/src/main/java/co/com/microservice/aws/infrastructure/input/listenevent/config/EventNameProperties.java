@@ -15,4 +15,5 @@ import lombok.Setter;
 public class EventNameProperties {
     private String saveCountry;
     private String saveCacheCountCountry;
+    private String saveWorldRegion;
 }

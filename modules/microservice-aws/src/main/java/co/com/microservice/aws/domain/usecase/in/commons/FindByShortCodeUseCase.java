@@ -1,4 +1,4 @@
-package co.com.microservice.aws.domain.usecase.in;
+package co.com.microservice.aws.domain.usecase.in.commons;
 
 import co.com.microservice.aws.domain.model.rq.TransactionRequest;
 import co.com.microservice.aws.domain.model.rs.TransactionResponse;
