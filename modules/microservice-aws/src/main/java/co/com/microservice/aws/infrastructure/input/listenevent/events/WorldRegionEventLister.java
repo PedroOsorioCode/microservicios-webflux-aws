@@ -2,9 +2,7 @@ package co.com.microservice.aws.infrastructure.input.listenevent.events;
 
 import co.com.microservice.aws.application.helpers.logs.LoggerBuilder;
 import co.com.microservice.aws.application.helpers.logs.TransactionLog;
-import co.com.microservice.aws.domain.model.Country;
 import co.com.microservice.aws.domain.model.events.ProccessWorldRegionFile;
-import co.com.microservice.aws.domain.model.events.SaveCountry;
 import co.com.microservice.aws.domain.model.rq.Context;
 import co.com.microservice.aws.domain.model.rq.TransactionRequest;
 import co.com.microservice.aws.domain.usecase.in.WorldRegionUseCase;

@@ -8,7 +8,6 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
-
 @Component
 @AllArgsConstructor
 public class S3Adapter implements FileStoragePort {

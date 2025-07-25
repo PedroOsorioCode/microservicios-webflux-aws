@@ -1,4 +1,4 @@
-# Instructivo paso a paso Postgresql, Mysql database; Secrets, Redis, Cron, RabbitMQ (Publicador - Consumidor)
+# Instructivo paso a paso Postgresql, Mysql database; Secrets, Redis, Cron, RabbitMQ (Publicador - Consumidor), S3, DynamoDB
 
 > A continuación se describe la configuración base de un proyecto construido bajo principios de microservicios y arquitectura limpia, integrando un sólido stack tecnológico.
 
@@ -46,6 +46,8 @@
 * [29. S3: Pruebas Zip](#id29)
 * [30. S3: Logs Zip](#id30)
 * [31. Dynamodb: Configuración](#id31)
+* [32. Dynamodb: pruebas](#id32)
+* [31. Dynamodb: logs](#id33)
 
 # <div id='id1'/>
 # 1. Crear y configurar el proyecto:
@@ -130,7 +132,7 @@
             implementation 'com.fasterxml.jackson.core:jackson-databind'
             implementation 'io.r2dbc:r2dbc-h2'
             implementation 'org.mapstruct:mapstruct:1.5.2.Final'
-            // Driver R2DBC para MySQL usando jasync
+
             implementation 'com.github.jasync-sql:jasync-r2dbc-mysql:2.1.16'
 
             implementation platform('software.amazon.awssdk:bom:2.25.2')
@@ -149,7 +151,13 @@
             implementation "org.apache.tika:tika-core:${tikaVersion}"
             implementation "org.apache.commons:commons-compress:${commonsCompressVersion}"
 
-            developmentOnly 'org.springframework.boot:spring-boot-devtools'
+            implementation 'software.amazon.awssdk:dynamodb-enhanced'
+
+            annotationProcessor 'org.mapstruct:mapstruct-processor:1.3.1.Final'
+
+            testImplementation 'org.reactivecommons.utils:object-mapper:0.1.0'
+
+            //developmentOnly 'org.springframework.boot:spring-boot-devtools'
             compileOnly 'org.projectlombok:lombok'
             runtimeOnly 'org.postgresql:postgresql'
             runtimeOnly 'org.postgresql:r2dbc-postgresql'
@@ -5313,91 +5321,768 @@ adapters:
 ```
 adapters:
   s3:
-    region: ${AWS_REGION:us-east-1}
-    bucketName: ${BUCKET_NAME_FILE:local-bucket-worldregion}
+    region: "${AWS_REGION:us-east-1}"
+    endpoint: http://localhost:4566
+    accessKey: "test"
+    secretKey: "test"
 ```
 
 - Ubicarse en el archivo build.gradle y colocar la siguiente dependencia:
     ```
+    ext {
+        awsSdkVersion = '2.25.17'
+        reactiveCommonsVersion = '4.1.4'
+        tikaVersion = '3.1.0'
+        commonsCompressVersion = '1.27.1'
+    }
+
     dependencies {
         implementation 'software.amazon.awssdk:s3'
+        implementation "org.apache.tika:tika-core:${tikaVersion}"
+        implementation "org.apache.commons:commons-compress:${commonsCompressVersion}"
     }
     ```
 
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3ConnectionProperties.java
     ```
+    package co.com.microservice.aws.infrastructure.output.s3repository.config;
+
+    import lombok.AllArgsConstructor;
+    import lombok.Getter;
+    import lombok.NoArgsConstructor;
+    import lombok.Setter;
+    import org.springframework.boot.context.properties.ConfigurationProperties;
+    import org.springframework.context.annotation.Configuration;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Configuration
+    @ConfigurationProperties(prefix = "adapters.s3")
+    public class S3ConnectionProperties {
+        private String region;
+        private String endpoint;
+        private String accessKey;
+        private String secretKey;
+    }
     ```
 
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
     ```
+    package co.com.microservice.aws.infrastructure.output.s3repository.config;
+
+    import org.springframework.context.annotation.Bean;
+    import org.springframework.context.annotation.Configuration;
+    import org.springframework.context.annotation.Profile;
+    import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+    import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+    import software.amazon.awssdk.regions.Region;
+    import software.amazon.awssdk.services.s3.S3AsyncClient;
+    import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
+
+    import java.net.URI;
+
+    @Configuration
+    public class S3Config {
+        @Profile({ "!local" })
+        @Bean(name = "s3Connection")
+        S3AsyncClient s3AsyncClient(S3ConnectionProperties s3Properties) {
+            return getBuilder(s3Properties).build();
+        }
+
+        @Profile("local")
+        @Bean(name = "s3Connection")
+        S3AsyncClient localS3AsyncClient(S3ConnectionProperties props) {
+            return S3AsyncClient.builder()
+                    .region(Region.of(props.getRegion()))
+                    .credentialsProvider(StaticCredentialsProvider.create(
+                            AwsBasicCredentials.create(props.getAccessKey(), props.getSecretKey())))
+                    .endpointOverride(URI.create(props.getEndpoint()))
+                    .forcePathStyle(true)
+                    .build();
+        }
+
+        private S3AsyncClientBuilder getBuilder(S3ConnectionProperties s3Properties) {
+            return S3AsyncClient.builder().region(Region.of(s3Properties.getRegion()));
+        }
+    }
     ```
 
 - Ubicarse en el paquete co.com.microservice.aws.domain.model.commons.enums y crear la clase TechnicalExceptionMessage.java
     ```
+    package co.com.microservice.aws.domain.model.commons.enums;
+
+    import lombok.AllArgsConstructor;
+    import lombok.Getter;
+    import lombok.ToString;
+
+    @Getter
+    @AllArgsConstructor
+    @ToString
+    public enum TechnicalExceptionMessage {
+
+        TECHNICAL_SERVER_ERROR("WRT01", "Internal server error"),
+        TECHNICAL_REST_CLIENT_ERROR("WRT02", "An error has occurred in the Rest Client"),
+        TECHNICAL_HEADER_MISSING("WRT03", "Missing parameters per header"),
+        TECHNICAL_REQUEST_ERROR("WRT04", "There is an error in the request body"),
+        TECHNICAL_EXCEPTION_REPOSITORY("WRT05", "An error has occurred in the repository"),
+        TECHNICAL_GETTING_S3_OBJECT_FAILED("WRT06", "Error obteniendo objeto de S3"),
+        ZIP_FILE_IS_WRONG("WRT07", "Error, the file ZIP is incorrect"),
+        ZIP_FILE_HASNT_ONLY_ONE_FILE("WRT08", "Error, the file ZIP has more one files"),
+        FILE_ISNT_TXT("WRT09", "Error, the file is not flat text"),
+        TXT_FILE_HAS_INVALID_CHARS("PAT0017", "Error, the file TXT has invalid characters");
+
+        private final String code;
+        private final String message;
+
+        public String getDescription() {
+            return String.join(" - ", this.getCode(), this.getMessage());
+        }
+    }
     ```
 
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.operations y crear la clase S3Operations.java
     ```
+    package co.com.microservice.aws.infrastructure.output.s3repository.operations;
+
+    import co.com.microservice.aws.domain.model.commons.enums.TechnicalExceptionMessage;
+    import co.com.microservice.aws.domain.model.commons.exception.TechnicalException;
+    import lombok.RequiredArgsConstructor;
+    import org.springframework.stereotype.Component;
+    import reactor.core.publisher.Mono;
+    import software.amazon.awssdk.core.BytesWrapper;
+    import software.amazon.awssdk.core.async.AsyncRequestBody;
+    import software.amazon.awssdk.core.async.AsyncResponseTransformer;
+    import software.amazon.awssdk.services.s3.S3AsyncClient;
+    import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+    import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+    import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+
+    @Component
+    @RequiredArgsConstructor
+    public class S3Operations {
+        private final S3AsyncClient s3AsyncClient;
+
+        public Mono<Boolean> uploadObject(String bucketName, String objectKey, byte[] fileContent) {
+            return Mono
+                    .fromFuture(s3AsyncClient.putObject(configurePutObject(bucketName, objectKey),
+                            AsyncRequestBody.fromBytes(fileContent)))
+                    .map(response -> response.sdkHttpResponse().isSuccessful());
+        }
+
+        public Mono<byte[]> getObject(String bucketName, String objectKey) {
+            return Mono
+                    .fromFuture(
+                            s3AsyncClient.getObject(GetObjectRequest.builder().key(objectKey).bucket(bucketName).build(),
+                                    AsyncResponseTransformer.toBytes()))
+                    .map(BytesWrapper::asByteArray).onErrorMap(Exception.class,
+                            exception -> new TechnicalException(exception, TechnicalExceptionMessage.TECHNICAL_GETTING_S3_OBJECT_FAILED));
+        }
+
+        public Mono<Boolean> deleteObject(String bucketName, String objectKey) {
+            return Mono
+                    .fromFuture(s3AsyncClient
+                            .deleteObject(DeleteObjectRequest.builder().key(objectKey).bucket(bucketName).build()))
+                    .map(response -> response.sdkHttpResponse().isSuccessful());
+        }
+
+        private PutObjectRequest configurePutObject(String bucketName, String objectKey) {
+            return PutObjectRequest.builder().bucket(bucketName).key(objectKey).build();
+        }
+
+    }
     ```
 
 - Ubicarse en el paquete co.com.microservice.aws.domain.usecase.out y crear la clase FileStoragePort.java
     ```
+    package co.com.microservice.aws.domain.usecase.out;
+
+    import co.com.microservice.aws.domain.model.rq.Context;
+    import reactor.core.publisher.Mono;
+    public interface FileStoragePort {
+        Mono<Boolean> uploadObject(Context context, String bucketName, String objectKey, byte[] file);
+        Mono<Boolean> deleteObject(Context context, String bucketName, String objectKey);
+        Mono<byte[]> getFile(Context context, String bucketName, String objectPath);
+    }
     ```
 
 - Ubicarse en el paquete cco.com.microservice.aws.infrastructure.output.s3repository y crear la clase S3Adapter.java
     ```
+    package co.com.microservice.aws.infrastructure.output.s3repository;
+
+    import co.com.microservice.aws.application.helpers.logs.LoggerBuilder;
+    import co.com.microservice.aws.domain.model.rq.Context;
+    import co.com.microservice.aws.domain.usecase.out.FileStoragePort;
+    import co.com.microservice.aws.infrastructure.output.s3repository.operations.S3Operations;
+    import lombok.AllArgsConstructor;
+    import org.springframework.stereotype.Component;
+    import reactor.core.publisher.Mono;
+
+    @Component
+    @AllArgsConstructor
+    public class S3Adapter implements FileStoragePort {
+        private static final String NAME_CLASS = S3Adapter.class.getName();
+        private final S3Operations s3Operations;
+        private final LoggerBuilder logger;
+
+        @Override
+        public Mono<Boolean> uploadObject(Context context, String bucketName, String objectKey, byte[] file) {
+            return s3Operations.uploadObject(bucketName, objectKey, file).doOnSuccess(
+                    success -> logger.info("uploadObject success", context.getId(), "uploadObject", NAME_CLASS))
+                    .doOnError(logger::error);
+        }
+
+        @Override
+        public Mono<Boolean> deleteObject(Context context, String bucketName, String objectKey) {
+            return s3Operations.deleteObject(bucketName, objectKey)
+                    .doOnSuccess(success -> logger.info("deleteObject success", context.getId(), "deleteObject", NAME_CLASS))
+                    .doOnError(logger::error);
+        }
+
+        @Override
+        public Mono<byte[]> getFile(Context context, String bucketName, String objectPath) {
+            return s3Operations.getObject(bucketName, objectPath)
+                    .doOnSuccess(success -> logger.info("getFile success", context.getId(), "getFile", NAME_CLASS))
+                    .doOnError(logger::error);
+        }
+    }
     ```
 
 - Ubicarse en el paquete co.com.microservice.aws.domain.model.events y crear la clase ProccessWorldRegionFile.java
     ```
+    package co.com.microservice.aws.domain.model.events;
+
+    import lombok.AllArgsConstructor;
+    import lombok.Builder;
+    import lombok.Data;
+    import lombok.NoArgsConstructor;
+
+    import java.io.Serial;
+    import java.io.Serializable;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public class ProccessWorldRegionFile implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        private TrxData data = new TrxData();
+
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        public static class TrxData implements Serializable {
+            @Serial
+            private static final long serialVersionUID = 1L;
+            private TransactionRequest transactionRequest = new TransactionRequest();
+            private TransactionResponse transactionResponse = new TransactionResponse();
+        }
+
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        public static class TransactionRequest implements Serializable {
+            @Serial
+            private static final long serialVersionUID = 1L;
+            private Headers headers = new Headers();
+        }
+
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        public static class TransactionResponse implements Serializable {
+            @Serial
+            private static final long serialVersionUID = 1L;
+            private String statusResponse;
+            private InfoBucket response = new InfoBucket();
+        }
+
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @Builder(toBuilder = true)
+        public static class InfoBucket implements Serializable {
+            @Serial
+            private static final long serialVersionUID = 1L;
+
+            private String fileName;
+            private String bucketName;
+            private String path;
+        }
+    }
     ```
 
 - Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in.commons y crear la clase ProcessFileUseCase.java
     ```
+    package co.com.microservice.aws.domain.usecase.in.commons;
+
+    import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+    import reactor.core.publisher.Mono;
+
+    public interface ProcessFileUseCase {
+        Mono<String> processFile(TransactionRequest request);
+    }
     ```
 
 - Ubicarse en el paquete co.com.microservice.aws.application.helpers.file.mime y crear la clase MimeDetect.java
     ```
+    package co.com.microservice.aws.application.helpers.file.mime;
+
+    import org.apache.tika.Tika;
+
+    import lombok.experimental.UtilityClass;
+
+    @UtilityClass
+    public class MimeDetect {
+        public static String getMimeType(byte[] fileBytes) {
+            var tika = new Tika();
+            return tika.detect(fileBytes);
+        }
+    }
     ```
 
 - Ubicarse en el paquete co.com.microservice.aws.application.helpers.file.mime y crear la clase MimeTypes.java
     ```
+    package co.com.microservice.aws.application.helpers.file.mime;
+
+    import lombok.experimental.UtilityClass;
+
+    @UtilityClass
+    public final class MimeTypes {
+        public static final String TEXT_PLAIN = "text/plain";
+        public static final String ZIP = "application/zip";
+    }
     ```
 
 - Ubicarse en el paquete co.com.microservice.aws.application.helpers.file.model y crear la clase FileBytes.java
     ```
+    package co.com.microservice.aws.application.helpers.file.model;
+
+    import java.io.Serial;
+    import java.io.Serializable;
+
+    import co.com.microservice.aws.domain.model.commons.enums.TechnicalExceptionMessage;
+    import lombok.AllArgsConstructor;
+    import lombok.Builder;
+    import lombok.Data;
+    import lombok.NoArgsConstructor;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    public class FileBytes implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        private byte[] bytes;
+        private boolean zip;
+        private TechnicalExceptionMessage technicalExceptionMessage;
+    }
     ```
 
 - Ubicarse en el paquete co.com.microservice.aws.application.helpers.file.model y crear la clase FileData.java
     ```
+    package co.com.microservice.aws.application.helpers.file.model;
+
+    import java.io.Serial;
+    import java.io.Serializable;
+
+    import lombok.AllArgsConstructor;
+    import lombok.Builder;
+    import lombok.Data;
+    import lombok.NoArgsConstructor;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    public class FileData implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        private String data;
+        private boolean zip;
+    }
     ```
 
 - Ubicarse en el paquete co.com.microservice.aws.application.helpers.file.model y crear la clase ZipValidatorResult.java
     ```
+    package co.com.microservice.aws.application.helpers.file.model;
+
+    import java.io.Serializable;
+
+    import co.com.microservice.aws.domain.model.commons.enums.TechnicalExceptionMessage;
+    import lombok.AllArgsConstructor;
+    import lombok.Builder;
+    import lombok.Data;
+    import lombok.NoArgsConstructor;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    public class ZipValidatorResult implements Serializable {
+        private static final long serialVersionUID = 1L;
+
+        private boolean hasOnlyOneFile;
+        private TechnicalExceptionMessage technicalExceptionMessage;
+    }
     ```
 
 - Ubicarse en el paquete co.com.microservice.aws.application.helpers.file.zipfile y crear la clase ZipValidator.java
     ```
+    package co.com.microservice.aws.application.helpers.file.zipfile;
+
+    import co.com.microservice.aws.application.helpers.file.mime.MimeDetect;
+    import co.com.microservice.aws.application.helpers.file.mime.MimeTypes;
+    import co.com.microservice.aws.application.helpers.file.model.FileBytes;
+    import co.com.microservice.aws.application.helpers.file.model.ZipValidatorResult;
+    import co.com.microservice.aws.domain.model.commons.enums.TechnicalExceptionMessage;
+    import lombok.experimental.UtilityClass;
+    import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
+
+    import java.io.ByteArrayInputStream;
+    import java.io.ByteArrayOutputStream;
+    import java.io.IOException;
+
+    @UtilityClass
+    public class ZipValidator {
+        private static final int BUFFER_SIZE = 4;
+
+        public static FileBytes extractFileFromZip(byte[] bytes) {
+            var returnValidation = isValidZipOnlyOneFile(bytes);
+
+            var fileBytes = FileBytes.builder().bytes(bytes)
+                    .technicalExceptionMessage(returnValidation.getTechnicalExceptionMessage())
+                    .build();
+
+            if (null != returnValidation.getTechnicalExceptionMessage()) {
+                return fileBytes;
+            }
+
+            if (returnValidation.isHasOnlyOneFile()) {
+                getOnlyOneFile(fileBytes);
+            } else {
+                fileBytes.setTechnicalExceptionMessage(TechnicalExceptionMessage.ZIP_FILE_HASNT_ONLY_ONE_FILE);
+            }
+            return fileBytes;
+        }
+
+        public static ZipValidatorResult isValidZipOnlyOneFile(byte[] bytes) {
+            var result = ZipValidatorResult.builder().build();
+
+            if (!isValidZip(bytes)) {
+                return result;
+            }
+
+            try (var zipInput = new ZipArchiveInputStream(new ByteArrayInputStream(bytes))) {
+                int entryCount = 0;
+                while (zipInput.getNextEntry() != null) {
+                    entryCount++;
+                }
+                result.setHasOnlyOneFile(entryCount == 1);
+            } catch (IOException e) {
+                result.setTechnicalExceptionMessage(TechnicalExceptionMessage.ZIP_FILE_IS_WRONG);
+            }
+            return result;
+        }
+
+        public static boolean isValidZip(byte[] bytes) {
+            var returnValidation = false;
+            var mime = MimeDetect.getMimeType(bytes);
+            if (MimeTypes.ZIP.equals(mime)) {
+                returnValidation = true;
+            }
+            return returnValidation;
+        }
+
+        public static void getOnlyOneFile(FileBytes fileBytes) {
+            fileBytes.setZip(true);
+            try (var inputStream = new ByteArrayInputStream(fileBytes.getBytes());
+                var zipInput = new ZipArchiveInputStream(inputStream);
+                var outputStream = new ByteArrayOutputStream()) {
+
+                if (zipInput.getNextEntry() != null) {
+                    var buffer = new byte[BUFFER_SIZE];
+                    int length;
+                    while ((length = zipInput.read(buffer)) != -1) {
+                        outputStream.write(buffer, 0, length);
+                    }
+                    fileBytes.setBytes(outputStream.toByteArray());
+                }
+
+            } catch (IOException e) {
+                fileBytes.setTechnicalExceptionMessage(TechnicalExceptionMessage.ZIP_FILE_IS_WRONG);
+            }
+        }
+    }
     ```
 
 - Ubicarse en el paquete co.com.microservice.aws.application.helpers.file.txt y crear la clase TxtValidator.java
     ```
+    package co.com.microservice.aws.application.helpers.file.txt;
+
+    import co.com.microservice.aws.application.helpers.file.mime.MimeDetect;
+    import co.com.microservice.aws.application.helpers.file.mime.MimeTypes;
+    import co.com.microservice.aws.domain.model.commons.enums.TechnicalExceptionMessage;
+    import co.com.microservice.aws.domain.model.commons.exception.TechnicalException;
+    import lombok.experimental.UtilityClass;
+
+    import java.nio.charset.StandardCharsets;
+    import java.util.regex.Pattern;
+
+    @UtilityClass
+    public class TxtValidator {
+        public static boolean txtHasValidChars(byte[] bytes) {
+            var returnValidation = false;
+            if (isValidTxt(bytes)) {
+                returnValidation = hasValidChars(bytes);
+            } else {
+                throw new TechnicalException(TechnicalExceptionMessage.FILE_ISNT_TXT);
+            }
+            return returnValidation;
+        }
+
+        public static boolean isValidTxt(byte[] bytes) {
+            var returnValidation = false;
+            var mime = MimeDetect.getMimeType(bytes);
+            if (MimeTypes.TEXT_PLAIN.equals(mime)) {
+                returnValidation = true;
+            }
+            return returnValidation;
+        }
+
+        private static boolean hasValidChars(byte[] bytes) {
+            var regex = "[´¦¢£¥©§¶`µ\\\\×°¡¿]";
+            var pattern = Pattern.compile(regex);
+            var content = new String(bytes, StandardCharsets.UTF_8);
+            var matcher = pattern.matcher(content);
+            return !matcher.find();
+        }
+    }
     ```
 
 - Ubicarse en el paquete co.com.microservice.aws.application.helpers.file y crear la clase FlatFile.java
     ```
+    package co.com.microservice.aws.application.helpers.file;
+
+    import co.com.microservice.aws.application.helpers.file.model.FileBytes;
+    import co.com.microservice.aws.application.helpers.file.model.FileData;
+    import co.com.microservice.aws.application.helpers.file.txt.TxtValidator;
+    import co.com.microservice.aws.application.helpers.file.zipfile.ZipValidator;
+    import co.com.microservice.aws.domain.model.commons.enums.TechnicalExceptionMessage;
+    import co.com.microservice.aws.domain.model.commons.exception.TechnicalException;
+    import lombok.experimental.UtilityClass;
+    import reactor.core.publisher.Mono;
+
+    import java.nio.charset.StandardCharsets;
+
+    @UtilityClass
+    public class FlatFile {
+        public static Mono<FileData> getValue(byte[] bytes) {
+            if (ZipValidator.isValidZip(bytes)) {
+                var fileBytes = ZipValidator.extractFileFromZip(bytes);
+                if (null == fileBytes.getTechnicalExceptionMessage()) {
+                    return getValueTxtFile(fileBytes);
+                } else {
+                    return Mono.error(new TechnicalException(fileBytes.getTechnicalExceptionMessage()));
+                }
+            } else {
+                var fileBytes = FileBytes.builder().bytes(bytes).build();
+                return getValueTxtFile(fileBytes);
+            }
+        }
+
+        public static Mono<FileData> getValueTxtFile(FileBytes fileBytes) {
+            try {
+                if (TxtValidator.txtHasValidChars(fileBytes.getBytes())) {
+                    var fileData = FileData.builder().zip(fileBytes.isZip()).build();
+                    fileData.setData(new String(fileBytes.getBytes(), StandardCharsets.UTF_8));
+                    return Mono.just(fileData);
+                } else {
+                    return Mono.error(new TechnicalException(TechnicalExceptionMessage.TXT_FILE_HAS_INVALID_CHARS));
+                }
+            } catch (TechnicalException technicalException) {
+                return Mono.error(technicalException);
+            }
+        }
+    }
     ```
 
 - Ubicarse en el paquete co.com.microservice.aws.application.helpers.utils y crear la clase FileStructureValidator.java
     ```
+    package co.com.microservice.aws.application.helpers.utils;
+
+    import lombok.experimental.UtilityClass;
+
+    import java.util.regex.Pattern;
+
+    @UtilityClass
+    public class FileStructureValidator {
+        private static final Pattern patternLines = Pattern.compile("\\r?\\n");
+
+        public static String[] getFileLines(String data) {
+            return patternLines.split(data);
+        }
+
+        public static String getDataLine(String[] fileLines, int num) {
+            return fileLines[num - 1];
+        }
+
+        private static boolean validatByRegEx(String regex, String data) {
+            return Pattern.matches(regex, data);
+        }
+
+        public static String changeZipToTxt(String zipPath) {
+            var toReplace = ".zip";
+            var replacement = ".txt";
+            int lastIndex = zipPath.lastIndexOf(toReplace);
+            if (lastIndex == -1) {
+                return zipPath + replacement;
+            }
+            return zipPath.substring(0, lastIndex) +
+                    replacement +
+                    zipPath.substring(lastIndex + toReplace.length());
+        }
+    }
     ```
 
 - Ubicarse en el paquete co.com.microservice.aws.application.usecase y crear la clase WorldRegionUseCaseImpl.java
     ```
+    package co.com.microservice.aws.application.usecase;
+
+    import co.com.microservice.aws.application.helpers.commons.UseCase;
+    import co.com.microservice.aws.application.helpers.file.FlatFile;
+    import co.com.microservice.aws.application.helpers.file.model.FileData;
+    import co.com.microservice.aws.application.helpers.utils.FileStructureValidator;
+    import co.com.microservice.aws.domain.model.commons.exception.TechnicalException;
+    import co.com.microservice.aws.domain.model.events.ProccessWorldRegionFile;
+    import co.com.microservice.aws.domain.model.rq.Context;
+    import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+    import co.com.microservice.aws.domain.usecase.in.WorldRegionUseCase;
+    import co.com.microservice.aws.domain.usecase.out.FileStoragePort;
+    import lombok.RequiredArgsConstructor;
+    import reactor.core.publisher.Mono;
+
+    import java.util.Arrays;
+
+    import static co.com.microservice.aws.domain.model.commons.enums.TechnicalExceptionMessage.TECHNICAL_REQUEST_ERROR;
+
+    @UseCase
+    @RequiredArgsConstructor
+    public class WorldRegionUseCaseImpl implements WorldRegionUseCase {
+        private final FileStoragePort fileStoragePort;
+
+        @Override
+        public Mono<String> processFile(TransactionRequest request) {
+            return Mono.just(request)
+                    .map(TransactionRequest::getItem)
+                    .flatMap(this::buildWorldRegion)
+                    .flatMap(infobucket -> this.getFile(infobucket, request.getContext()));
+        }
+
+        private Mono<String> getFile(ProccessWorldRegionFile.InfoBucket infoBucket, Context context){
+            return Mono.just(infoBucket)
+                    .flatMap(ib -> fileStoragePort.getFile(context, ib.getBucketName(), ib.getPath()))
+                    .flatMap(FlatFile::getValue).onErrorResume(Mono::error)
+                    .flatMap(flatfile -> this.validateFile(flatfile, infoBucket, context))
+                    .doOnEach(signal -> {
+                        if (signal.isOnNext()) {
+                            System.out.println(Arrays.toString(signal.get()));
+                        }
+                        if (signal.isOnError()) {
+                            signal.getThrowable().printStackTrace();
+                        }
+                    })
+                    .thenReturn("Guardó");
+        }
+
+        private Mono<String[]> validateFile(FileData fileData, ProccessWorldRegionFile.InfoBucket infoBucket, Context context) {
+            var fileLines = FileStructureValidator.getFileLines(fileData.getData());
+            var monoReturn = Mono.just(Boolean.TRUE);
+            if (fileData.isZip()) {
+                var path = FileStructureValidator.changeZipToTxt(infoBucket.getPath());
+                var bucketName = infoBucket.getBucketName();
+
+                monoReturn = fileStoragePort.uploadObject(context, bucketName, path,
+                        fileData.getData().getBytes());
+            }
+
+            return monoReturn.flatMap(b -> Mono.just(fileLines));
+        }
+
+        private Mono<ProccessWorldRegionFile.InfoBucket> buildWorldRegion(Object object){
+            if (object instanceof ProccessWorldRegionFile.InfoBucket infoFile) {
+                return Mono.just(infoFile);
+            } else {
+                return Mono.error(new TechnicalException(TECHNICAL_REQUEST_ERROR));
+            }
+        }
+    }
     ```
 
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.listenevent.events y crear la clase WorldRegionEventLister.java
     ```
+    package co.com.microservice.aws.infrastructure.input.listenevent.events;
+
+    import co.com.microservice.aws.application.helpers.logs.LoggerBuilder;
+    import co.com.microservice.aws.application.helpers.logs.TransactionLog;
+    import co.com.microservice.aws.domain.model.events.ProccessWorldRegionFile;
+    import co.com.microservice.aws.domain.model.rq.Context;
+    import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+    import co.com.microservice.aws.domain.usecase.in.WorldRegionUseCase;
+    import co.com.microservice.aws.infrastructure.input.listenevent.config.EventNameProperties;
+    import co.com.microservice.aws.infrastructure.input.listenevent.util.EventData;
+    import lombok.RequiredArgsConstructor;
+    import org.reactivecommons.api.domain.DomainEvent;
+    import org.reactivecommons.async.api.HandlerRegistry;
+    import org.springframework.context.annotation.Bean;
+    import org.springframework.context.annotation.Configuration;
+    import reactor.core.publisher.Mono;
+
+    @Configuration
+    @RequiredArgsConstructor
+    public class WorldRegionEventLister {
+        private static final String NAME_CLASS = WorldRegionEventLister.class.getName();
+
+        private final EventNameProperties eventNameProperties;
+        private final WorldRegionUseCase worldRegionUseCase;
+        private final LoggerBuilder logger;
+
+        @Bean
+        public HandlerRegistry handlerRegistryWorldRegion() {
+            logger.info(eventNameProperties.getSaveWorldRegion());
+            return HandlerRegistry.register()
+                    .listenEvent(eventNameProperties.getSaveWorldRegion(), this::saveWorldRegion, Object.class);
+        }
+
+        private Mono<Void> saveWorldRegion(DomainEvent<Object> event) {
+            var saveWorldRegion = EventData.getValueData(event, ProccessWorldRegionFile.class);
+            var saveWorldRegionData = saveWorldRegion.getData();
+            var headers = saveWorldRegionData.getTransactionRequest().getHeaders();
+            var request = TransactionRequest.builder()
+                    .item(saveWorldRegionData.getTransactionResponse().getResponse())
+                    .context(Context.builder().id(headers.getMessageId()).build())
+                    .build();
+
+            printEventData(event, headers.getMessageId());
+            return Mono.just(request).flatMap(worldRegionUseCase::processFile)
+                    .onErrorResume(this::printFailed).then();
+        }
+
+        private void printEventData(DomainEvent<?> event, String messageId) {
+            logger.info(TransactionLog.Request.builder().body(event).build(),
+                    "Event save WorldRegion", messageId, "Save WorldRegion", NAME_CLASS);
+        }
+
+        private Mono<String> printFailed(Throwable throwable) {
+            logger.error(throwable);
+            return Mono.empty();
+        }
+    }
     ```
 
 # <div id='id27'/>
@@ -5419,6 +6104,8 @@ adapters:
     DEPARTMENT-ANT;f46a680a-5b1d-4d18-a01b-a07e90176e3c;Medellin;CITY-MED
     ```
 
+    ![](./img/modules/8_s3_carpeta_example.png)
+
 - Abrir la consola de comandos desde la carpeta donde está el archivo y escribir los siguientes comandos para crear el bucket en nuestro localstack
     ```
     podman machine start
@@ -5436,8 +6123,10 @@ adapters:
     -- Resultado
     2025-07-23 19:00:22        289 world-region-example.txt
 
+    -- Iniciar contenedor de rabbit
     podman start rabbitmq-container
 
+    -- Crear secreto si no se tiene
     aws secretsmanager create-secret --name local-rabbitmq --description "Connection to RabbitMQ" --secret-string "{\"virtualhost\":\"/\",\"hostname\":\"localhost\",\"username\":\"guest\",\"password\":\"guest\",\"port\":5672}" --endpoint-url=http://localhost:4566
     ```
 
@@ -5455,13 +6144,13 @@ adapters:
             "dataContentType": "application/json",
             "invoker": "",
             "data": {
-            "transactionRequest": {
-                "headers": {
-                "user-name": "usertest",
-                "platform-type": "postman",
-                "ip": "172.34.45.12",
-                "message-id": "9999999-9999-0001",
-                "user-agent": "application/json"
+                "transactionRequest": {
+                    "headers": {
+                        "user-name": "usertest",
+                        "platform-type": "postman",
+                        "ip": "172.34.45.12",
+                        "message-id": "9999999-9999-0001",
+                        "user-agent": "application/json"
                     }
                 },
             "transactionResponse": {
@@ -5519,68 +6208,1066 @@ adapters:
 # <div id='id29'/>
 # 29. S3 Pruebas zip
 
+- Duplicar el archivo Txt con el nombre: world-region-example-for-zip.txt y comprimir este archivo
+
+- Abrir la consola de comandos desde la carpeta donde está el archivo y escribir los siguientes comandos para crear el bucket en nuestro localstack
+    ```
+    -- Subimos el archivo al bucket con una estructura de carpetas
+    aws --endpoint-url=http://localhost:4566 s3 cp world-region-example-for-zip.zip s3://local-bucket-worldregion/maestro/save/lote/world-region-example-for-zip.zip
+
+    -- Validamos que si se haya subido
+    aws --endpoint-url=http://localhost:4566 s3 ls s3://local-bucket-worldregion/maestro/save/lote/
+
+    -- Resultado
+    2025-07-24 11:06:03        442 world-region-example-for-zip.zip
+    2025-07-23 19:00:22        289 world-region-example.txt
+    ```
+
+    ![](./img/modules/8_s3_carpeta_example_zip.png)
+
+- Ahora preparamos el evento para RabbitMQ
+    ```
+    {
+        "name": "business.myapp.save-all.world-region",
+        "eventId": "2ee1b68b-fc21-4250-9be5-d4ce81d972ab",
+        "data": {
+            "type": "business.myapp.save.country",
+            "specVersion": "1.x-wip",
+            "source": "other-microservicio",
+            "id": "8888888-8888-8888",
+            "time": "2025-07-18T08:44:02",
+            "dataContentType": "application/json",
+            "invoker": "",
+            "data": {
+                "transactionRequest": {
+                    "headers": {
+                        "user-name": "usertest",
+                        "platform-type": "postman",
+                        "ip": "172.34.45.12",
+                        "message-id": "9999999-9999-0001",
+                        "user-agent": "application/json"
+                    }
+                },
+            "transactionResponse": {
+                "statusResponse": "SUCCESS",
+                "response": {
+                    "fileName": "world-region-example-for-zip.zip",
+                    "bucketName": "local-bucket-worldregion",
+                    "path": "maestro/save/lote/world-region-example-for-zip.zip"
+                    }
+                }
+            }
+        }
+    }
+    ```
+
 # <div id='id30'/>
 # 30. S3 logs zip
+    ```
+    {
+        "instant": {
+            "epochSecond": 1753375279,
+            "nanoOfSecond": 694347700
+        },
+        "thread": "ApplicationEventListener-1",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"Event save WorldRegion\",\"messageId\":\"9999999-9999-0001\",\"service\":\"Save WorldRegion\",\"method\":\"co.com.microservice.aws.infrastructure.input.listenevent.events.WorldRegionEventLister\",\"appName\":\"MicroserviceAws\"},\"request\":{\"headers\":null,\"body\":{\"name\":\"business.myapp.save-all.world-region\",\"eventId\":\"2ee1b68b-fc21-4250-9be5-d4ce81d972ab\",\"data\":{\"type\":\"business.myapp.save.country\",\"specVersion\":\"1.x-wip\",\"source\":\"other-microservicio\",\"id\":\"8888888-8888-8888\",\"time\":\"2025-07-18T08:44:02\",\"dataContentType\":\"application/json\",\"invoker\":\"\",\"data\":{\"transactionRequest\":{\"headers\":{\"user-name\":\"usertest\",\"platform-type\":\"postman\",\"ip\":\"172.34.45.12\",\"message-id\":\"9999999-9999-0001\",\"user-agent\":\"application/json\"}},\"transactionResponse\":{\"statusResponse\":\"SUCCESS\",\"response\":{\"fileName\":\"world-region-example-for-zip.zip\",\"bucketName\":\"local-bucket-worldregion\",\"path\":\"maestro/save/lote/world-region-example-for-zip.zip\"}}}}}},\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 94,
+        "threadPriority": 5
+    }
+    {
+        "instant": {
+            "epochSecond": 1753375279,
+            "nanoOfSecond": 874320100
+        },
+        "thread": "sdk-async-response-1-0",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"getFile success\",\"messageId\":\"9999999-9999-0001\",\"service\":\"getFile\",\"method\":\"co.com.microservice.aws.infrastructure.output.s3repository.S3Adapter\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 103,
+        "threadPriority": 5
+    }
+    {
+        "instant": {
+            "epochSecond": 1753375301,
+            "nanoOfSecond": 150359700
+        },
+        "thread": "sdk-async-response-1-1",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"uploadObject success\",\"messageId\":\"9999999-9999-0001\",\"service\":\"uploadObject\",\"method\":\"co.com.microservice.aws.infrastructure.output.s3repository.S3Adapter\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 111,
+        "threadPriority": 5
+    }
+    [
+        REGION-LATAM;d40b2031-2e14-4845-91cb-af0bf87a8ce3;Colombia;COUNTRY-COL, 
+        REGION-LATAM;ff50f4f8-2dd1-4466-a55f-47ce560e1f19;argentina;COUNTRY-ARG, 
+        COUNTRY-COL;0c3cbfbb-ef59-4e7e-a629-d64394f3dd77;Antioquia;DEPARTMENT-ANT, 
+        DEPARTMENT-ANT;f46a680a-5b1d-4d18-a01b-a07e90176e3c;Medellin;CITY-MED
+    ]
+    ```
+
+- Ahora veamos en el bucket el archivo descomprimido
+    ```
+    aws --endpoint-url=http://localhost:4566 s3 ls s3://local-bucket-worldregion/maestro/save/lote/
+
+    -- Resultado
+    2025-07-24 11:41:41        289 world-region-example-for-zip.txt
+    2025-07-24 11:06:03        442 world-region-example-for-zip.zip
+    2025-07-23 19:00:22        289 world-region-example.txt
+    ```
 
 # <div id='id31'/>
 # 31. DynamoDB Configuración
 
-- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+- Ubicarse en el archivo application-local.yaml y colocar la siguiente información: agregar en adapters la información de dynamodb
+```
+adapters:
+  dynamodb:
+    endpoint: "http://localhost:4566"
+  repositories:
+    tables:
+      namesmap:
+        world_region: local_worldregions
+```
+
+- Ubicarse en el archivo build.gradle y colocar la dependencia de dynamodb
     ```
+    implementation 'software.amazon.awssdk:dynamodb-enhanced'
     ```
 
-- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.dynamodb.config y crear la clase DynamoDbTableAdapter.java
     ```
+    package co.com.microservice.aws.infrastructure.output.dynamodb.config;
+
+    import java.lang.annotation.ElementType;
+    import java.lang.annotation.Retention;
+    import java.lang.annotation.RetentionPolicy;
+    import java.lang.annotation.Target;
+
+    @Target({ ElementType.TYPE })
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface DynamoDbTableAdapter {
+        String tableName() default "";
+    }
     ```
 
-- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.dynamodb.model y crear la clase SourceName.java
     ```
+    package co.com.microservice.aws.infrastructure.output.dynamodb.model;
+
+    import lombok.AccessLevel;
+    import lombok.NoArgsConstructor;
+
+    @NoArgsConstructor(access = AccessLevel.PRIVATE)
+    public class SourceName {
+        public static final String WORLD_REGION = "world_region";
+    }
     ```
 
-- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+    **Importante**: se debe colocar tal cual está en el archivo de configuración
+
+    ![](./img/config-driver-dynamodb.png)
+
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.dynamodb.model y crear la clase ModelEntityWorldRegion.java
     ```
+    package co.com.microservice.aws.infrastructure.output.dynamodb.model;
+
+    import co.com.microservice.aws.infrastructure.output.dynamodb.config.DynamoDbTableAdapter;
+    import lombok.Data;
+    import lombok.Getter;
+    import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.*;
+
+    @Data
+    @DynamoDbBean
+    @DynamoDbTableAdapter(tableName = SourceName.WORLD_REGION)
+    public class ModelEntityWorldRegion {
+        @Getter(onMethod_ = @DynamoDbPartitionKey)
+        private String region;
+
+        @Getter(onMethod_ = @DynamoDbSortKey)
+        private String code;
+
+        private String name;
+        private String codeRegion;
+        private String creationDate;
+    }
     ```
 
-- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.dynamodb.config y crear la clase DynamoDBConfig.java
     ```
+    package co.com.microservice.aws.infrastructure.output.dynamodb.config;
+
+    import org.springframework.beans.factory.annotation.Value;
+    import org.springframework.context.annotation.Bean;
+    import org.springframework.context.annotation.Configuration;
+    import org.springframework.context.annotation.Profile;
+    import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
+    import software.amazon.awssdk.auth.credentials.WebIdentityTokenFileCredentialsProvider;
+    import software.amazon.awssdk.core.SdkSystemSetting;
+    import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
+    import software.amazon.awssdk.regions.Region;
+    import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient;
+
+    import java.net.URI;
+
+    @Configuration
+    public class DynamoDBConfig {
+        @Bean
+        @Profile({"local"})
+        public DynamoDbAsyncClient amazonDynamoDB(@Value("${adapters.dynamodb.endpoint}") String endpoint) {
+            return DynamoDbAsyncClient.builder()
+                    .credentialsProvider(ProfileCredentialsProvider.create("default"))
+                    .endpointOverride(URI.create(endpoint))
+                    .region(Region.of(SdkSystemSetting.AWS_REGION.environmentVariable()))
+                    .build();
+        }
+        @Bean
+        @Profile({"!local"})
+        public DynamoDbAsyncClient amazonDynamoDBAsync(@Value("${adapters.dynamodb.region}") String region) {
+            return DynamoDbAsyncClient.builder()
+                    .credentialsProvider(WebIdentityTokenFileCredentialsProvider.create())
+                    .region(Region.of(region)).build();
+        }
+        @Bean
+        public DynamoDbEnhancedAsyncClient dynamoClient(DynamoDbAsyncClient dynamoDbAsyncClient){
+            return DynamoDbEnhancedAsyncClient.builder()
+                    .dynamoDbClient(dynamoDbAsyncClient)
+                    .build();
+        }
+    }
     ```
 
-- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.dynamodb.config y crear la clase DynamoDBTablesProperties.java
     ```
+    package co.com.microservice.aws.infrastructure.output.dynamodb.config;
+
+    import java.util.Map;
+    import org.springframework.boot.context.properties.ConfigurationProperties;
+    import org.springframework.boot.context.properties.EnableConfigurationProperties;
+    import org.springframework.context.annotation.Configuration;
+    import lombok.Data;
+
+    @Data
+    @Configuration
+    @EnableConfigurationProperties
+    @ConfigurationProperties(prefix = "adapters.repositories.tables")
+    public class DynamoDBTablesProperties {
+        private Map<String, String> namesmap;
+    }
     ```
 
-- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.dynamodb.operations y crear la clase DynamoDBOperations.java
     ```
+    package co.com.microservice.aws.infrastructure.output.dynamodb.operations;
+
+    import co.com.microservice.aws.infrastructure.output.dynamodb.config.DynamoDBTablesProperties;
+    import co.com.microservice.aws.infrastructure.output.dynamodb.config.DynamoDbTableAdapter;
+    import reactor.core.publisher.Flux;
+    import reactor.core.publisher.Mono;
+    import software.amazon.awssdk.enhanced.dynamodb.DynamoDbAsyncTable;
+    import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
+    import software.amazon.awssdk.enhanced.dynamodb.Key;
+    import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
+
+    import java.util.function.Function;
+
+    public class DynamoDBOperations<E, D>{
+        protected DynamoDbEnhancedAsyncClient dbEnhancedAsyncClient;
+        protected Function<E, D> fnToData;
+        protected Function<D, E> fnToEntity;
+        protected DynamoDbAsyncTable<D> dataTable;
+
+        public DynamoDBOperations(DynamoDbEnhancedAsyncClient dbEnhancedAsyncClient,
+                                DynamoDBTablesProperties tablesProperties, Function<E, D> fnToData,
+                                Function<D, E> fnToEntity, Class<D> dataClass) {
+
+            this.dbEnhancedAsyncClient = dbEnhancedAsyncClient;
+            this.fnToData = fnToData;
+            this.fnToEntity = fnToEntity;
+            DynamoDbTableAdapter dynamoDbTableAdapter = dataClass.getAnnotation(DynamoDbTableAdapter.class);
+            String tableName = tablesProperties.getNamesmap().get(dynamoDbTableAdapter.tableName());
+            dataTable = dbEnhancedAsyncClient.table(tableName, TableSchema.fromBean(dataClass));
+        }
+
+        public Mono<E> save(E entity) {
+            return Mono.just(entity).map(this::toData).flatMap(this::saveData).thenReturn(entity);
+        }
+
+        protected Mono<E> findOne(Key id) {
+            return Mono.fromFuture(dataTable.getItem(id)).map(this::toEntity);
+        }
+
+        protected Mono<E> delete(Key id) {
+            return deleteData(id).map(this::toEntity);
+        }
+
+        protected Mono<E> update(E entity) {
+            return Mono.fromFuture(dataTable.updateItem(toData(entity))).map(this::toEntity);
+        }
+
+        protected Mono<D> saveData(D data) {
+            return Mono.fromFuture(dataTable.putItem(data)).thenReturn(data);
+        }
+
+        protected Mono<D> deleteData(Key id) {
+            return Mono.fromFuture(dataTable.deleteItem(id));
+        }
+
+        protected Flux<E> doQueryMany(Flux<D> query) {
+            return query.map(this::toEntity);
+        }
+
+        protected D toData(E entity) {
+            return fnToData.apply(entity);
+        }
+
+        protected E toEntity(D data) {
+            return data != null ? fnToEntity.apply(data) : null;
+        }
+    }
     ```
 
-- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.dynamodb.operations y crear la clase AdapterOperations.java
     ```
+    package co.com.microservice.aws.infrastructure.output.dynamodb.operations;
+
+    import co.com.microservice.aws.infrastructure.output.dynamodb.config.DynamoDBTablesProperties;
+    import reactor.core.publisher.Flux;
+    import reactor.core.publisher.Mono;
+    import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
+    import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
+
+    import java.util.function.Function;
+
+    public class AdapterOperations<E, D> extends DynamoDBOperations<E, D> {
+
+        public AdapterOperations(DynamoDbEnhancedAsyncClient dbEnhancedAsyncClient,
+                                DynamoDBTablesProperties tablesProperties,
+                                Function<E, D> fnToData, Function<D, E> fnToEntity,
+                                Class<D> dataClass) {
+
+            super(dbEnhancedAsyncClient, tablesProperties, fnToData, fnToEntity, dataClass);
+        }
+
+        @Override
+        protected E toEntity(D data) {
+            return fnToEntity.apply(data);
+        }
+
+        protected Flux<E> findByQuery(QueryEnhancedRequest queryRequest) {
+            return Mono.just(dataTable)
+                    .flatMap(index -> Mono.from(index.query(queryRequest)))
+                    .flatMapMany(page -> doQueryMany(Flux.fromIterable(page.items())))
+                    .onErrorResume(err -> Flux.empty());
+        }
+
+    }
     ```
 
-- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+- Ubicarse en el paquete co.com.microservice.aws.domain.model y crear la clase WorldRegion.java
     ```
+    package co.com.microservice.aws.domain.model;
+
+    import lombok.*;
+
+    import java.io.Serial;
+    import java.io.Serializable;
+
+    @Setter
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder(toBuilder = true)
+    public class WorldRegion implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        private String region;
+        private String code;
+        private String name;
+        private String codeRegion;
+        private String creationDate;
+    }
     ```
 
-- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.dynamodb.mapper y crear la clase WorldRegionDataMapper.java
     ```
+    package co.com.microservice.aws.infrastructure.output.dynamodb.mapper;
+
+    import co.com.microservice.aws.domain.model.WorldRegion;
+    import co.com.microservice.aws.infrastructure.output.dynamodb.model.ModelEntityWorldRegion;
+    import org.springframework.stereotype.Component;
+
+    @Component
+    public class WorldRegionDataMapper {
+
+        public ModelEntityWorldRegion toEntity(WorldRegion worldRegion) {
+            if (worldRegion == null) return null;
+
+            ModelEntityWorldRegion entity = new ModelEntityWorldRegion();
+            entity.setRegion(worldRegion.getRegion());
+            entity.setCode(worldRegion.getCode());
+            entity.setName(worldRegion.getName());
+            entity.setCodeRegion(worldRegion.getCodeRegion());
+            entity.setCreationDate(worldRegion.getCreationDate());
+
+            return entity;
+        }
+
+        public WorldRegion toData(ModelEntityWorldRegion entity) {
+            if (entity == null) return null;
+
+            return WorldRegion.builder()
+                    .region(entity.getRegion())
+                    .code(entity.getCode())
+                    .name(entity.getName())
+                    .codeRegion(entity.getCodeRegion())
+                    .creationDate(entity.getCreationDate())
+                    .build();
+        }
+    }
     ```
 
-- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+- Ubicarse en el paquete co.com.microservice.aws.domain.usecase.out y crear la clase WorldRegionPort.java
     ```
+    package co.com.microservice.aws.domain.usecase.out;
+
+    import co.com.microservice.aws.domain.model.WorldRegion;
+    import co.com.microservice.aws.domain.model.rq.Context;
+    import reactor.core.publisher.Flux;
+    import reactor.core.publisher.Mono;
+
+    public interface WorldRegionPort {
+        Flux<WorldRegion> findByRegion(Context context, String region);
+        Mono<WorldRegion> findOne(Context context, String region, String code);
+        Mono<WorldRegion> save(Context context, WorldRegion worldRegion);
+        Mono<WorldRegion> update(Context context, WorldRegion worldRegion);
+        Mono<WorldRegion> delete(Context context, String region, String code);
+    }
     ```
 
-- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.dynamodb y crear la clase WorldRegionAdapter.java
     ```
+    package co.com.microservice.aws.infrastructure.output.dynamodb;
+
+    import co.com.microservice.aws.application.helpers.logs.LoggerBuilder;
+    import co.com.microservice.aws.application.helpers.logs.TransactionLog;
+    import co.com.microservice.aws.domain.model.WorldRegion;
+    import co.com.microservice.aws.domain.model.rq.Context;
+    import co.com.microservice.aws.domain.usecase.out.WorldRegionPort;
+    import co.com.microservice.aws.infrastructure.output.dynamodb.config.DynamoDBTablesProperties;
+    import co.com.microservice.aws.infrastructure.output.dynamodb.mapper.WorldRegionDataMapper;
+    import co.com.microservice.aws.infrastructure.output.dynamodb.model.ModelEntityWorldRegion;
+    import co.com.microservice.aws.infrastructure.output.dynamodb.operations.AdapterOperations;
+    import org.springframework.stereotype.Component;
+    import reactor.core.publisher.Flux;
+    import reactor.core.publisher.Mono;
+    import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
+    import software.amazon.awssdk.enhanced.dynamodb.Key;
+    import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
+    import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
+
+    @Component
+    public class WorldRegionAdapter extends AdapterOperations<WorldRegion, ModelEntityWorldRegion>
+                implements WorldRegionPort {
+        private LoggerBuilder logger;
+
+        public WorldRegionAdapter(DynamoDbEnhancedAsyncClient dbEnhancedAsyncClient,
+                DynamoDBTablesProperties tablesProperties,
+                WorldRegionDataMapper mapper, LoggerBuilder loggerBuilder) {
+
+            super(dbEnhancedAsyncClient, tablesProperties, mapper::toEntity,
+                    mapper::toData, ModelEntityWorldRegion.class);
+
+            this.logger = loggerBuilder;
+
+        }
+
+        @Override
+        public Flux<WorldRegion> findByRegion(Context context, String region) {
+            QueryEnhancedRequest request = QueryEnhancedRequest
+                    .builder()
+                    .queryConditional(QueryConditional.keyEqualTo(buildKey(region)))
+                    .build();
+
+            return super.findByQuery(request);
+        }
+
+        @Override
+        public Mono<WorldRegion> findOne(Context context, String region, String code) {
+            return super.findOne(buildKey(region, code));
+        }
+
+        @Override
+        public Mono<WorldRegion> save(Context context, WorldRegion worldRegion) {
+            logger.info("save dynamodb", context.getId(), "WorldRegionAdapter", "save");
+            logger.info(TransactionLog.Request.builder().body(worldRegion).build(), "request", context.getId(), "", "");
+            return super.save(worldRegion)
+                    .doOnNext(r -> logger.info(TransactionLog.Response.builder().body(r).build(), "response save", context.getId(), "", ""))
+                    .switchIfEmpty(Mono.fromRunnable(() ->
+                            logger.info("No se retornó ninguna respuesta del guardado", context.getId(), "", "")
+                    ));
+        }
+
+        @Override
+        public Mono<WorldRegion> update(Context context, WorldRegion worldRegion) {
+            return super.update(worldRegion);
+        }
+
+        @Override
+        public Mono<WorldRegion> delete(Context context, String region, String code) {
+            return super.delete(buildKey(region, code));
+        }
+
+        private Key buildKey(String partitionValue, String sortValue) {
+            return Key.builder().partitionValue(partitionValue).sortValue(sortValue).build();
+        }
+
+        private Key buildKey(String partitionValue) {
+            return Key.builder().partitionValue(partitionValue).build();
+        }
+    }
     ```
 
-- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+- Ubicarse en el paquete co.com.microservice.aws.application.usecase y modificar la clase WorldRegionUseCaseImpl.java
     ```
+    package co.com.microservice.aws.application.usecase;
+
+    import co.com.microservice.aws.application.helpers.commons.UseCase;
+    import co.com.microservice.aws.application.helpers.file.FlatFile;
+    import co.com.microservice.aws.application.helpers.file.model.FileData;
+    import co.com.microservice.aws.application.helpers.utils.FileStructureValidator;
+    import co.com.microservice.aws.domain.model.WorldRegion;
+    import co.com.microservice.aws.domain.model.commons.exception.TechnicalException;
+    import co.com.microservice.aws.domain.model.commons.util.ResponseMessageConstant;
+    import co.com.microservice.aws.domain.model.events.ProccessWorldRegionFile;
+    import co.com.microservice.aws.domain.model.rq.Context;
+    import co.com.microservice.aws.domain.model.rq.TransactionRequest;
+    import co.com.microservice.aws.domain.usecase.in.WorldRegionUseCase;
+    import co.com.microservice.aws.domain.usecase.out.FileStoragePort;
+    import co.com.microservice.aws.domain.usecase.out.WorldRegionPort;
+    import lombok.RequiredArgsConstructor;
+    import reactor.core.publisher.Flux;
+    import reactor.core.publisher.Mono;
+
+    import java.time.LocalDateTime;
+
+    import static co.com.microservice.aws.domain.model.commons.enums.TechnicalExceptionMessage.TECHNICAL_REQUEST_ERROR;
+
+    @UseCase
+    @RequiredArgsConstructor
+    public class WorldRegionUseCaseImpl implements WorldRegionUseCase {
+        private final FileStoragePort fileStoragePort;
+        private final WorldRegionPort worldRegionPort;
+
+        @Override
+        public Mono<String> processFile(TransactionRequest request) {
+            return Mono.just(request)
+                    .map(TransactionRequest::getItem)
+                    .flatMap(this::buildWorldRegion)
+                    .flatMap(infobucket -> this.getFile(infobucket, request.getContext()));
+        }
+
+        private Mono<String> getFile(ProccessWorldRegionFile.InfoBucket infoBucket, Context context){
+            return Mono.just(infoBucket)
+                .flatMap(ib -> fileStoragePort.getFile(context, ib.getBucketName(), ib.getPath()))
+                .flatMap(FlatFile::getValue).onErrorResume(Mono::error)
+                .flatMap(flatfile -> this.validateFile(flatfile, infoBucket, context))
+                .flatMap(flatfile -> this.save(flatfile, context))
+                .flatMap(msg -> fileStoragePort.deleteObject(context, infoBucket.getBucketName(), infoBucket.getPath()).thenReturn(msg))
+                .onErrorResume(Mono::error);
+        }
+
+        private Mono<String[]> validateFile(FileData fileData, ProccessWorldRegionFile.InfoBucket infoBucket, Context context) {
+            var fileLines = FileStructureValidator.getFileLines(fileData.getData());
+            var monoReturn = Mono.just(Boolean.TRUE);
+            if (fileData.isZip()) {
+                var path = FileStructureValidator.changeZipToTxt(infoBucket.getPath());
+                var bucketName = infoBucket.getBucketName();
+
+                monoReturn = fileStoragePort.uploadObject(context, bucketName, path,
+                        fileData.getData().getBytes());
+            }
+
+            return monoReturn.flatMap(b -> Mono.just(fileLines));
+        }
+
+        private Mono<ProccessWorldRegionFile.InfoBucket> buildWorldRegion(Object object){
+            if (object instanceof ProccessWorldRegionFile.InfoBucket infoFile) {
+                return Mono.just(infoFile);
+            } else {
+                return Mono.error(new TechnicalException(TECHNICAL_REQUEST_ERROR));
+            }
+        }
+
+        private Mono<String> save(String[] flatfile, Context context){
+            return Flux.fromArray(flatfile)
+                .map(String::trim)
+                .filter(line -> !line.isBlank())
+                .map(line -> {
+                    String[] parts = line.split(";");
+                    return WorldRegion.builder().region(parts[0])
+                            .code(parts[1]).name(parts[2])
+                            .codeRegion(parts[3]).creationDate(LocalDateTime.now().toString())
+                            .build();
+                })
+                .flatMap(worldRegion -> worldRegionPort.save(context, worldRegion))
+                .then(Mono.just(ResponseMessageConstant.MSG_SAVED_SUCCESS));
+        }
+    }
     ```
 
-- Ubicarse en el paquete co.com.microservice.aws.infrastructure.output.s3repository.config y crear la clase S3Config.java
+# <div id='id32'/>
+# 32. DynamoDB: Pruebas
+
+- Creación de la estructura de la tabla
     ```
+    aws --endpoint-url=http://localhost:4566 dynamodb create-table --table-name local_worldregions --attribute-definitions AttributeName=region,AttributeType=S AttributeName=code,AttributeType=S --key-schema AttributeName=region,KeyType=HASH AttributeName=code,KeyType=RANGE --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+    ```
+    ### Aclaración de atributos en el comando `aws dynamodb create-table`
+
+    - partitionkey → `region`, country-col, region-latam, etc.
+
+    - sortkey → `code` (usaremos UUID para simular unicidad)
+
+    ### Buenas prácticas de diseño
+    | Concepto                      | Explicación breve                                                                 |
+    |------------------------------|------------------------------------------------------------------------------------|
+    | 🔑 partitionKey debe repetirse | Así puedes agrupar varios ítems relacionados y usar query por PK.                 |
+    | 📚 sortKey debe diferenciar ítems | Dentro del grupo de PK, sirve para ordenar o filtrar.                            |
+    | 🔍 getItem(PK, SK)            | Recupera 1 solo ítem (requiere ambos).                                            |
+    | 📈 query(PK)                  | Recupera todos los ítems con esa PK (opcionalmente con condiciones en SK).       |
+
+    ### Conclusiones:
+
+    - ✔️ Usa partitionKey para agrupar ítems relacionados
+    - ✔️ Usa sortKey para ordenar o identificar únicos dentro del grupo
+    - ✔️ La combinación PK+SK es lo que hace único un ítem
+    - ✔️ Puedes hacer query(PK) sin SK para traer todos los del grupo
+
+- Así queda creada la tabla
+    ```
+    {
+        "TableDescription": {
+            "AttributeDefinitions": [
+                {
+                    "AttributeName": "region",
+                    "AttributeType": "S"
+                },
+                {
+                    "AttributeName": "code",
+                    "AttributeType": "S"
+                }
+            ],
+            "TableName": "local_worldregions",
+            "KeySchema": [
+                {
+                    "AttributeName": "region",
+                    "KeyType": "HASH"
+                },
+                {
+                    "AttributeName": "code",
+                    "KeyType": "RANGE"
+                }
+            ],
+            "TableStatus": "ACTIVE",
+            "CreationDateTime": "2025-06-24T23:30:18.460000-05:00",
+            "ProvisionedThroughput": {
+                "LastIncreaseDateTime": "1969-12-31T19:00:00-05:00",
+                "LastDecreaseDateTime": "1969-12-31T19:00:00-05:00",
+                "NumberOfDecreasesToday": 0,
+                "ReadCapacityUnits": 5,
+                "WriteCapacityUnits": 5
+            },
+            "TableSizeBytes": 0,
+            "ItemCount": 0,
+            "TableArn": "arn:aws:dynamodb:us-east-1:000000000000:table/local_worldregions"
+        }
+    }
     ```
 
+- Ingreso items a la tabla (*Los comandos estan organizados para ejecutar en command line de windows*)
+    ```
+    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"region\":{\"S\":\"REGION-LATAM\"},\"code\":{\"S\":\"d40b2031-2e14-4845-91cb-af0bf87a8ce3\"},\"name\":{\"S\":\"Colombia\"},\"codeRegion\":{\"S\":\"COUNTRY-COL\"},\"creationDate\":{\"S\":\"2025-06-24T20:15:00Z\"}}"
+
+    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"region\":{\"S\":\"REGION-LATAM\"},\"code\":{\"S\":\"ff50f4f8-2dd1-4466-a55f-47ce560e1f19\"},\"name\":{\"S\":\"argentina\"},\"codeRegion\":{\"S\":\"COUNTRY-ARG\"},\"creationDate\":{\"S\":\"2025-06-24T20:16:00Z\"}}"
+
+    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"region\":{\"S\":\"COUNTRY-COL\"},\"code\":{\"S\":\"0c3cbfbb-ef59-4e7e-a629-d64394f3dd77\"},\"name\":{\"S\":\"Antioquia\"},\"codeRegion\":{\"S\":\"DEPARTMENT-ANT\"},\"creationDate\":{\"S\":\"2025-06-24T20:17:00Z\"}}"
+
+    aws --endpoint-url=http://localhost:4566 dynamodb put-item --table-name local_worldregions --item "{\"region\":{\"S\":\"DEPARTMENT-ANT\"},\"code\":{\"S\":\"f46a680a-5b1d-4d18-a01b-a07e90176e3c\"},\"name\":{\"S\":\"Medellin\"},\"codeRegion\":{\"S\":\"CITY-MED\"},\"creationDate\":{\"S\":\"2025-06-24T20:18:00Z\"}}"
+    ```
+
+- Ubicarse en la siguiente carpeta, para este caso será el disco C: de windows
+    ```
+    C:\example-s3
+    ```
+    y crear el archivo: world-region-example-dynamo.txt con los siguientes datos
+
+    ```
+    REGION-LATAM;d40b2031-2e14-4845-91cb-af0bf87a8c99;Estados unidos;COUNTRY-USA
+    REGION-LATAM;ff50f4f8-2dd1-4466-a55f-47ce560e1f99;Brasil;COUNTRY-BRA
+    COUNTRY-USA;0c3cbfbb-ef59-4e7e-a629-d64394f3dd00;Texas;DEPARTMENT-TEX
+    DEPARTMENT-ANT;f46a680a-5b1d-4d18-a01b-a07e90176e00;Envigado;CITY-ENV
+    ```
+
+- Subimos el archivo a S3 local
+    ```
+    aws --endpoint-url=http://localhost:4566 s3 cp world-region-example-dynamo.txt s3://local-bucket-worldregion/maestro/save/lote/world-region-example-dynamo.txt
+    ```
+
+- Ahora preparamos el evento para RabbitMQ
+    ```
+    {
+        "name": "business.myapp.save-all.world-region",
+        "eventId": "2ee1b68b-fc21-4250-9be5-d4ce81d972ab",
+        "data": {
+            "type": "business.myapp.save.country",
+            "specVersion": "1.x-wip",
+            "source": "other-microservicio",
+            "id": "8888888-8888-8888",
+            "time": "2025-07-18T08:44:02",
+            "dataContentType": "application/json",
+            "invoker": "",
+            "data": {
+                "transactionRequest": {
+                    "headers": {
+                        "user-name": "usertest",
+                        "platform-type": "postman",
+                        "ip": "172.34.45.12",
+                        "message-id": "9999999-9999-0001",
+                        "user-agent": "application/json"
+                    }
+                },
+            "transactionResponse": {
+                "statusResponse": "SUCCESS",
+                "response": {
+                    "fileName": "world-region-example-dynamo.txt",
+                    "bucketName": "local-bucket-worldregion",
+                    "path": "maestro/save/lote/world-region-example-dynamo.txt"
+                    }
+                }
+            }
+        }
+    }
+    ```
+
+- Consultamos la información creada en DynamoDB
+    ```
+    aws dynamodb scan --table-name local_worldregions --endpoint-url http://localhost:4566 --output json
+
+    -- Se muestran algunos datos
+
+    "Items": [
+        {
+            "name": {
+                "S": "Texas"
+            },
+            "code": {
+                "S": "0c3cbfbb-ef59-4e7e-a629-d64394f3dd00"
+            },
+            "codeRegion": {
+                "S": "DEPARTMENT-TEX"
+            },
+            "creationDate": {
+                "S": "2025-07-24T18:46:29.133736900"
+            },
+            "region": {
+                "S": "COUNTRY-USA"
+            }
+        },
+         "Items": [
+        {
+            "name": {
+                "S": "Texas"
+            },
+            "code": {
+                "S": "0c3cbfbb-ef59-4e7e-a629-d64394f3dd00"
+            },
+            "codeRegion": {
+                "S": "DEPARTMENT-TEX"
+            },
+            "creationDate": {
+                "S": "2025-07-24T18:46:29.133736900"
+            },
+            "region": {
+                "S": "COUNTRY-USA"
+            }
+        },
+        {
+            "name": {
+                "S": "Antioquia"
+            },
+            "code": {
+                "S": "0c3cbfbb-ef59-4e7e-a629-d64394f3dd77"
+            },
+            "codeRegion": {
+                "S": "DEPARTMENT-ANT"
+            },
+            "creationDate": {
+                "S": "2025-07-24T17:33:25.077302800"
+            },
+            "region": {
+                "S": "COUNTRY-COL"
+            }
+        }
+    ]
+    ```
+
+- Validamos que el archivo fue borrado en el S3
+    ```
+    aws --endpoint-url=http://localhost:4566 s3 ls s3://local-bucket-worldregion/maestro/save/lote/
+    ```
+
+# <div id='id33'/>
+# 33. DynamoDb: Logs
+
+- Ahora preparamos el evento para RabbitMQ
+    ```
+    {
+        "instant": {
+            "epochSecond": 1753400700,
+            "nanoOfSecond": 3540400
+        },
+        "thread": "scheduling-1",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "Executed cron",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 79,
+        "threadPriority": 5
+    }
+
+    -- Imprime el evento
+    {
+        "instant": {
+            "epochSecond": 1753400789,
+            "nanoOfSecond": 62483700
+        },
+        "thread": "ApplicationEventListener-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"Event save WorldRegion\",\"messageId\":\"9999999-9999-0001\",\"service\":\"Save WorldRegion\",\"method\":\"co.com.microservice.aws.infrastructure.input.listenevent.events.WorldRegionEventLister\",\"appName\":\"MicroserviceAws\"},\"request\":{\"headers\":null,\"body\":{\"name\":\"business.myapp.save-all.world-region\",\"eventId\":\"2ee1b68b-fc21-4250-9be5-d4ce81d972ab\",\"data\":{\"type\":\"business.myapp.save.country\",\"specVersion\":\"1.x-wip\",\"source\":\"other-microservicio\",\"id\":\"8888888-8888-8888\",\"time\":\"2025-07-18T08:44:02\",\"dataContentType\":\"application/json\",\"invoker\":\"\",\"data\":{\"transactionRequest\":{\"headers\":{\"user-name\":\"usertest\",\"platform-type\":\"postman\",\"ip\":\"172.34.45.12\",\"message-id\":\"9999999-9999-0001\",\"user-agent\":\"application/json\"}},\"transactionResponse\":{\"statusResponse\":\"SUCCESS\",\"response\":{\"fileName\":\"world-region-example-dynamo.txt\",\"bucketName\":\"local-bucket-worldregion\",\"path\":\"maestro/save/lote/world-region-example-dynamo.txt\"}}}}}},\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 143,
+        "threadPriority": 5
+    }
+
+    -- Obtiene el archivo desde S3
+    {
+        "instant": {
+            "epochSecond": 1753400789,
+            "nanoOfSecond": 85694100
+        },
+        "thread": "sdk-async-response-1-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"getFile success\",\"messageId\":\"9999999-9999-0001\",\"service\":\"getFile\",\"method\":\"co.com.microservice.aws.infrastructure.output.s3repository.S3Adapter\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 144,
+        "threadPriority": 5
+    }
+
+    -- Para por el caso de uso para guardar
+    {
+        "instant": {
+            "epochSecond": 1753400789,
+            "nanoOfSecond": 116420500
+        },
+        "thread": "sdk-async-response-1-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"save dynamodb\",\"messageId\":\"9999999-9999-0001\",\"service\":\"WorldRegionAdapter\",\"method\":\"save\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 144,
+        "threadPriority": 5
+    }
+
+    -- Pasa por el repositorio de dynamodb con la info
+    {
+        "instant": {
+            "epochSecond": 1753400789,
+            "nanoOfSecond": 116420500
+        },
+        "thread": "sdk-async-response-1-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"request\",\"messageId\":\"9999999-9999-0001\",\"service\":\"\",\"method\":\"\",\"appName\":\"MicroserviceAws\"},\"request\":{\"headers\":null,\"body\":{\"region\":\"REGION-LATAM\",\"code\":\"d40b2031-2e14-4845-91cb-af0bf87a8c99\",\"name\":\"Estados unidos\",\"codeRegion\":\"COUNTRY-USA\",\"creationDate\":\"2025-07-24T18:46:29.116420500\"}},\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 144,
+        "threadPriority": 5
+    }
+    {
+        "instant": {
+            "epochSecond": 1753400789,
+            "nanoOfSecond": 133736900
+        },
+        "thread": "sdk-async-response-1-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"save dynamodb\",\"messageId\":\"9999999-9999-0001\",\"service\":\"WorldRegionAdapter\",\"method\":\"save\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 144,
+        "threadPriority": 5
+    }
+    {
+        "instant": {
+            "epochSecond": 1753400789,
+            "nanoOfSecond": 133736900
+        },
+        "thread": "sdk-async-response-1-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"request\",\"messageId\":\"9999999-9999-0001\",\"service\":\"\",\"method\":\"\",\"appName\":\"MicroserviceAws\"},\"request\":{\"headers\":null,\"body\":{\"region\":\"REGION-LATAM\",\"code\":\"ff50f4f8-2dd1-4466-a55f-47ce560e1f99\",\"name\":\"Brasil\",\"codeRegion\":\"COUNTRY-BRA\",\"creationDate\":\"2025-07-24T18:46:29.133736900\"}},\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 144,
+        "threadPriority": 5
+    }
+    {
+        "instant": {
+            "epochSecond": 1753400789,
+            "nanoOfSecond": 133736900
+        },
+        "thread": "sdk-async-response-1-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"save dynamodb\",\"messageId\":\"9999999-9999-0001\",\"service\":\"WorldRegionAdapter\",\"method\":\"save\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 144,
+        "threadPriority": 5
+    }
+    {
+        "instant": {
+            "epochSecond": 1753400789,
+            "nanoOfSecond": 133736900
+        },
+        "thread": "sdk-async-response-1-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"request\",\"messageId\":\"9999999-9999-0001\",\"service\":\"\",\"method\":\"\",\"appName\":\"MicroserviceAws\"},\"request\":{\"headers\":null,\"body\":{\"region\":\"COUNTRY-USA\",\"code\":\"0c3cbfbb-ef59-4e7e-a629-d64394f3dd00\",\"name\":\"Texas\",\"codeRegion\":\"DEPARTMENT-TEX\",\"creationDate\":\"2025-07-24T18:46:29.133736900\"}},\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 144,
+        "threadPriority": 5
+    }
+    {
+        "instant": {
+            "epochSecond": 1753400789,
+            "nanoOfSecond": 150370600
+        },
+        "thread": "sdk-async-response-1-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"save dynamodb\",\"messageId\":\"9999999-9999-0001\",\"service\":\"WorldRegionAdapter\",\"method\":\"save\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 144,
+        "threadPriority": 5
+    }
+    {
+        "instant": {
+            "epochSecond": 1753400789,
+            "nanoOfSecond": 150370600
+        },
+        "thread": "sdk-async-response-1-3",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"request\",\"messageId\":\"9999999-9999-0001\",\"service\":\"\",\"method\":\"\",\"appName\":\"MicroserviceAws\"},\"request\":{\"headers\":null,\"body\":{\"region\":\"DEPARTMENT-ANT\",\"code\":\"f46a680a-5b1d-4d18-a01b-a07e90176e3c\",\"name\":\"Envigado\",\"codeRegion\":\"CITY-ENV\",\"creationDate\":\"2025-07-24T18:46:29.150370600\"}},\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 144,
+        "threadPriority": 5
+    }
+
+    -- Luego de guardar muestra el elemento almacenado en dynamodb
+    {
+        "instant": {
+            "epochSecond": 1753400789,
+            "nanoOfSecond": 266035300
+        },
+        "thread": "sdk-async-response-4-4",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"response save\",\"messageId\":\"9999999-9999-0001\",\"service\":\"\",\"method\":\"\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":{\"headers\":null,\"body\":{\"region\":\"REGION-LATAM\",\"code\":\"ff50f4f8-2dd1-4466-a55f-47ce560e1f99\",\"name\":\"Brasil\",\"codeRegion\":\"COUNTRY-BRA\",\"creationDate\":\"2025-07-24T18:46:29.133736900\"}}}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 145,
+        "threadPriority": 5
+    }
+    {
+        "instant": {
+            "epochSecond": 1753400789,
+            "nanoOfSecond": 266035300
+        },
+        "thread": "sdk-async-response-4-5",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"response save\",\"messageId\":\"9999999-9999-0001\",\"service\":\"\",\"method\":\"\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":{\"headers\":null,\"body\":{\"region\":\"REGION-LATAM\",\"code\":\"d40b2031-2e14-4845-91cb-af0bf87a8c99\",\"name\":\"Estados unidos\",\"codeRegion\":\"COUNTRY-USA\",\"creationDate\":\"2025-07-24T18:46:29.116420500\"}}}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 146,
+        "threadPriority": 5
+    }
+    {
+        "instant": {
+            "epochSecond": 1753400789,
+            "nanoOfSecond": 267083100
+        },
+        "thread": "sdk-async-response-4-6",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"response save\",\"messageId\":\"9999999-9999-0001\",\"service\":\"\",\"method\":\"\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":{\"headers\":null,\"body\":{\"region\":\"DEPARTMENT-ANT\",\"code\":\"f46a680a-5b1d-4d18-a01b-a07e90176e3c\",\"name\":\"Envigado\",\"codeRegion\":\"CITY-ENV\",\"creationDate\":\"2025-07-24T18:46:29.150370600\"}}}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 147,
+        "threadPriority": 5
+    }
+    {
+        "instant": {
+            "epochSecond": 1753400789,
+            "nanoOfSecond": 286325800
+        },
+        "thread": "sdk-async-response-4-7",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"response save\",\"messageId\":\"9999999-9999-0001\",\"service\":\"\",\"method\":\"\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":{\"headers\":null,\"body\":{\"region\":\"COUNTRY-USA\",\"code\":\"0c3cbfbb-ef59-4e7e-a629-d64394f3dd00\",\"name\":\"Texas\",\"codeRegion\":\"DEPARTMENT-TEX\",\"creationDate\":\"2025-07-24T18:46:29.133736900\"}}}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 148,
+        "threadPriority": 5
+    }
+
+    -- Finalmente elimina el archivo luego de procesar todo
+    {
+        "instant": {
+            "epochSecond": 1753400789,
+            "nanoOfSecond": 329644400
+        },
+        "thread": "sdk-async-response-1-4",
+        "level": "INFO",
+        "loggerName": "co.com.microservice.aws.application.helpers.logs.LoggerBuilder",
+        "message": "{\"app\":{\"message\":\"deleteObject success\",\"messageId\":\"9999999-9999-0001\",\"service\":\"deleteObject\",\"method\":\"co.com.microservice.aws.infrastructure.output.s3repository.S3Adapter\",\"appName\":\"MicroserviceAws\"},\"request\":null,\"response\":null}",
+        "endOfBatch": false,
+        "loggerFqcn": "org.apache.logging.log4j.spi.AbstractLogger",
+        "threadId": 149,
+        "threadPriority": 5
+    }
+    ```
 
 [< Volver al índice](README.md)
 

@@ -72,6 +72,12 @@ adapters:
     endpoint: http://localhost:4566
     accessKey: "test"
     secretKey: "test"
+  dynamodb:
+    endpoint: "http://localhost:4566"
+  repositories:
+    tables:
+      namesmap:
+        world_region: local_worldregions
 
 listen:
   event:
