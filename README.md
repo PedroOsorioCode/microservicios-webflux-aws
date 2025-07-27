@@ -12,6 +12,11 @@ Implementación de endpoints reactivos para la gestión de recursos.
 
   🔗 👉 [📘 Primeros pasos con Spring WebFlux](./doc/spring-webflux.md)
 
+- **Protocolo HTTP y HTTPS**  
+Implementación de endpoints reactivos para la gestión de recursos.
+
+  🔗 👉 [📘 Primeros pasos con Protocolo HTTP](./doc/http.md)
+
 - **Bases de Datos Relacionales**  
   PostgreSQL: Base de datos principal usada para el almacenamiento de entidades del dominio.
 
@@ -20,6 +25,7 @@ Implementación de endpoints reactivos para la gestión de recursos.
   🔗 👉 [📘 Primeros pasos bd relacionales](./doc/bd-relacionales.md)
 
 - **Bases de Datos No Relacionales**  
+
   Utilizadas para almacenar información que no requiere esquemas rígidos, relaciones complejas o que necesita alta disponibilidad, baja latencia y escalabilidad horizontal.
 
   Son ideales para almacenamiento de eventos, cache, documentos, claves-valor o datos semiestructurados.
@@ -27,6 +33,7 @@ Implementación de endpoints reactivos para la gestión de recursos.
   🔗 👉 [📘 Primeros pasos bd No relacionales](./doc/bd-no-relacionales.md)
 
 - **Simulación de servicios AWS con Podman + Localstack**  
+
   Uso de Podman como motor de contenedores liviano y compatible con Docker para orquestar servicios locales.
   
   Integración con Localstack para simular servicios de AWS como S3, DynamoDB, Secrets Manager, entre otros, permitiendo desarrollar y probar localmente sin necesidad de una cuenta real en AWS.
@@ -36,6 +43,7 @@ Implementación de endpoints reactivos para la gestión de recursos.
   🔗 👉 [📘 Primeros pasos con Podman + Localstack AWS](./doc/podman-localstack-aws.md)
 
 - **Gestión de Credenciales con AWS Secrets Manager**  
+
   Acceso seguro a credenciales de bases de datos y otros servicios a través de Secrets Manager.
 
   Desacoplamiento de las configuraciones sensibles del código fuente.
@@ -43,6 +51,7 @@ Implementación de endpoints reactivos para la gestión de recursos.
   🔗 👉 [📘 Primeros pasos con Secret Manager](./doc/secret-manager.md)
 
 - **Cache con Redis**  
+
   Integración de Redis Cache para mejorar el rendimiento mediante almacenamiento temporal de datos consultados frecuentemente.
 
   Configuración reactiva y uso eficiente con Spring Data Redis Reactive.
@@ -50,13 +59,15 @@ Implementación de endpoints reactivos para la gestión de recursos.
   🔗 👉 [📘 Primeros pasos con Redis Cache](./doc/redis-cache.md)
 
 - **Mensajería Asíncrona con RabbitMQ**  
+
   Envío y recepción de eventos de dominio a través de RabbitMQ, usando la librería async-commons-rabbit-starter.
 
   Configuración de colas, intercambios y binding keys definidos en archivos YAML para facilitar la mantenibilidad y el versionamiento.
 
-  🔗 👉 [📘 Primeros pasos con RabbitMQ](./doc/rabbitmq.md)
+  🔗 👉 [📘 Primeros pasos con RabbitMQ](./doc/rabbit-mq.md)
 
 - **Consumo de servicio externos con WebClient**  
+
   Integración de servicios externos mediante WebClient, el cliente HTTP no bloqueante de Spring WebFlux.
   Se implementa un enfoque reactivo para realizar llamadas remotas, permitiendo controlar eficientemente los recursos del sistema.
 
@@ -66,6 +77,7 @@ Implementación de endpoints reactivos para la gestión de recursos.
   🔗 👉 [📘 Primeros pasos con Webclient](./doc/webclient-wiremock-apirest.md)
 
 - **Arquitectura Hexagonal**  
+
   Separación clara entre la lógica de negocio (dominio) y las dependencias externas (bases de datos, colas, controladores HTTP).
 
   Uso de puertos y adaptadores para mantener bajo acoplamiento y facilitar las pruebas unitarias.
@@ -75,6 +87,7 @@ Implementación de endpoints reactivos para la gestión de recursos.
   </a>
 
 - **Sistema de Logging Estructurado**  
+
   Implementación de logs enriquecidos mediante un LoggerBuilder personalizado.
 
   Impresión detallada de headers, requests, responses y metadatos.
@@ -82,6 +95,7 @@ Implementación de endpoints reactivos para la gestión de recursos.
   Formato en JSON compatible con herramientas de monitoreo como ELK (Elasticsearch, Logstash, Kibana).
 
 - **Estrategia de Respuestas Unificadas**  
+
   Respuestas técnicas con códigos HTTP precisos y mensajes claros.
 
   Respuestas de negocio estandarizadas, con códigos funcionales y descripciones comprensibles para el consumidor.
@@ -92,9 +106,14 @@ Implementación de endpoints reactivos para la gestión de recursos.
 
 ---
 
-⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](LICENSE.md)
+🔗 👉 [📘 Ver instructivo paso a paso JAVA-REACTIVO – SEGURIDAD DEL API JWT](PRINCIPAL.md)
 
 ---
+
+🔗 👉 [📘 Ver instructivo paso a paso IaC con TERRAFORM](.md)
+
+---
+
 ## ¿Te ha sido útil este contenido?
 
 Puedes apoyar este proyecto con una donación:
@@ -109,6 +128,6 @@ Puedes apoyar este proyecto con una donación:
 Puedes escribirme a: **pedro.osoriopavas.ibm@gmail.com**
 
 ---
-
+- ⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](LICENSE.md)
 - Gracias por respetar la licencia y reconocer el trabajo compartido.  
 - Gracias por apoyar el software libre 🙌

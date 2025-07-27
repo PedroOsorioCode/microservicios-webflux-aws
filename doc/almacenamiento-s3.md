@@ -1,4 +1,4 @@
-# Instructivo paso a paso comprender conceptos de almacenamient S3 - bucket
+# Comprender conceptos de almacenamient S3 - bucket
 > A continuación se explica qué es Amazon S3, sus características principales y el paso a paso necesario para interactuar con este servicio en un entorno controlado. Aunque S3 es un servicio gestionado por AWS, existen herramientas como LocalStack que permiten simular su comportamiento de forma local para pruebas y desarrollo.
 
 ## 📦 ¿Qué es Amazon S3?  
@@ -102,5 +102,6 @@ Cada archivo que se almacena en S3 se denomina objeto, y está contenido dentro 
 [< Volver al índice](../README.md)
 
 ---
+💡 Esta documentación fue elaborada con ayuda de ChatGPT, basado en mis consultas técnicas
 
 ⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](../LICENSE.md)
