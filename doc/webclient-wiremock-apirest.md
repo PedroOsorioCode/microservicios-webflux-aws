@@ -197,10 +197,16 @@ WireMock es una herramienta de simulación de APIs (mock server) que permite emu
     curl -X DELETE http://localhost:8089/__admin/mappings/2ec5a4d8-09fd-45a6-bf55-ece2cf09b715
     ```
 
+---
+
+🔗 👉 [📘 Ver instructivo paso a paso JAVA-REACTIVO – STACK TECNOLÓGICO](../PRINCIPAL.md)
+
+--- 
 
 [< Volver al índice](../README.md)
 
 ---
+
 💡 Esta documentación fue elaborada con ayuda de ChatGPT, basado en mis consultas técnicas
 
 ⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](../LICENSE.md)

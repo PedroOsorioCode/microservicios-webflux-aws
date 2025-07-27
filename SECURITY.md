@@ -801,3 +801,12 @@ entries:
     -- Resultado:
     Hi validate token, usertest!
     ```
+--- 
+
+[< Volver al índice](README.md)
+
+---
+
+💡 Esta documentación fue elaborada con ayuda de ChatGPT, basado en mis consultas técnicas
+
+⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](../LICENSE.md)

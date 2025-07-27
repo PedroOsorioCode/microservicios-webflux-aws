@@ -166,4 +166,16 @@ binding headers: {format: "pdf", type: "report", x-match: "all"}
 | ⛓ Integraciones           | Se integra bien con microservicios, IoT     | Alta integración con otros servicios de AWS |
 
 
+---
 
+🔗 👉 [📘 Ver instructivo paso a paso JAVA-REACTIVO – STACK TECNOLÓGICO](../PRINCIPAL.md)
+
+--- 
+
+[< Volver al índice](../README.md)
+
+---
+
+💡 Esta documentación fue elaborada con ayuda de ChatGPT, basado en mis consultas técnicas
+
+⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](../LICENSE.md)

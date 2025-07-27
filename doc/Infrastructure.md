@@ -98,3 +98,16 @@ terraform destroy   # Elimina la infraestructura
     on windows_amd64
     ```    
 
+---
+
+🔗 👉 [📘 Ver instructivo paso a paso JAVA-REACTIVO – STACK TECNOLÓGICO](../PRINCIPAL.md)
+
+--- 
+
+[< Volver al índice](../README.md)
+
+---
+
+💡 Esta documentación fue elaborada con ayuda de ChatGPT, basado en mis consultas técnicas
+
+⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](../LICENSE.md)

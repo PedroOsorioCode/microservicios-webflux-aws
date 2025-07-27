@@ -99,3 +99,16 @@ MySQL también proporciona mecanismos sólidos de seguridad, aunque algunos debe
 | MySQL         | GCP   | 1 vCPU, 0.6 GiB RAM, 20 GB | \~\$11 USD             |
 
 
+---
+
+🔗 👉 [📘 Ver instructivo paso a paso JAVA-REACTIVO – STACK TECNOLÓGICO](../PRINCIPAL.md)
+
+--- 
+
+[< Volver al índice](../README.md)
+
+---
+
+💡 Esta documentación fue elaborada con ayuda de ChatGPT, basado en mis consultas técnicas
+
+⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](../LICENSE.md)

@@ -1,6 +1,5 @@
-# Comprender conceptos del protocolo HTTP
-> A continuación se explica qué es http, https, sus características principales.
-
+# Comprender conceptos se aseguramiento de apis
+> A continuación se explica qué es JWT, sus características principales e implementación
 
 ### Indice
 
@@ -242,6 +241,11 @@ Aunque los JWT no se almacenan en servidor (stateless), puedes mantener una blac
     - 🍪 Cookies seguras (opcional): con HttpOnly y Secure.
     - 📤 Header Authorization: estándar para enviar el token.
 
+---
+
+🔗 👉 [📘 Ver instructivo paso a paso JAVA-REACTIVO – SEGURIDAD DEL API JWT](../SECURITY.md)
+
+--- 
 
 [< Volver al índice](../README.md)
 

@@ -321,6 +321,12 @@ aws --endpoint-url=http://localhost:4566 dynamodb create-table --table-name loca
     aws dynamodb query --table-name local-flight-tickets --key-condition-expression "documentNumber = :docNum" --expression-attribute-values '{":docNum":{"S":"ABC123456"}}' --endpoint-url http://localhost:4566 --region us-east-1
     ```
 
+---
+
+🔗 👉 [📘 Ver instructivo paso a paso JAVA-REACTIVO – STACK TECNOLÓGICO](../PRINCIPAL.md)
+
+--- 
+
 [< Volver al índice](../README.md)
 
 ---

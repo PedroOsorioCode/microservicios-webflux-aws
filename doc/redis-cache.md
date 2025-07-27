@@ -121,10 +121,16 @@ Sí. Cuando usas Amazon ElastiCache for Redis, AWS se encarga de gestionar autom
 
 - Considera usar Redis Sentinel o Clustering para producción.  
 
-💡 Esta documentación fue elaborada con ayuda de ChatGPT, basado en mis consultas técnicas
+---
+
+🔗 👉 [📘 Ver instructivo paso a paso JAVA-REACTIVO – STACK TECNOLÓGICO](../PRINCIPAL.md)
+
+--- 
 
 [< Volver al índice](../README.md)
 
 ---
+
+💡 Esta documentación fue elaborada con ayuda de ChatGPT, basado en mis consultas técnicas
 
 ⚠️ Este contenido no puede ser usado con fines comerciales. Ver [LICENSE.md](../LICENSE.md)

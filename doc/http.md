@@ -190,6 +190,11 @@ Connection: Upgrade
 | **Complejidad**               | Baja                                | Media/Alta                            |
 
 
+---
+
+🔗 👉 [📘 Ver instructivo paso a paso JAVA-REACTIVO – STACK TECNOLÓGICO](../PRINCIPAL.md)
+
+--- 
 
 [< Volver al índice](../README.md)
 

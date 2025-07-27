@@ -106,11 +106,11 @@ Implementación de endpoints reactivos para la gestión de recursos.
 
 ---
 
-🔗 👉 [📘 Ver instructivo paso a paso JAVA-REACTIVO – SEGURIDAD DEL API JWT](PRINCIPAL.md)
+🔗 👉 [📘 Ver instructivo paso a paso JAVA-REACTIVO – SEGURIDAD DEL API JWT](SECURITY.md)
 
 ---
 
-🔗 👉 [📘 Ver instructivo paso a paso IaC con TERRAFORM](.md)
+🔗 👉 [📘 Ver instructivo paso a paso IaC con TERRAFORM](doc/Infrastructure.md)
 
 ---
 

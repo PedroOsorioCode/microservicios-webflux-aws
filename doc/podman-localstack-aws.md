@@ -143,6 +143,12 @@ Kubernetes se ha establecido como el estándar de facto para la gestión de carg
 
     Al generar los manifiestos YAML, los usuarios pueden ver cómo sus contenedores y pods se traducen a los objetos de Kubernetes (Deployment, Service, etc.), lo que ayuda a comprender la estructura y los conceptos de Kubernetes de manera práctica.
 
+---
+
+🔗 👉 [📘 Ver instructivo paso a paso JAVA-REACTIVO – STACK TECNOLÓGICO](../PRINCIPAL.md)
+
+--- 
+
 [< Volver al índice](../README.md)
 
 ---

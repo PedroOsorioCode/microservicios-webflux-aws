@@ -91,6 +91,11 @@ AWS Secrets Manager es un servicio de Amazon Web Services que te permite almacen
     aws secretsmanager create-secret --name github-access-token --secret-string '{"token":"ghp_abcdefghijklmnopqrstuvwx123456"}'
     ```
 
+---
+
+🔗 👉 [📘 Ver instructivo paso a paso JAVA-REACTIVO – STACK TECNOLÓGICO](../PRINCIPAL.md)
+
+--- 
 
 [< Volver al índice](../README.md)
 
