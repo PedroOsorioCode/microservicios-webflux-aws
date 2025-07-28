@@ -28,6 +28,10 @@
     ```
     podman machine stop
     ```
+- Ver información Podman:
+    ```
+    podman info
+    ```
 - Listar máquinas creadas:
     ```
     podman machine list

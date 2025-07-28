@@ -468,16 +468,16 @@ listen:
     @Getter
     @AllArgsConstructor
     @ToString
-    public enum TechnicalExceptionMessage {
-
-        TECHNICAL_SERVER_ERROR("WRT01", "Internal server error"),
-        TECHNICAL_REST_CLIENT_ERROR("WRT02", "An error has occurred in the Rest Client"),
-        TECHNICAL_HEADER_MISSING("WRT03", "Missing parameters per header"),
-        TECHNICAL_REQUEST_ERROR("WRT04", "There is an error in the request body"),
-        TECHNICAL_EXCEPTION_REPOSITORY("WRT05", "An error has occurred in the repository");
+    public enum BusinessExceptionMessage {
+        BUSINESS_ERROR("WRB01", "Error in a service", "Server error"),
+        BUSINESS_USERNAME_REQUIRED("WRB02", "The attribute 'user-name' is required", "There is an error in the request body"),
+        BUSINESS_RECORD_NOT_FOUND("WRB03", "The record not found", "Bussiness error"),
+        BUSINESS_COUNTRY_NOT_EXIST("WRB04", "The country not exist", "Bussiness error"),
+        BUSINESS_OTRO_MENSAJE("WRB03", "Others message business", "Other");
 
         private final String code;
         private final String message;
+        private final String typeMessage;
 
         public String getDescription() {
             return String.join(" - ", this.getCode(), this.getMessage());
@@ -1450,7 +1450,6 @@ listen:
 - Ejecutar el contenedor
     ```
     podman run --name postgres-db -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=123456 -e POSTGRES_DB=my_postgres_db -p 5432:5432 -d postgres:16
-
     ```
 - Conectar a la bd con DBeaver
 
