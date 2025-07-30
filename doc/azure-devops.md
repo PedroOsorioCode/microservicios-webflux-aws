@@ -108,6 +108,19 @@ SonarQube Cloud Free Tier: Ideal para desarrolladores o equipos pequeños que qu
 
 ![](../img/modules/azure/1_sonar_qube_created_projects.png)
 
+- ir al link "Configure Analysis
+- Seguir los pasos que se indican
+- Volver al azure devops
+- Ingresar al proyecto de la organización
+- Ir a la opción: Projects settings > service connections
+
+## Relacionar AzureDevops con SonarCloud
+
+- ir al sitio: [Integración SonarCloud con AzureDevops](https://docs.sonarsource.com/sonarqube-cloud/advanced-setup/ci-based-analysis/sonarcloud-extension-for-azure-devops/)
+- Presionar el boton "Start free"
+- Iniciar sesión con Azure Devops
+
+
 
 
 

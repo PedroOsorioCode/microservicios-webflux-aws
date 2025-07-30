@@ -7,9 +7,14 @@
 * [2. ¿Qué es webflux?](#id2)
 * [3. Hilos en Java vs Modelo Reactivo con Spring WebFlux](#id3)
 * [4. Construcción de hilos en JAVA](#id4)
-* [5. Métodos mas usados en Mono](#id5)
-* [6. Métodos mas usados en Flux](#id6)
-* [7. Ejemplos Mono y Flux](#id7)
+* [5. Hilos con anotaciones de Spring](#id5)
+* [6. Comparativo Webflux vs Async](#id6)
+* [7. Hilos virtuales](#id7)
+* [8. Hilos vs Infraestructura](#id8)
+* [9. Cuando usar o no usar webflux](#id9)
+* [10. Webflux: Métodos mas usados en Mono](#id10)
+* [11. Webflux: Métodos mas usados en Flux](#id11)
+* [12. Webflux: Ejemplos Mono y Flux](#id12)
 
 # <div id='id1'/>
 ## 1. ¿Qué es programación reactiva?
@@ -38,7 +43,7 @@
 
 3. **Soporte para R2DBC:** para acceso reactivo a bases de datos relacionales (como MySQL, PostgreSQL, H2, MariaDB, Microsoft SQL Server, Oracle Database, IBM Db2, CockroachDB, Apache Derby) permite conexión no bloqueante
 
-## Conceptos generales
+### Conceptos generales
 
 1. **¿Qué es un Mono?:** Mono<T> representa 0 o 1 elemento que será emitido en el futuro (de forma asíncrona y no bloqueante); Mono es ideal para flujos reactivos que devuelven un solo valor; Puedes encadenar todos estos métodos para construir pipelines potentes y controlados.
 2. **¿Qué es un Flux?:** Flux<T> representa una secuencia reactiva de 0 a N elementos (puede ser vacía o infinita), se usa ampliamente en Spring WebFlux para manejar múltiples elementos de forma asíncrona y no bloqueante; Flux se usa cuando tienes varios elementos en tu flujo reactivo; Es común en streams de base de datos, respuestas de APIs, WebSockets, etc.
@@ -52,7 +57,7 @@ Cada operación que involucra IO (acceso a red, base de datos, disco, etc.) bloq
 
 Para manejar múltiples peticiones concurrentes, se crean múltiples hilos, cada uno esperando su turno.
 
-## ⚙️ Características de los hilos tradicionales en Java
+### ⚙️ Características de los hilos tradicionales en Java
 
 | Característica         | Hilos en Java (servlets clásicos)        |
 | ---------------------- | ---------------------------------------- |
@@ -63,7 +68,7 @@ Para manejar múltiples peticiones concurrentes, se crean múltiples hilos, cada
 | Ejemplo clásico        | Spring MVC, servlets, ThreadPoolExecutor |
 | Latencia frente a IO   | Alta (bloqueo mientras espera respuesta) |
 
-## ⚡¿Qué propone el modelo reactivo de Spring WebFlux?
+### ⚡¿Qué propone el modelo reactivo de Spring WebFlux?
 
 Spring WebFlux se basa en el modelo reactivo no bloqueante, usando internamente Reactor (Mono y Flux) y el estándar Reactive Streams. No asigna un hilo por solicitud, sino que:
 
@@ -73,7 +78,7 @@ No bloquea hilos en operaciones IO. En lugar de esperar, registra una función c
 
 Ideal para aplicaciones con altas cargas concurrentes y uso intensivo de IO.
 
-## ⚙️ Características del modelo reactivo con WebFlux
+### ⚙️ Características del modelo reactivo con WebFlux
 
 | Característica       | Spring WebFlux (reactivo, no bloqueante)      |
 | -------------------- | --------------------------------------------- |
@@ -84,7 +89,7 @@ Ideal para aplicaciones con altas cargas concurrentes y uso intensivo de IO.
 | Ejemplo clásico      | Mono, Flux, WebClient, RouterFunction         |
 | Latencia frente a IO | Baja (no bloquea, se suspende la operación)   |
 
-## 🧪 Comparativo práctico
+### 🧪 Comparativo práctico
 
 | Aspecto                     | Hilos tradicionales (Spring MVC) | Reactivo (Spring WebFlux)        |
 | --------------------------- | -------------------------------- | -------------------------------- |
@@ -96,7 +101,7 @@ Ideal para aplicaciones con altas cargas concurrentes y uso intensivo de IO.
 | Flujo de datos              | Paso a paso                      | Flujo reactivo (`Mono` / `Flux`) |
 | Ideal para                  | CPU intensivo, lógica simple     | IO intensivo, muchas peticiones  |
 
-## 🎯 Comparación visual (simplificada):
+### 🎯 Comparación visual (simplificada):
 
 | Petición | Spring MVC (bloqueante)       | WebFlux (reactivo, no bloqueante)     |
 | -------- | ----------------------------- | ------------------------------------- |
@@ -138,7 +143,7 @@ Ideal para aplicaciones con altas cargas concurrentes y uso intensivo de IO.
     hilo.start();
     ```
 
-## ¿Qué se puede configurar en un hilo?
+### ¿Qué se puede configurar en un hilo?
 
 | Configuración             | Descripción                                                         |
 | ------------------------- | ------------------------------------------------------------------- |
@@ -159,7 +164,7 @@ Ideal para aplicaciones con altas cargas concurrentes y uso intensivo de IO.
     });
     ```
 
-- Ejemplo Comparativo JAVA vrs Webflux, en un proyecto java con webflux puede crearse la siguiente clase para validar respuestas y comparar rendimiento. vamos a simular 100 peticiones, se usarán 3 hilos
+- Ejemplo Comparativo JAVA vs Webflux, en un proyecto java con webflux puede crearse la siguiente clase para validar respuestas y comparar rendimiento. vamos a simular 100 peticiones, se usarán 3 hilos
 
     - Resumen:
     - Con 3 hilos procesa 100 peticiones con espera de 0.3 segundos por cada hilo en aproximadamente 11 segundos
@@ -242,7 +247,265 @@ Ideal para aplicaciones con altas cargas concurrentes y uso intensivo de IO.
     ```
 
 # <div id='id5'/>
-## 5. Métodos mas usados en Mono
+## 5. Hilos con anotaciones de Spring
+
+### Anotación @Async
+Spring proporciona la anotación @Async para ejecutar métodos de forma asincrónica en segundo plano:
+
+- Configuración mínima
+    Primero debes habilitar la ejecución asincrónica:
+    ```
+    @SpringBootApplication
+    @EnableAsync
+    public class TuAplicacion {
+        public static void main(String[] args) {
+            SpringApplication.run(TuAplicacion.class, args);
+        }
+    }
+    ```
+- Ejemplo de clase de servicio con @Async
+    ```
+    @Service
+    public class TareaAsincronaService {
+
+        @Async
+        public CompletableFuture<String> ejecutarLento() throws InterruptedException {
+            Thread.sleep(5000); // Simula una tarea lenta
+            return CompletableFuture.completedFuture("Tarea completada");
+        }
+    }
+    ```
+
+- Llamada desde un controlador
+    ```
+    @RestController
+    @RequestMapping("/tarea")
+    public class TareaController {
+
+        private final TareaAsincronaService tareaService;
+
+        public TareaController(TareaAsincronaService tareaService) {
+            this.tareaService = tareaService;
+        }
+
+        @GetMapping
+        public ResponseEntity<String> ejecutar() {
+            tareaService.ejecutarLento(); // Se ejecuta en segundo plano
+            return ResponseEntity.ok("Ejecutando...");
+        }
+    }
+    ```
+
+- Aplicar configuraciones personalizadas a los hilos
+    ```
+    @Configuration
+    public class AsyncConfig implements AsyncConfigurer {
+
+        @Override
+        @Bean(name = "tareaExecutor")
+        public Executor getAsyncExecutor() {
+            ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+            executor.setCorePoolSize(5);                    // Hilos mínimos activos
+            executor.setMaxPoolSize(10);                    // Hilos máximos
+            executor.setQueueCapacity(100);                 // Capacidad de la cola
+            executor.setThreadNamePrefix("HiloAsync-");     // Nombre para seguimiento
+            executor.setWaitForTasksToCompleteOnShutdown(true); // Espera al apagar
+            executor.setAwaitTerminationSeconds(30);             // Máximo tiempo de espera
+            executor.initialize();
+            return executor;
+        }
+
+        // Manejo de excepciones no capturadas
+        @Override
+        public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
+            return (ex, method, params) -> {
+                System.err.println("Excepción en método async: " + method.getName());
+                ex.printStackTrace();
+            };
+        }
+    }
+    ```
+
+- Aplicar Async con el Executor creado
+    ```
+    @Service
+    public class TareaAsincronaService {
+
+        @Async("tareaExecutor")
+        public CompletableFuture<String> ejecutar() throws InterruptedException {
+            Thread.sleep(3000); // Simulación
+            return CompletableFuture.completedFuture("Ejecutado con éxito");
+        }
+    }
+    ```
+
+### ¿Qué es ThreadPoolTaskExecutor?
+Es un pool (grupo) de hilos reutilizables gestionado por Spring. En lugar de crear un hilo nuevo cada vez, los hilos se reutilizan para ejecutar múltiples tareas de forma eficiente.
+
+- Tabla de configuración de ThreadPoolTaskExecutor
+    | Configuración| Descripción         | Ejemplo/Comportamiento|
+    | ------------ | ------------------- | --------------------- |
+    | `setCorePoolSize(int)`                         | Número **mínimo** de hilos que el pool mantiene activos, aunque estén inactivos.            | Siempre habrá al menos estos hilos listos. Si llegan tareas, se usan primero.     |
+    | `setMaxPoolSize(int)`                          | Número **máximo** de hilos que se pueden crear (incluye los core).                          | Se usan si la cola se llena y aún hay tareas en espera.                           |
+    | `setQueueCapacity(int)`                        | Número de tareas que se pueden **esperar en cola** mientras los hilos están ocupados.       | Si los core están llenos, las tareas se encolan aquí antes de crear nuevos hilos. |
+    | `setThreadNamePrefix(String)`                  | Prefijo para los nombres de hilos, útil para depuración y logs.                             | Ej.: `HiloAsync-1`, `HiloAsync-2`, etc.                                           |
+    | `setWaitForTasksToCompleteOnShutdown(boolean)` | Si `true`, espera que se terminen las tareas en ejecución al apagar el contexto de Spring.  | Evita que se corten tareas pendientes al cerrar la app.                           |
+    | `setAwaitTerminationSeconds(int)`              | Tiempo máximo (en segundos) para esperar la finalización de tareas al apagar la aplicación. | Si pasa este tiempo, los hilos se fuerzan a cerrar.                               |
+
+- ¿Qué pasa con los hilos hijos? ¿Se reutilizan?
+
+    Sí. Los hilos no se crean y destruyen por cada tarea. El flujo es así:
+
+    1. Entran tareas nuevas.
+    2. Se ejecutan en los core threads (hasta 5).
+    3. Si todos están ocupados, se encolan (hasta 100 tareas en espera).
+    4. Si la cola también se llena, se crean hilos extra hasta el máximo (maxPoolSize).
+    5. Una vez un hilo termina una tarea, no se destruye: queda listo para la siguiente.
+
+- Ejemplo práctico visual
+
+    Supón esta configuración:
+    - corePoolSize = 2
+    - maxPoolSize = 4
+    - queueCapacity = 3
+
+    Y llegan 8 tareas asincrónicas al mismo tiempo:
+    | Tarea | ¿Qué pasa?                                 |
+    | ----- | ------------------------------------------ |
+    | 1     | Se ejecuta en hilo 1 (core)                |
+    | 2     | Se ejecuta en hilo 2 (core)                |
+    | 3     | Se encola                                  |
+    | 4     | Se encola                                  |
+    | 5     | Se encola                                  |
+    | 6     | No hay más capacidad en cola → crea hilo 3 |
+    | 7     | Se ejecuta en hilo 4 (max reached)         |
+    | 8     | Excepción (RejectedExecutionException)     |
+
+- Y si una tarea falla?
+    Si un método @Async lanza una excepción no capturada:
+
+    - No rompe el hilo.
+    - El hilo queda reutilizable para otra tarea.
+    - Pero debes capturar errores (por eso puedes implementar AsyncUncaughtExceptionHandler).
+
+# <div id='id6'/>
+## 6. Comparativo Webflux vs Async
+
+### ¿@Async es igual a WebFlux?
+No, no son iguales. Aunque ambos permiten procesamiento asincrónico y no bloqueante en cierta medida, la diferencia fundamental está en el modelo de concurrencia y escalabilidad.
+
+### 🧵 @Async (ThreadPoolTaskExecutor)
+Usa hilos reales (del sistema operativo) para ejecutar tareas en segundo plano. Los hilos son reutilizables, sí, pero limitados en número y pueden bloquearse (por ejemplo, si haces una llamada HTTP o accedes a una base de datos).
+
+### ⚛️ Spring WebFlux
+Usa un modelo reactivo basado en un loop de eventos, donde no se bloquea el hilo mientras espera I/O. Todo se ejecuta de forma no bloqueante y cooperativa usando Project Reactor (Mono, Flux). Por eso puede escalar muchísimo mejor con menos recursos.
+
+### ¿Cuál es mejor?
+| Escenario                                      | Recomendación                   |
+| ---------------------------------------------- | ------------------------------- |
+| Procesamiento simple o tareas en segundo plano | `@Async`                        |
+| Alta concurrencia, muchos usuarios simultáneos | WebFlux                         |
+| Llamadas que bloquean (base de datos, APIs)    | `@Async` con cuidado            |
+| Comunicación con APIs reactivas o NoSQL        | WebFlux                         |
+| Sistemas que ya están en Spring MVC            | `@Async` puede integrarse fácil |
+| Aplicaciones reactivas de extremo a extremo    | WebFlux                         |
+
+### Tabla comparativa
+| Característica                  | `Thread` (puro)                      | `@Async` (Spring)                         | Spring WebFlux                              |
+| ------------------------------- | ------------------------------------ | ----------------------------------------- | ------------------------------------------- |
+| Tipo de programación            | Imperativa                           | Imperativa con asincronía controlada      | Reactiva, basada en flujos (`Mono`, `Flux`) |
+| Requiere pool de hilos          | No (crea uno por tarea)              | Sí (gestión con `ThreadPoolTaskExecutor`) | Sí, pero usa pocos hilos (event-loop)       |
+| Reutilización de hilos          | ❌ No                                 | ✅ Sí                                      | ✅ Sí (modelo no bloqueante)                 |
+| Escalabilidad                   | ❌ Baja                               | ⚠️ Moderada                               | ✅ Muy alta                                  |
+| Uso de memoria                  | ❌ Alto (muchos hilos = mucha RAM)    | ⚠️ Moderado                               | ✅ Eficiente                                 |
+| Manejo de errores               | Manual                               | Spring lo gestiona con `AsyncHandler`     | Reactor lo gestiona (`onError...`)          |
+| Integración con contexto Spring | ❌ Difícil                            | ✅ Total                                   | ✅ Total                                     |
+| Bloqueo de hilos                | ✅ Sí (por ejemplo, `Thread.sleep()`) | ✅ Sí (si haces blocking I/O)              | ❌ No (todo debe ser no bloqueante)          |
+| Curva de aprendizaje            | Fácil                                | Fácil                                     | Más compleja                                |
+| Mejor para                      | Tareas sueltas, pruebas rápidas      | Tareas paralelas simples                  | Backends reactivos, sistemas escalables     |
+
+### Tabla de usuarios concurrentes por modelo de hilos
+| Modelo de concurrencia                 | Tipo de hilos                    | Soporta tareas bloqueantes     | Escalabilidad aproximada                     | Usuarios concurrentes (estimado) |
+| -------------------------------------- | -------------------------------- | ------------------------------ | -------------------------------------------- | -------------------------------- |
+| `Thread` (Java puro)                   | Un hilo por solicitud            | ✅ Sí                           | ❌ Muy baja (crea muchos hilos)               | 🔻 \~100–200                     |
+| `@Async` con `ThreadPoolTaskExecutor`  | Hilos gestionados (pool)         | ✅ Sí                           | ⚠️ Media (pool limitado)                     | 🟡 \~300–800                     |
+| Spring MVC (Servlet)                   | Un hilo por solicitud            | ✅ Sí                           | ⚠️ Media (depende del pool del servidor web) | 🟡 \~500–1000                    |
+| Spring WebFlux                         | Event-loop (reactor, no bloquea) | ❌ No (requiere stack reactivo) | ✅ Alta (usa menos hilos)                     | 🟢 \~3000–10000+                 |
+| WebFlux + stack completamente reactivo | Event-loop 100% no bloqueante    | ❌ No                           | ✅✅ Muy alta                                  | 🟢🟢 \~10000–100000+             |
+
+
+# <div id='id7'/>
+## 7. Hilos Virtuales
+
+### ¿Qué son los hilos virtuales?
+
+Los hilos virtuales son una nueva característica introducida oficialmente en Java 21 (estable) que permite crear miles o millones de hilos ligeros gestionados por la JVM (y no directamente por el sistema operativo).
+
+- Son mapeados sobre un pequeño número de hilos del sistema operativo.
+- La JVM los suspende y reanuda automáticamente cuando hay operaciones bloqueantes (como IO).
+- No necesitas cambiar tu código a programación reactiva o usar @Async, ni gestionar pools.
+
+### ¿Qué ventajas ofrecen?
+| Ventaja                          | Descripción                                                 |
+| -------------------------------- | ----------------------------------------------------------- |
+| ✅ Creados casi instantáneamente  | No hay límite práctico de miles de hilos.                   |
+| ✅ Consumen poca memoria          | Alrededor de **kilobytes**, no megabytes como los `Thread`. |
+| ✅ Código sigue siendo bloqueante | Puedes seguir usando JDBC, `HttpClient`, etc.               |
+| ✅ Más fáciles que WebFlux        | No necesitas aprender programación reactiva.                |
+
+# <div id='id8'/>
+## 8. Hilos vs Infraestructura
+
+### Supuesto base de infraestructura
+| Recurso                        | Valor aproximado                           |
+| ------------------------------ | ------------------------------------------ |
+| CPU                            | 2 vCPU                                     |
+| RAM                            | 4 GB                                       |
+| SO                             | Linux Ubuntu 22.04                         |
+| Límite típico de hilos nativos | \~500–1000 (depende del SO y uso de stack) |
+
+### Tabla de gasto estimado por modelo de hilos
+| Modelo                    | RAM por hilo aprox. | Uso de CPU por hilo                      | Límite práctico de hilos | Observaciones clave                                                                |
+| ------------------------- | ------------------- | ---------------------------------------- | ------------------------ | ---------------------------------------------------------------------------------- |
+| `Thread` (Java puro)      | 🟥 1 MB             | 🟨 Alta si hay trabajo activo            | 🔻 200–500               | Cada hilo es un recurso del SO; stack fijo grande.                                 |
+| `@Async` con pool         | 🟨 \~512 KB         | 🟨 Similar al anterior                   | 🟡 300–800               | Menor RAM si se gestiona bien el pool, pero sigue usando hilos nativos.            |
+| Spring MVC (servlet)      | 🟨 \~512 KB         | 🟨 Alta si bloquea (I/O)                 | 🟡 500–1000              | Un hilo por request, igual que `@Async` pero controlado por el contenedor servlet. |
+| WebFlux (reactivo)        | 🟢 10–100 KB        | 🟩 Muy baja por solicitud                | 🟢 3000–10000+           | Usa pocos hilos para miles de conexiones (event loop).                             |
+| Hilos virtuales (Java 21) | 🟢 10–50 KB         | 🟨 Baja si hay bloqueo (gestión interna) | 🟢🟢 100000+             | JVM suspende/reanuda el hilo virtual al detectar bloqueo. Muy eficientes.          |
+
+### Conclusión final
+| ¿Qué tan eficiente es?    | RAM         | CPU         | Escalable para muchas tareas | Comentario clave                                               |
+| ------------------------- | ----------- | ----------- | ---------------------------- | -------------------------------------------------------------- |
+| `Thread` (Java puro)      | ❌ Muy mala  | ❌ Alta      | ❌ No                         | No recomendable salvo para pruebas simples.                    |
+| `@Async`                  | ⚠️ Moderada | ⚠️ Alta     | ⚠️ Limitado                  | Mejor que Thread, pero sigue limitado por recursos.            |
+| Spring MVC (servlet)      | ⚠️ Moderada | ⚠️ Alta     | ⚠️ Regular                   | Bien para apps normales, pero escala limitado.                 |
+| WebFlux                   | ✅ Muy buena | ✅ Muy baja  | ✅✅ Excelente                 | Ideal para I/O intensivo, APIs REST, servicios web escalables. |
+| Hilos virtuales (Java 21) | ✅ Muy buena | ⚠️ Variable | ✅✅ Excelente                 | Ideal para lógica imperativa y escalar sin reactividad.        |
+
+# <div id='id9'/>
+## 9. Cuando usar o no usar webflux
+
+### ✅ ¿Cuándo SÍ usar WebFlux?
+| Escenario                                                               | Justificación                                          |
+| ----------------------------------------------------------------------- | ------------------------------------------------------ |
+| ✅ Alta concurrencia (miles de usuarios concurrentes)                    | WebFlux escala mejor con menos recursos.               |
+| ✅ Todo tu stack es **no bloqueante** (ej. WebClient, R2DBC, Mongo, etc) | WebFlux brilla cuando nada bloquea los hilos.          |
+| ✅ APIs reactivas o comunicación entre servicios asincrónica             | Puedes usar `Mono`/`Flux` de extremo a extremo.        |
+| ✅ Necesitas streaming (SSE, WebSocket, backpressure, etc.)              | WebFlux lo gestiona nativamente.                       |
+| ✅ Infraestructura con recursos limitados (RAM/CPU)                      | WebFlux consume menos memoria que MVC bajo alta carga. |
+
+
+### 🚫 ¿Cuándo NO usar WebFlux?
+| Escenario                                                            | Por qué evitarlo                                            |
+| -------------------------------------------------------------------- | ----------------------------------------------------------- |
+| ❌ Usas muchas librerías **bloqueantes** (JDBC, `RestTemplate`, etc.) | Bloqueas hilos del event-loop, pierdes ventajas del modelo. |
+| ❌ Proyecto pequeño, pocos usuarios, y no hay problema de rendimiento | Spring MVC es más simple, fácil de mantener.                |
+| ❌ Tu equipo no tiene experiencia con programación reactiva           | WebFlux puede introducir bugs difíciles de rastrear.        |
+| ❌ Integración con herramientas que esperan `ServletRequest/Response` | WebFlux no usa servlet container clásico.                   |
+| ❌ Tienes que mantener código legado en MVC                           | Mezclar WebFlux con MVC es muy complejo y no recomendado.   |
+
+# <div id='id10'/>
+## 10. Webflux: Métodos mas usados en Mono
 
 1. **map** – Transformación síncrona
     ```
@@ -361,8 +624,8 @@ Ideal para aplicaciones con altas cargas concurrentes y uso intensivo de IO.
     mono.defaultIfEmpty("Nuevo valor");
     ```
 
-# <div id='id6'/>
-## 6. Métodos mas usados en Flux
+# <div id='id11'/>
+## 11. Webflux: Métodos mas usados en Flux
 
 1. **map** – Transformación síncrona
     ```
@@ -492,8 +755,8 @@ Ideal para aplicaciones con altas cargas concurrentes y uso intensivo de IO.
     ```
     - ¿Qué hace? Se usa para realizar limpieza de recursos, logs de auditoría o simplemente para entender qué datos no fueron procesados.
 
-# <div id='id7'/>
-## 7. Ejemplo combinando funciones con un flujo Mono
+# <div id='id12'/>
+## 12. Webflux: Ejemplo combinando funciones con un flujo Mono
     ```
     public Mono<ServerResponse> handleRequest(ServerRequest request) {
         return request.bodyToMono(String.class) // 1. Recibe el nombre del usuario
@@ -537,7 +800,6 @@ Ideal para aplicaciones con altas cargas concurrentes y uso intensivo de IO.
             );
     }
     ```
-
 ---
 
 🔗 👉 [📘 Ver instructivo paso a paso JAVA-REACTIVO – STACK TECNOLÓGICO](../PRINCIPAL.md)
