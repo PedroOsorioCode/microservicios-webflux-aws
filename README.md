@@ -104,7 +104,7 @@ Implementación de endpoints reactivos para la gestión de recursos.
 
   Creación de templates y accesos rápidos a generación de código
 
-  🔗 👉 [📘 Creación de templates y accesos rápidos a generación de código](./doc/webclient-wiremock-apirest.md)
+  🔗 👉 [📘 Creación de templates y accesos rápidos a generación de código](./doc/file-and-template-intellij.md)
 
 ---
 
