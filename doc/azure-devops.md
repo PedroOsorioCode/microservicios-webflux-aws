@@ -7,7 +7,7 @@
 ### Requisitos
 
 - ⚠️ Tener una licencia gratuita de Azure Devops
-- ⚠️ Crear un repositorio proyecto JAVA
+- ⚠️ Crear un repositorio con un proyecto JAVA
 
 ### Sitio web
 [Azure devops](https://dev.azure.com/)
@@ -108,11 +108,178 @@ SonarQube Cloud Free Tier: Ideal para desarrolladores o equipos pequeños que qu
 
 ![](../img/modules/azure/1_sonar_qube_created_projects.png)
 
-- ir al link "Configure Analysis
+- ir al link "Configure Analysis"
 - Seguir los pasos que se indican
 - Volver al azure devops
 - Ingresar al proyecto de la organización
 - Ir a la opción: Projects settings > service connections
+- Crear una nueva conexión
+- Elegir "SonarQube Cloud"
+- Ingresar el token generado en Perfil > My Account > security 
+- Dar al botón "Verify", aca me salió el siguiente error:
+
+![](../img/modules/azure/1_sonar_qube_service_connections_error.png)
+
+- Luego de dar muchas vueltas realice los siguientes pasos
+    - Inicie sesión por una página de incognito
+    - Ir a la opción: Projects settings > service connections
+    - Elegir "SonarQube cloud"
+    - Ingresar el token
+    - Darle en "verify", volvió a fallar
+    - En la opción Region (opcional) elegí la otra opción
+    - Presioné el boton "verify", falló por otra causa
+    - Volví a elegir: "Global..."
+    - Presioné el boton "verify", Funcionó la conexión
+    - Ingresar nombre: SonarCloud, esto es importante porque va en el pipeline.yaml
+    - Marcar la casilla "Grant access permission to all pipelines"
+    - Guardar la conexión
+
+- Ubicarse en la raiz del proyecto y crear el archivo azure-pipelines.yaml con la siguiente información:
+```
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  JAVA_HOME: '/usr/lib/jvm/java-21-openjdk'
+  GRADLE_USER_HOME: $(Pipeline.Workspace)/.gradle
+  SONAR_USER_HOME: $(Pipeline.Workspace)/.sonar
+  projectKey: 'VerticalShop_Vetrik_community_service'
+  organization: 'verticalshop'
+
+steps:
+  - task: SonarCloudPrepare@1
+    inputs:
+      SonarCloud: 'SonarCloud'
+      organization: '$(organization)'
+      scannerMode: 'CLI'
+      configMode: 'manual'
+      cliProjectKey: '$(projectKey)'
+      cliProjectName: '$(projectKey)'
+      cliSources: '.'
+
+  - task: Gradle@3
+    inputs:
+      gradleWrapperFile: 'gradlew'
+      tasks: 'clean build sonarqube'
+      options: '-Dsonar.gradle.skipCompile=true'
+      publishJUnitResults: true
+      testResultsFiles: '**/build/test-results/test/TEST-*.xml'
+      javaHomeOption: 'JDKVersion'
+      jdkVersionOption: '1.21'
+
+  - task: SonarCloudAnalyze@1
+
+  - task: SonarCloudPublish@1
+    inputs:
+      pollingTimeoutSec: '300'
+
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: '**/build/test-results/test/TEST-*.xml'
+      failTaskOnFailedTests: true
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathToPublish: 'build/libs'
+      artifactName: 'drop'
+
+```
+
+- ⚠️ Tener cuidado con la seccion de variables, en este el nombre del proyecto corresponde al creado en azure y generado por SonarCloud
+```
+variables:
+  JAVA_HOME: '/usr/lib/jvm/java-21-openjdk'
+  GRADLE_USER_HOME: $(Pipeline.Workspace)/.gradle
+  SONAR_USER_HOME: $(Pipeline.Workspace)/.sonar
+  projectKey: 'VerticalShop_Vetrik_community_service'
+  organization: 'verticalshop'
+```
+
+- ⚠️ Previo de aplicar el PR a la rama main se ejecuta este pipeline
+```
+trigger:
+  branches:
+    include:
+      - main
+```
+
+- ⚠️ Se agrega a la raiz del proyecto ya que Azure toma esta ruta por defecto para buscar el archivo pipeline
+
+- Preparamos el proyecto para subir los cambios
+- Realizamos el pull request
+- Aprobamos el pull request
+
+![](../img/modules/azure/2_realizar_pull_request.png)
+
+![](../img/modules/azure/2_aplicar_pull_request.png)
+
+- Si no se crea el pipeline de build automaticamente, se puede hacer realizando los siguientes pasos:
+
+- Cómo crear un pipeline manual en Azure DevOps
+
+    - Entra a tu organización/proyecto:
+    https://dev.azure.com/tu-proyecto/
+
+    - En el menú lateral, ve a: Pipelines > Pipelines
+
+    - Haz clic en el botón "New Pipeline"
+
+    - Paso 1: Select the source
+        - Code: selecciona Azure Repos Git
+        - Repository: elige tu repositorio
+
+    - Paso 2: Configure your pipeline
+        - Selecciona la opción YAML
+        - En el selector de archivo YAML, asegúrate de que esté bien:
+        - Branch: main
+        - Path: azure-pipelines.yml
+
+    - Paso 3: Run or Save
+        - Haz clic en "Run" para ejecutarlo inmediatamente o puedes guardar y programar su ejecución
+
+    - Es probable que el pipeline falle con el siguiente error: ##[error]No hosted parallelism has been purchased or granted. To request a free parallelism grant, please fill out the following form https://aka.ms/azpipelines-parallelism-request, esto es porque para versiones gratuistas se debe pedir a microsoft este permiso, pero para proyectos privados, uno mismo debe crear la máquina de ejecución del pipeline
+
+# <div id='id4'/>
+# 4. Crear máquina en Podman para ejecución pipeline
+
+- Paso a paso para crear el agente con Podman
+    1. ✅ Genera un PAT (Personal Access Token)
+    - Ve a: https://dev.azure.com
+    - Haz clic en tu user settings > Personal access token
+
+    ![](../img/modules/azure/3_personal_access_token.png)
+    
+    - En Personal Access Tokens, crea uno con:
+    - Scope: Agent Pools (Read & manage)
+    - Agrega una vigencia de un año
+    - Agrega un nombre al token
+    - Guarda el token (lo necesitarás como variable de entorno)
+
+    2. Abrir gitbash y colocar el siguiente código luego de reemplazar las variables
+    ```
+    export AZP_URL="https://dev.azure.com/MY_ORGANIZATION/MY_PROJECT"
+    export AZP_TOKEN="TOKEN_PERSONAL_ACCESS_TOKEN"
+    export AZP_AGENT_NAME="podman-agent"
+    export AZP_POOL="Default"
+
+    # Ejecuta el agente
+    podman run --rm \
+    -e AZP_URL \
+    -e AZP_TOKEN \
+    -e AZP_AGENT_NAME \
+    -e AZP_POOL \
+    --name azure-agent \
+    mcr.microsoft.com/azure-pipelines/vsts-agent:latest
+    ```
+
+    
+    
 
 ## Relacionar AzureDevops con SonarCloud
 

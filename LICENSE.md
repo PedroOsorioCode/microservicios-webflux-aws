@@ -23,7 +23,7 @@ Autor: **Pedro Luis Osorio Pavas**
 GitHub: [https://github.com/PedroOsorioCode](https://github.com/PedroOsorioCode)  
 LinkedIn: [https://www.linkedin.com/in/pedro-luis-osorio-pavas-68b3a7106](https://www.linkedin.com/in/pedro-luis-osorio-pavas-68b3a7106)  
 Fecha Inicio: "2025-06-01"  
-Fecha Ultima Actualización: "2025-07-24"
+Fecha Ultima Actualización: "2025-08-03"
 
 ---
 ## ¿Te ha sido útil este contenido?

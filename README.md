@@ -100,6 +100,12 @@ Implementación de endpoints reactivos para la gestión de recursos.
 
   Respuestas de negocio estandarizadas, con códigos funcionales y descripciones comprensibles para el consumidor.
 
+- **Plantillas en Intellij para codificación base**  
+
+  Creación de templates y accesos rápidos a generación de código
+
+  🔗 👉 [📘 Creación de templates y accesos rápidos a generación de código](./doc/webclient-wiremock-apirest.md)
+
 ---
 
 🔗 👉 [📘 Ver instructivo paso a paso JAVA-REACTIVO – STACK TECNOLÓGICO](PRINCIPAL.md)
