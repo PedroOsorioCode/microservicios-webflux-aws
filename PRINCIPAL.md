@@ -8,9 +8,9 @@
 
 - ⚠️ Instalar Java 17 o superior
 - ⚠️ Gradle 8.8 o posterior
-- ⚠️ Instalar Docker o Podman
-- ⚠️ Instalar Postman
-- ⚠️ Instalar Intellij
+- ⚠️ Instalar Docker o Podman: para simular servicios aws y otros
+- ⚠️ Instalar Postman: para consumir servicios REST
+- ⚠️ Instalar Intellij: IDE de desarrollo
 - ⚠️ Instalar Plugin lombok en intellij
 
 ### Indice
@@ -51,6 +51,8 @@
 
 # <div id='id1'/>
 # 1. Crear y configurar el proyecto:
+
+- ⚠️ Por favor lea detenidamente cada instrucción, es fácil perderse si no se lee cuidadosamente ya que pueden crear clases donde no corresponde o no leer bien la instrución, en algunas dice **crear** la clase y otras **modificar** la clase
 
 1. Datos del proyecto
     - Visitar el sitio [Spring initializr](https://start.spring.io/)
@@ -189,7 +191,7 @@
             options.incremental = false
         }
         ```
-        ⚠️ Actualizar dependencias
+        ⚠️ Actualizar dependencias: se decargan todas las dependencias que se usarán en esta guía.
 
     - Ubicarse en src > main > resources y crear el archivo application.yaml y de igual forma application-local.yaml con lo siguiente
 ```
@@ -275,7 +277,7 @@ listen:
       saveCacheCountCountry: "${EVENT_NAME_COUNT_IN_CACHE_COUNTRY:business.myapp.save-cache-count.country}"
       saveWorldRegion: "${EVENT_NAME_SAVE_ALL_WORLD_REGION:business.myapp.save-all.world-region}"
 ```
-⚠️ Algunas configuraciones serán de importancia en desarrollos mas adelante
+⚠️ Algunas configuraciones serán de importancia en desarrollos mas adelante y se crea de esta forma ${variable:valor} para que al momento de un despliegue a través de pipeline, estos valores puedan ser tomados desde la configuración del pipeline
 
 - Abrir el archivo MicroserviceAwsApplication.java y click derecho y ejecutar la aplicación
     
@@ -310,8 +312,9 @@ listen:
     rootLogger.appenderRefs = stdout
     rootLogger.appenderRef.stdout.ref = STDOUT
     ```
+    Esta estructura corresponde al modo de visualización de los logs en la consola del IDE, en la que estos se ven en formato JSON para una mejor visualización.
 
-- 💡 **Tip**, si en algun momento requieres mover una clase a un paquete, lo haces haciendo click derecho sobre la clase, elegir opción refactor, luego la opción move class y escribes el paquete o en los "..." puedes elegir en forma de arbol el paquete donde deseas ubicar la clase
+- 💡 **Tip importante**, si en algun momento requieres mover una clase a un paquete, lo haces haciendo click derecho sobre la clase, elegir opción refactor, luego la opción move class y escribes el paquete o en los "..." puedes elegir en forma de arbol el paquete donde deseas ubicar la clase
 
 - Ubicarse en el paquete co.com.microservice.aws.application.helpers.logs y crear la clase TransactionLog.java
     ```
@@ -382,7 +385,8 @@ listen:
             private transient Object body;
         }
     }
-    ```        
+    ```
+    Esta clase es la usada para imprimir en los logs los datos de entrada que llamamos request o los datos de respuesta que llamamos response
 
 - Ubicarse en el paquete co.com.microservice.aws.application.helpers.logs y crear la clase LoggerBuilder.java
 
@@ -865,6 +869,7 @@ listen:
         private transient List<Object> items;
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.model.rs y crear la clase TransactionResponse.java
     ```
     package co.com.microservice.aws.domain.model.rs;
@@ -889,6 +894,7 @@ listen:
         private List<Object> response;
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.application.helpers.commons y crear la clase HeadersUtil.java
     ```
     package co.com.microservice.aws.application.helpers.commons;
@@ -917,6 +923,7 @@ listen:
         }
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.application.helpers.commons y crear la clase ContextUtil.java
     ```
     package co.com.microservice.aws.application.helpers.commons;
@@ -949,6 +956,7 @@ listen:
         }
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in y crear la clase ListAllUseCase.java
     ```
     package co.com.microservice.aws.domain.usecase.in;
@@ -961,6 +969,7 @@ listen:
         Mono<TransactionResponse> listAll(TransactionRequest request);
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.usecase.in y crear la clase SaveUseCase.java
     ```
     package co.com.microservice.aws.domain.usecase.in;
@@ -972,6 +981,7 @@ listen:
         Mono<String> save(TransactionRequest request);
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.usecase.out y crear la clase ListAllPort.java
     ```
     package co.com.microservice.aws.domain.usecase.out;
@@ -983,6 +993,7 @@ listen:
         Flux<T> listAll(Context context);
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.usecase.out y crear la clase SavePort.java
     ```
     package co.com.microservice.aws.domain.usecase.out;
@@ -994,6 +1005,7 @@ listen:
         Mono<T> save(T t, Context context);
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.model.commons.util y crear la clase ResponseMessageConstant.java
     ```
     package co.com.microservice.aws.domain.model.commons.util;
@@ -1009,6 +1021,7 @@ listen:
         public static final String MSG_DELETED_SUCCESS = "Deleted successfull!";
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.domain.model.commons.util y crear la clase LogMessage.java
     ```
     package co.com.microservice.aws.domain.model.commons.util;
@@ -1026,6 +1039,7 @@ listen:
         public static final String METHOD_DELETE = "Delete one world region";
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.application.helpers.commons y crear la clase UseCase.java
     ```
     package co.com.microservice.aws.application.helpers.commons;
@@ -1044,6 +1058,7 @@ listen:
         String value() default "";
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.application.usecase y crear la clase CountryUseCase.java
     ```
     package co.com.microservice.aws.application.usecase;
@@ -1132,6 +1147,7 @@ listen:
         }
     }
     ```
+
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.config y crear la clase RouterProperties.java
     ```
     package co.com.microservice.aws.infrastructure.input.rest.api.config;
@@ -1153,6 +1169,7 @@ listen:
         private String delete;
     }
     ```
+    
 - Ubicarse en el paquete co.com.microservice.aws.infrastructure.input.rest.api.handler y crear la clase CountryHandler.java
     ```
     package co.com.microservice.aws.infrastructure.input.rest.api.handler;
@@ -1181,24 +1198,15 @@ listen:
         private final LoggerBuilder logger;
         private final ListAllUseCase useCaseLister;
         private final SaveUseCase useCaseSaver;
-        private final UpdateUseCase useCaseUpdater;
-        private final DeleteUseCase useCaseDeleter;
-        private final FindByShortCodeUseCase useCaseFinder;
 
         public CountryHandler(
                 LoggerBuilder logger,
                 @Qualifier("countryUseCase") ListAllUseCase useCaseLister,
-                @Qualifier("countryUseCase") SaveUseCase useCaseSaver,
-                @Qualifier("countryUseCase") UpdateUseCase useCaseUpdater,
-                @Qualifier("countryUseCase") DeleteUseCase useCaseDeleter,
-                @Qualifier("countryUseCase") FindByShortCodeUseCase useCaseFinder
+                @Qualifier("countryUseCase") SaveUseCase useCaseSaver
         ) {
             this.logger = logger;
             this.useCaseLister = useCaseLister;
             this.useCaseSaver = useCaseSaver;
-            this.useCaseUpdater = useCaseUpdater;
-            this.useCaseDeleter = useCaseDeleter;
-            this.useCaseFinder = useCaseFinder;
         }
 
         public Mono<ServerResponse> listAll(ServerRequest serverRequest) {
@@ -1218,46 +1226,12 @@ listen:
                     .flatMap(msg -> ServerResponse.ok().bodyValue(msg));
         }
 
-        public Mono<ServerResponse> findOne(ServerRequest serverRequest) {
-            var request = this.buildRequestWithParamsFind(serverRequest, METHOD_FINDONE);
-            return useCaseFinder.findByShortCode(request)
-                    .doOnError(this::printFailed)
-                    .flatMap(response -> ServerResponse.ok().bodyValue(response));
-        }
-
-        public Mono<ServerResponse> update(ServerRequest serverRequest) {
-            var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
-            var context = ContextUtil.buildContext(headers);
-            printOnProcess(context, METHOD_UPDATE);
-
-            return this.getRequest(serverRequest)
-                    .flatMap(useCaseUpdater::update)
-                    .flatMap(msg -> ServerResponse.ok().bodyValue(msg));
-        }
-
-        public Mono<ServerResponse> delete(ServerRequest serverRequest) {
-            var request = this.buildRequestWithParamsDelete(serverRequest, METHOD_DELETE);
-            return useCaseDeleter.delete(request)
-                    .doOnError(this::printFailed)
-                    .flatMap(response -> ServerResponse.ok().bodyValue(response));
-        }
-
         private Mono<TransactionRequest> getRequest(ServerRequest serverRequest) {
             var headers = serverRequest.headers().asHttpHeaders().toSingleValueMap();
             var context = ContextUtil.buildContext(headers);
             return serverRequest.bodyToMono(Country.class)
                     .flatMap(country -> Mono.just(TransactionRequest.builder()
                             .context(context).item(country).build()));
-        }
-
-        private TransactionRequest buildRequestWithParamsFind(ServerRequest serverRequest, String method){
-            var shortCode = serverRequest.pathVariable("shortCode");
-            return this.buildRequestWithParams(serverRequest, method, Map.of("shortCode", shortCode));
-        }
-
-        private TransactionRequest buildRequestWithParamsDelete(ServerRequest serverRequest, String method){
-            var shortCode = serverRequest.pathVariable("id");
-            return this.buildRequestWithParams(serverRequest, method, Map.of("id", shortCode));
         }
 
         private TransactionRequest buildRequestWithParams(ServerRequest serverRequest,
